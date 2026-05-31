@@ -130,6 +130,8 @@ const PrintableBill = React.forwardRef(
             <span>
               {order.payment_method === "vnpay"
                 ? "VNPay"
+                : order.payment_method === "momo"
+                ? "MoMo"
                 : order.payment_method === "zalopay"
                 ? "ZaloPay"
                 : "COD"}

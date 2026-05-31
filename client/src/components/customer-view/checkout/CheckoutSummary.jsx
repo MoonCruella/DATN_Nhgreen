@@ -7,6 +7,7 @@ import { useCartContext } from "@/context/CartContext";
 import { useAddressContext } from "@/context/AddressContext";
 import vnpayApi from "@/api/vnpayApi";
 import zalopayApi from "@/api/zalopayApi";
+import momoApi from "@/api/momoApi";
 import flashsaleApi from "@/api/flashsaleApi";
 import VoucherModal from "../voucher/VoucherModal";
 import voucherApi from "@/api/voucherApi";
@@ -228,6 +229,23 @@ const CheckoutSummary = ({
         }
         return;
       }
+      if (method === "momo") {
+        const { success, data, message } = await momoApi.createPayment(
+          accessToken,
+          orderData.orderId,
+          totalAmount,
+          "Thanh toan don hang qua MoMo"
+        );
+        if (success) {
+          window.location.href = data.paymentUrl;
+        } else {
+          toast.error("Tạo thanh toán MoMo thất bại: " + message);
+          setLoading(false);
+          localStorage.removeItem("pendingOrderData");
+          localStorage.removeItem("pendingCartItems");
+        }
+        return;
+      }
       if (method === "zalopay") {
         const { success, data, message } = await zalopayApi.createPayment(
           accessToken,
@@ -262,16 +280,33 @@ const CheckoutSummary = ({
     const query = new URLSearchParams(location.search);
     const success = query.get("success");
     const orderId = query.get("orderId");
+    const momoResultCode = query.get("resultCode");
     const appTransId =
       query.get("apptransid") || localStorage.getItem("zaloAppTransId");
     const pendingOrderData = JSON.parse(
       localStorage.getItem("pendingOrderData") || "null"
     );
 
-    // VNPay return flow
-    if ((success === "false" || success === "true") && orderId) {
-      if (success === "false") {
-        toast.error("Thanh toán VNPay thất bại hoặc bị hủy!");
+    const paymentMethodFromStorage = pendingOrderData?.payment_method;
+
+    const resolvedSuccess =
+      success ??
+      (paymentMethodFromStorage === "momo" && momoResultCode
+        ? momoResultCode === "0"
+          ? "true"
+          : "false"
+        : null);
+
+    // Gateway return flow (VNPay / MoMo)
+    if (
+      (resolvedSuccess === "false" || resolvedSuccess === "true") &&
+      orderId &&
+      ["vnpay", "momo"].includes(paymentMethodFromStorage)
+    ) {
+      if (resolvedSuccess === "false") {
+        const failedLabel =
+          paymentMethodFromStorage === "momo" ? "MoMo" : "VNPay";
+        toast.error(`Thanh toán ${failedLabel} thất bại hoặc bị hủy!`);
         clearTempPaymentData();
         navigate("/checkout");
         return;
@@ -306,7 +341,9 @@ const CheckoutSummary = ({
               pendingOrderData
             );
             if (res.success) {
-              toast.success("Thanh toán ZaloPay thành công!");
+              const successLabel =
+                paymentMethodFromStorage === "momo" ? "MoMo" : "VNPay";
+              toast.success(`Thanh toán ${successLabel} thành công!`);
               await updateFlashSaleSoldCounts();
               await removeCheckedOutItems();
               clearTempPaymentData();
@@ -479,7 +516,11 @@ const CheckoutSummary = ({
 
       // Chuẩn bị orderData xong
 
-      if (paymentMethod === "vnpay" || paymentMethod === "zalopay") {
+      if (
+        paymentMethod === "vnpay" ||
+        paymentMethod === "momo" ||
+        paymentMethod === "zalopay"
+      ) {
         await createGatewayPayment(paymentMethod, orderData, total);
       } else {
         // COD -> create order directly

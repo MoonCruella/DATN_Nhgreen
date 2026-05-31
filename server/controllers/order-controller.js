@@ -1225,10 +1225,10 @@ export const createOrder = async (req, res) => {
       discount_value: discount_value || 0,
       coin_discount: coinDiscount,
       payment_method,
-      payment_status: ["vnpay", "zalopay"].includes(payment_method)
+      payment_status: ["vnpay", "momo", "zalopay"].includes(payment_method)
         ? "paid"
         : "pending",
-      payment_date: ["vnpay", "zalopay"].includes(payment_method)
+      payment_date: ["vnpay", "momo", "zalopay"].includes(payment_method)
         ? now
         : undefined,
       shipping_info: isDineIn ? undefined : shipping_info,
@@ -1243,7 +1243,7 @@ export const createOrder = async (req, res) => {
             ? "Đơn ăn tại quán được xác nhận"
             : "Đơn hàng được tạo",
         },
-        ...(["vnpay", "zalopay"].includes(payment_method)
+        ...(["vnpay", "momo", "zalopay"].includes(payment_method)
           ? [
               {
                 status: "payment",
@@ -1251,6 +1251,8 @@ export const createOrder = async (req, res) => {
                 note:
                   payment_method === "vnpay"
                     ? "Thanh toán VNPay thành công"
+                    : payment_method === "momo"
+                    ? "Thanh toán MoMo thành công"
                     : "Thanh toán ZaloPay thành công",
               },
             ]

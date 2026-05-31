@@ -23,6 +23,7 @@ import dashboardRouter from "./routes/dashboard-routes.js";
 import recommendationRouter from "./routes/recommendation-routes.js";
 import storeTableRouter from "./routes/store-table-routes.js";
 import dineInSessionRouter from "./routes/dinein-session-routes.js";
+import momoRouter from "./routes/momo-routes.js";
 const app = express();
 app.use(
   cors({
@@ -91,6 +92,9 @@ app.use("/api/vnpay", vnpayRouter);
 
 // ZaloPay
 app.use("/api/zalopay", zalopayRouter);
+
+// MoMo
+app.use("/api/momo", momoRouter);
 
 // Geocoding (Proxy cho Nominatim OSM)
 app.use("/api/geocoding", geocodingRouter);
