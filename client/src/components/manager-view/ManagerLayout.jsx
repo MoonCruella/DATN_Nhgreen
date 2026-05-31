@@ -5,6 +5,7 @@ import {
   IconPackage,
   IconChefHat,
   IconStar,
+  IconTable,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
@@ -25,9 +26,19 @@ const ManagerLayout = () => {
       icon: IconBellRinging,
     },
     {
-      link: "/manager/orders",
-      label: "Quản lý đơn hàng",
+      link: "/manager/orders/online",
+      label: "Đơn hàng online",
       icon: IconPackage,
+    },
+    {
+      link: "/manager/orders/dine-in",
+      label: "Đơn hàng tại quán",
+      icon: IconReceipt2,
+    },
+    {
+      link: "/manager/tables",
+      label: "Quản lý bàn",
+      icon: IconTable,
     },
     {
       link: "/manager/dishes",

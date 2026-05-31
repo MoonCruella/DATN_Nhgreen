@@ -265,6 +265,28 @@ const orderApi = {
     }
   },
 
+  completeDineInOrder: async (accessToken, orderId) => {
+    const response = await axiosPrivate.put(
+      `/api/orders/${orderId}/dine-in/complete`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || "Thanh toán đơn hàng thành công",
+      };
+    } else {
+      throw new Error(response.data.message || "Không thể thanh toán đơn hàng");
+    }
+  },
+
   // Manager: Cập nhật trạng thái đơn hàng
   updateOrderStatus: async (accessToken, orderId, status, note = "") => {
     const response = await axiosPrivate.put(

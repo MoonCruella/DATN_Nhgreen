@@ -21,6 +21,8 @@ import notificationRouter from "./routes/notification-routes.js";
 import supportChatRouter from "./routes/supportChat-route.js";
 import dashboardRouter from "./routes/dashboard-routes.js";
 import recommendationRouter from "./routes/recommendation-routes.js";
+import storeTableRouter from "./routes/store-table-routes.js";
+import dineInSessionRouter from "./routes/dinein-session-routes.js";
 const app = express();
 app.use(
   cors({
@@ -74,6 +76,12 @@ app.use("/api/addresses", addressRouter);
 
 // Orders
 app.use("/api/orders", orderRouter);
+
+// Store Tables
+app.use("/api/store-tables", storeTableRouter);
+
+// Dine-in QR
+app.use("/api/dine-in", dineInSessionRouter);
 
 // Users
 app.use("/api/users", userRoutes);

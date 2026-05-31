@@ -5,7 +5,46 @@ const orderSchema = new mongoose.Schema(
     user_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
+    },
+    order_channel: {
+      type: String,
+      enum: ["delivery", "dine_in", "dine_in_qr"],
+      default: "delivery",
+      index: true,
+    },
+    order_type: {
+      type: String,
+      enum: ["online", "dine_in"],
+      default: "online",
+      index: true,
+    },
+    table_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "StoreTable",
+      default: null,
+      index: true,
+    },
+    table_info: {
+      name: String,
+      code: String,
+    },
+    guest_info: {
+      name: String,
+      phone: String,
+    },
+    dine_in_session_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DineInSession",
+      default: null,
+      index: true,
+    },
+    payment_gateway_ref: {
+      gateway: String,
+      transaction_id: String,
+      app_trans_id: String,
+      response_code: String,
+      raw: mongoose.Schema.Types.Mixed,
     },
     // Branch (store both reference and snapshot at order time)
     branch_id: {
@@ -241,6 +280,9 @@ const orderSchema = new mongoose.Schema(
 // Indexes
 orderSchema.index({ user_id: 1, status: 1 });
 orderSchema.index({ branch_id: 1, status: 1 });
+orderSchema.index({ branch_id: 1, order_type: 1, status: 1 });
+orderSchema.index({ branch_id: 1, order_channel: 1, status: 1 });
+orderSchema.index({ table_id: 1, status: 1 });
 orderSchema.index({ order_number: 1 });
 orderSchema.index({ created_at: -1 });
 orderSchema.index({ status: 1, created_at: 1 });

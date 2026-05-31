@@ -115,6 +115,7 @@ const MaManageOrder = () => {
       const response = await orderApi.getOrdersByBranch(accessToken, branchId, {
         date: dateFilter,
         search: searchQuery,
+        order_type: "online",
         // No page/limit to get all orders for counting
         limit: 10000, // Set high limit to get all
       });
@@ -286,6 +287,7 @@ const MaManageOrder = () => {
       const response = await orderApi.getOrdersByBranch(accessToken, branchId, {
         date: dateFilter,
         search: searchQuery,
+        order_type: "online",
         page: pageNum,
         limit: limit,
       });

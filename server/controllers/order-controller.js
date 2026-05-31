@@ -4,6 +4,8 @@ import Dish from "../models/dish-model.js";
 import User from "../models/user-model.js";
 import Voucher from "../models/voucher-model.js";
 import FlashSale from "../models/flashsale-model.js";
+import StoreTable from "../models/store-table-model.js";
+import DineInSession from "../models/dinein-session-model.js";
 import mongoose from "mongoose";
 import response from "../helpers/response.js";
 import * as notificationService from "../services/notification-service.js";
@@ -64,7 +66,7 @@ const checkOrderRatingStatus = async (orderId, userId) => {
 //Get user orders with filter and pagination
 export const getUserOrders = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user?.userId || null;
     const {
       status = "all",
       page = 1,
@@ -778,7 +780,7 @@ export const reorder = async (req, res) => {
 // Create new order
 export const createOrder = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user?.userId || null;
     const {
       items,
       shipping_info,
@@ -790,8 +792,26 @@ export const createOrder = async (req, res) => {
       discount_value,
       coin_discount,
       branch_id,
+      order_channel = "delivery",
+      order_type,
+      table_id,
+      dine_in_session_id,
+      dine_in_session_token,
+      guest_info = {},
     } = req.body;
     const { freeship, discount } = voucherCodes;
+    const normalizedOrderChannel =
+      order_channel === "dine_in_qr" || order_channel === "dine_in"
+        ? order_channel
+        : "delivery";
+    const normalizedOrderType =
+      order_type === "dine_in" ||
+      normalizedOrderChannel === "dine_in" ||
+      normalizedOrderChannel === "dine_in_qr"
+        ? "dine_in"
+        : "online";
+    const isDineInQr = order_channel === "dine_in_qr";
+    const isDineIn = normalizedOrderType === "dine_in";
 
     // Validate required fields
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -802,11 +822,20 @@ export const createOrder = async (req, res) => {
       );
     }
 
+    if (!["delivery", "dine_in", "dine_in_qr"].includes(order_channel)) {
+      return response.sendError(res, "Kênh đặt hàng không hợp lệ", 400);
+    }
+
+    if (!isDineIn && !userId) {
+      return response.sendError(res, "Vui lòng đăng nhập để đặt hàng", 401);
+    }
+
     if (
-      !shipping_info ||
-      !shipping_info.name ||
-      !shipping_info.phone ||
-      !shipping_info.address
+      !isDineIn &&
+      (!shipping_info ||
+        !shipping_info.name ||
+        !shipping_info.phone ||
+        !shipping_info.address)
     ) {
       return response.sendError(res, "Thông tin giao hàng không đầy đủ", 400);
     }
@@ -819,8 +848,79 @@ export const createOrder = async (req, res) => {
       );
     }
 
+    let selectedBranchId = branch_id;
+    let selectedTable = null;
+    let dineInSession = null;
+
+    if (isDineInQr) {
+      if (
+        (!dine_in_session_id ||
+          !mongoose.Types.ObjectId.isValid(dine_in_session_id)) &&
+        !dine_in_session_token
+      ) {
+        return response.sendError(res, "Phiên gọi món không hợp lệ", 400);
+      }
+
+      const dineInSessionFilter = mongoose.Types.ObjectId.isValid(
+        dine_in_session_id
+      )
+        ? { _id: dine_in_session_id }
+        : { session_token: dine_in_session_token };
+
+      dineInSession = await DineInSession.findOne({
+        ...dineInSessionFilter,
+        status: "active",
+        expires_at: { $gt: new Date() },
+      }).lean();
+
+      if (!dineInSession) {
+        return response.sendError(
+          res,
+          "Phiên gọi món không tồn tại hoặc đã hết hạn",
+          404
+        );
+      }
+
+      if (table_id && table_id.toString() !== dineInSession.table_id.toString()) {
+        return response.sendError(res, "Bàn không khớp với phiên gọi món", 400);
+      }
+
+      selectedTable = await StoreTable.findById(dineInSession.table_id).lean();
+      if (!selectedTable || !selectedTable.active) {
+        return response.sendError(
+          res,
+          "Bàn không tồn tại hoặc đã ngừng hoạt động",
+          400
+        );
+      }
+
+      selectedBranchId = dineInSession.branch_id;
+    } else if (normalizedOrderChannel === "dine_in") {
+      if (!table_id || !mongoose.Types.ObjectId.isValid(table_id)) {
+        return response.sendError(res, "Bàn không hợp lệ", 400);
+      }
+
+      selectedTable = await StoreTable.findById(table_id).lean();
+      if (!selectedTable || !selectedTable.active) {
+        return response.sendError(
+          res,
+          "Bàn không tồn tại hoặc đã ngừng hoạt động",
+          400
+        );
+      }
+
+      if (
+        selectedBranchId &&
+        selectedTable.branch_id.toString() !== selectedBranchId.toString()
+      ) {
+        return response.sendError(res, "Bàn không thuộc chi nhánh đã chọn", 400);
+      }
+
+      selectedBranchId = selectedTable.branch_id;
+    }
+
     // Validate branch selection
-    if (!branch_id || !mongoose.Types.ObjectId.isValid(branch_id)) {
+    if (!selectedBranchId || !mongoose.Types.ObjectId.isValid(selectedBranchId)) {
       return response.sendError(
         res,
         "Chi nhánh không hợp lệ hoặc chưa chọn",
@@ -828,7 +928,7 @@ export const createOrder = async (req, res) => {
       );
     }
 
-    const branch = await Branch.findById(branch_id).lean();
+    const branch = await Branch.findById(selectedBranchId).lean();
     if (!branch || !branch.active) {
       return response.sendError(
         res,
@@ -1053,7 +1153,7 @@ export const createOrder = async (req, res) => {
     }
 
     // Sử dụng shipping_fee từ frontend, fallback về 30000 nếu không có
-    const shippingFeeFromFrontend = shipping_fee || 30000;
+    const shippingFeeFromFrontend = isDineIn ? 0 : shipping_fee || 30000;
     const coinDiscount = coin_discount || 0;
 
     // Tính total_amount = subtotal + shipping_fee - discount - freeship - coin_discount
@@ -1066,6 +1166,10 @@ export const createOrder = async (req, res) => {
 
     // Deduct coins from user if coin_discount is used
     if (coinDiscount > 0) {
+      if (!userId) {
+        return response.sendError(res, "Vui lòng đăng nhập để sử dụng xu", 401);
+      }
+
       const user = await User.findById(userId);
       if (!user) {
         return response.sendError(res, "Người dùng không tồn tại", 404);
@@ -1079,8 +1183,26 @@ export const createOrder = async (req, res) => {
     }
 
     // Tạo đơn với hardcoded items
+    const initialStatus = isDineIn ? "processing" : "pending";
+    const now = new Date();
     const newOrder = new Order({
       user_id: userId,
+      order_channel: normalizedOrderChannel,
+      order_type: normalizedOrderType,
+      table_id: isDineIn ? selectedTable._id : null,
+      table_info: isDineIn
+        ? {
+            name: selectedTable.name,
+            code: selectedTable.code,
+          }
+        : undefined,
+      guest_info: isDineIn
+        ? {
+            name: guest_info.name || dineInSession?.guest_info?.name || "",
+            phone: guest_info.phone || dineInSession?.guest_info?.phone || "",
+          }
+        : undefined,
+      dine_in_session_id: isDineInQr ? dineInSession._id : null,
       branch_id: branch._id,
       branch_info: {
         name: branch.name,
@@ -1107,22 +1229,25 @@ export const createOrder = async (req, res) => {
         ? "paid"
         : "pending",
       payment_date: ["vnpay", "zalopay"].includes(payment_method)
-        ? new Date()
+        ? now
         : undefined,
-      shipping_info,
+      shipping_info: isDineIn ? undefined : shipping_info,
       notes,
-      status: "pending",
+      status: initialStatus,
+      processing_at: isDineIn ? now : undefined,
       history: [
         {
-          status: "pending",
-          date: new Date(),
-          note: "Đơn hàng được tạo",
+          status: initialStatus,
+          date: now,
+          note: isDineIn
+            ? "Đơn ăn tại quán được xác nhận"
+            : "Đơn hàng được tạo",
         },
         ...(["vnpay", "zalopay"].includes(payment_method)
           ? [
               {
                 status: "payment",
-                date: new Date(),
+                date: now,
                 note:
                   payment_method === "vnpay"
                     ? "Thanh toán VNPay thành công"
@@ -1134,6 +1259,14 @@ export const createOrder = async (req, res) => {
     });
 
     await newOrder.save();
+
+    if (isDineInQr) {
+      await DineInSession.findByIdAndUpdate(dineInSession._id, {
+        last_order_id: newOrder._id,
+        cart_items: [],
+        guest_info: newOrder.guest_info,
+      });
+    }
 
     // Frontend sẽ chỉ xóa các items đã checkout (selected items)
     // để giữ lại các items khác trong giỏ hàng
@@ -1168,8 +1301,8 @@ export const createOrder = async (req, res) => {
     // Send socket notification to branch
     try {
       const io = getIO();
-      io.to(`branch:${branch_id}`).emit("new_order", createdOrder);
-      console.log(`📦 New order notification sent to branch:${branch_id}`);
+      io.to(`branch:${branch._id}`).emit("new_order", createdOrder);
+      console.log(`📦 New order notification sent to branch:${branch._id}`);
     } catch (socketError) {
       console.error("Socket notification error:", socketError);
     }
@@ -1551,6 +1684,109 @@ export const updateShippingInfo = async (req, res) => {
   }
 };
 
+export const completeDineInOrder = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return response.sendError(res, "Không tìm thấy đơn hàng", 404);
+    }
+
+    if (order.order_type !== "dine_in") {
+      return response.sendError(res, "Chỉ áp dụng cho đơn ăn tại quán", 400);
+    }
+
+    if (["completed", "cancelled"].includes(order.status)) {
+      return response.sendError(
+        res,
+        "Đơn hàng đã hoàn thành hoặc đã hủy",
+        400
+      );
+    }
+
+    const userRole = req.user?.role;
+    if (userRole === "manager") {
+      const tokenBranchId = req.user.branch_id?.toString();
+      if (tokenBranchId && tokenBranchId !== order.branch_id.toString()) {
+        return response.sendError(
+          res,
+          "Bạn không có quyền cập nhật đơn hàng của chi nhánh này",
+          403
+        );
+      }
+    }
+
+    const now = new Date();
+
+    try {
+      for (const item of order.items) {
+        await Dish.findByIdAndUpdate(
+          item.dish_id,
+          {
+            $inc: {
+              sold_quantity: item.quantity,
+            },
+          },
+          { new: true }
+        );
+      }
+    } catch (updateError) {
+      console.error("Lỗi khi cập nhật số lượng đã bán:", updateError);
+    }
+
+    order.status = "completed";
+    order.completed_at = now;
+    order.payment_status = "paid";
+    order.payment_date = now;
+    order.history = order.history || [];
+    order.history.push({
+      status: "completed",
+      date: now,
+      note: "Đơn ăn tại quán đã thanh toán",
+      updated_by: req.user?.userId,
+    });
+
+    await order.save();
+
+    try {
+      const io = getIO();
+      io.to(`branch:${order.branch_id}`).emit("order_status_updated", {
+        order_id: order._id,
+        order_number: order.order_number,
+        branch_id: order.branch_id,
+        status: "completed",
+        updates: {
+          completed_at: order.completed_at,
+          payment_status: order.payment_status,
+          payment_date: order.payment_date,
+        },
+      });
+    } catch (socketError) {
+      console.error("Socket notification error:", socketError);
+    }
+
+    return response.sendSuccess(
+      res,
+      { order },
+      "Thanh toán đơn ăn tại quán thành công",
+      200
+    );
+  } catch (error) {
+    console.error("Complete dine-in order error:", error);
+    return response.sendError(
+      res,
+      "Có lỗi xảy ra khi thanh toán đơn ăn tại quán",
+      500,
+      error.message
+    );
+  }
+};
+
 export const getAllOrders = async (req, res) => {
   try {
     const {
@@ -1651,7 +1887,14 @@ export const getAllOrders = async (req, res) => {
 export const getOrdersByBranch = async (req, res) => {
   try {
     const { branchId } = req.params;
-    const { status, date = "today", search, page = 1, limit = 50 } = req.query;
+    const {
+      status,
+      date = "today",
+      search,
+      page = 1,
+      limit = 50,
+      order_type,
+    } = req.query;
 
     // Verify branch exists and manager has access
     const branch = await Branch.findById(branchId);
@@ -1672,6 +1915,12 @@ export const getOrdersByBranch = async (req, res) => {
     }
 
     const filter = { branch_id: branchId };
+
+    if (order_type === "dine_in") {
+      filter.order_type = "dine_in";
+    } else if (order_type === "online") {
+      filter.$or = [{ order_type: "online" }, { order_type: { $exists: false } }];
+    }
 
     // Status filter
     if (status && status !== "all") {
@@ -1713,13 +1962,20 @@ export const getOrdersByBranch = async (req, res) => {
 
     // Search filter
     if (search) {
-      filter.$or = [
+      const searchConditions = [
         { order_number: { $regex: search, $options: "i" } },
         {
           "shipping_address.recipient_name": { $regex: search, $options: "i" },
         },
         { "shipping_address.phone": { $regex: search, $options: "i" } },
       ];
+
+      if (filter.$or) {
+        filter.$and = [{ $or: filter.$or }, { $or: searchConditions }];
+        delete filter.$or;
+      } else {
+        filter.$or = searchConditions;
+      }
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);

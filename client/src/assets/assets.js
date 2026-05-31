@@ -32,6 +32,8 @@ import bg_gym_meals from "./bg_gym_meals.jpg";
 import lose_weight_meal from "./lose_weight_meals.png";
 import vegetarian_meals from "./vegetarian_meals.png";
 import avatar from "./avatar.png";
+import add_icon from "./add_order_icon.png";
+import paid from "./paid.png";
 
 export const assets = {
   logo,
@@ -68,6 +70,8 @@ export const assets = {
   lose_weight_meal,
   vegetarian_meals,
   avatar,
+  add_icon,
+  paid,
 };
 export const categoriesColors = [
   {

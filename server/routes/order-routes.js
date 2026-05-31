@@ -13,16 +13,18 @@ import {
   getOrdersByBranch,
   confirmReceived,
   reportNotReceived,
+  completeDineInOrder,
 } from "../controllers/order-controller.js";
-import { authMiddleware } from "../middleware/auth-middleware.js";
+import { authMiddleware, checkAuthOptional } from "../middleware/auth-middleware.js";
 
 const router = express.Router();
 
 // Tất cả routes đều cần authentication
+router.post("/", checkAuthOptional, createOrder);
+
 router.use(authMiddleware);
 
 // POST /api/orders - Tạo đơn hàng mới
-router.post("/", createOrder);
 
 // GET /api/orders - Lấy danh sách đơn hàng của user (có filter & pagination)
 router.get("/user", getUserOrders);
@@ -53,6 +55,8 @@ router.put("/:orderId/confirm-received", confirmReceived);
 
 // PUT /api/orders/:orderId/report-not-received - Khách hàng báo cáo chưa nhận hàng
 router.put("/:orderId/report-not-received", reportNotReceived);
+
+router.put("/:orderId/dine-in/complete", completeDineInOrder);
 
 // POST /api/orders/:orderId/reorder - Đặt lại đơn hàng
 router.post("/:orderId/reorder", reorder);

@@ -51,10 +51,12 @@ import ScrollToTop from "./components/common/ScrollToTop";
 import SupportChat from "./components/customer-view/chat/SupportChat";
 import MaManageDishes from "./pages/manager-view/MaManageDishes";
 import MaManageOrder from "./pages/manager-view/MaManageOrder";
+import MaDineInOrders from "./pages/manager-view/MaDineInOrders";
 import MaOrderDetail from "./pages/manager-view/MaOrderDetail";
 
 import MaNotifications from "./pages/manager-view/MaNotifications";
 import ManagerRating from "./pages/manager-view/MaRatings";
+import MaManageTables from "./pages/manager-view/MaManageTables";
 
 function App() {
   const { user, isAuthenticated, isLoading } = useSelector(
@@ -158,7 +160,13 @@ function App() {
         >
           <Route path="dashboard" element={<ManagerDashboard />} />
           <Route path="dishes" element={<MaManageDishes />} />
-          <Route path="orders" element={<MaManageOrder />} />
+          <Route
+            path="orders"
+            element={<Navigate to="/manager/orders/online" replace />}
+          />
+          <Route path="orders/online" element={<MaManageOrder />} />
+          <Route path="orders/dine-in" element={<MaDineInOrders />} />
+          <Route path="tables" element={<MaManageTables />} />
           <Route path="notifications" element={<MaNotifications />} />
           <Route path="orders/:orderId" element={<MaOrderDetail />} />
           <Route path="ratings" element={<ManagerRating />} />
