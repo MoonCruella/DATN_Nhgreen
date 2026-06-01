@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import QRCode from "qrcode";
 import StoreTable from "../models/store-table-model.js";
 import Branch from "../models/branch-model.js";
 import User from "../models/user-model.js";
@@ -9,9 +10,21 @@ const getQrUrl = (req, qrToken) => {
   const baseUrl =
     process.env.QR_CLIENT_BASE_URL ||
     process.env.CLIENT_URL ||
-    `${req.protocol}://${req.get("host")}/dine-in`;
+    "http://localhost:5173/dine-in";
 
   return `${baseUrl.replace(/\/$/, "")}/${qrToken}`;
+};
+
+const generateQrCodeDataUrl = async (value) => {
+  return QRCode.toDataURL(value, {
+    errorCorrectionLevel: "M",
+    margin: 2,
+    width: 256,
+    color: {
+      dark: "#111827",
+      light: "#ffffff",
+    },
+  });
 };
 
 const canManageBranch = async (req, branchId) => {
@@ -35,6 +48,7 @@ const parseBooleanFilter = (value) => {
 
 const serializeTable = async (req, table) => {
   const plainTable = table.toObject ? table.toObject() : table;
+  const qrUrl = getQrUrl(req, plainTable.qr_token);
   const activeOrder = await Order.findOne({
     table_id: plainTable._id,
     order_type: "dine_in",
@@ -46,7 +60,8 @@ const serializeTable = async (req, table) => {
 
   return {
     ...plainTable,
-    qr_url: getQrUrl(req, plainTable.qr_token),
+    qr_url: qrUrl,
+    qr_code_data_url: await generateQrCodeDataUrl(qrUrl),
     current_order_id: activeOrder?._id || null,
     current_order_status: activeOrder?.status || null,
     current_order_number: activeOrder?.order_number || null,

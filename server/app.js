@@ -23,10 +23,11 @@ import dashboardRouter from "./routes/dashboard-routes.js";
 import recommendationRouter from "./routes/recommendation-routes.js";
 import storeTableRouter from "./routes/store-table-routes.js";
 import dineInSessionRouter from "./routes/dinein-session-routes.js";
+import dineInCustomerRouter from "./routes/dinein-customer-routes.js";
 const app = express();
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173", "http://192.168.0.80:5173"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     allowedHeaders: [
       "Content-Type",
@@ -36,7 +37,7 @@ app.use(
       "Expires",
     ],
     credentials: true, // quan trọng để gửi cookie
-  })
+  }),
 );
 app.use(cookieParser()); // sửa đúng tên
 app.use(express.json());
@@ -82,6 +83,9 @@ app.use("/api/store-tables", storeTableRouter);
 
 // Dine-in QR
 app.use("/api/dine-in", dineInSessionRouter);
+
+// Dine-in Customers
+app.use("/api/dine-in-customers", dineInCustomerRouter);
 
 // Users
 app.use("/api/users", userRoutes);

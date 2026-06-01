@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
-import { Edit3, ExternalLink, Plus, QrCode, Search } from "lucide-react";
+import { Edit3, ExternalLink, Plus, QrCode, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import branchApi from "@/api/branchApi";
 import orderApi from "@/api/orderApi";
@@ -13,11 +13,6 @@ import TableUpdateModal from "@/components/manager-view/modals/TableUpdateModal"
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
-
-const qrImageUrl = (value) =>
-  `https://api.qrserver.com/v1/create-qr-code/?size=104x104&margin=6&data=${encodeURIComponent(
-    value || "",
-  )}`;
 
 const getTableTotal = (table) => table.current_total || table.total_amount || 0;
 
@@ -36,20 +31,12 @@ const TableCard = ({
   onCreateOrder,
   onDetailClick,
   onEditTable,
+  onQrClick,
 }) => {
   const [qrFailed, setQrFailed] = useState(false);
-  const qrValue = table.qr_url || table.qr_token || table._id;
+  const qrImage = table.qr_code_data_url;
   const hasActivity = hasTableActivity(table);
   const totalAmount = getTableTotal(table);
-
-  const copyQr = async () => {
-    try {
-      await navigator.clipboard.writeText(qrValue);
-      toast.success("Đã sao chép link QR");
-    } catch {
-      toast.error("Không thể sao chép link QR");
-    }
-  };
 
   return (
     <article className="relative min-h-[200px] overflow-hidden rounded-lg bg-white shadow-md ring-1 ring-gray-100">
@@ -74,15 +61,15 @@ const TableCard = ({
 
       <button
         type="button"
-        onClick={copyQr}
+        onClick={() => onQrClick(table)}
         className="absolute right-3 top-3 flex h-12 w-12 items-center justify-center rounded-md bg-gray-50 p-1 transition hover:bg-cyan-50"
-        title="Sao chép link QR"
+        title="Xem mã QR"
       >
-        {qrFailed ? (
+        {qrFailed || !qrImage ? (
           <QrCode className="h-8 w-8 text-gray-700" />
         ) : (
           <img
-            src={qrImageUrl(qrValue)}
+            src={qrImage}
             alt={`QR ${table.name}`}
             className="h-full w-full rounded object-contain"
             onError={() => setQrFailed(true)}
@@ -132,6 +119,78 @@ const TableCard = ({
   );
 };
 
+const TableQrModal = ({ table, onClose }) => {
+  if (!table) return null;
+
+  const qrValue = table.qr_url || table.qr_token || table._id;
+  const qrImage = table.qr_code_data_url;
+
+  const copyQr = async () => {
+    try {
+      await navigator.clipboard.writeText(qrValue);
+      toast.success("Đã sao chép link QR");
+    } catch {
+      toast.error("Không thể sao chép link QR");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 px-4">
+      <div className="relative w-full max-w-md rounded-2xl bg-white px-7 py-8 text-center shadow-2xl">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-md p-1 text-slate-800 hover:bg-gray-100"
+          title="Đóng"
+        >
+          <X className="h-6 w-6" />
+        </button>
+
+        <h3 className="text-2xl font-black text-gray-900">
+          {table.name || "Bàn"}
+        </h3>
+        <p className="mt-2 text-sm font-medium text-gray-500">
+          Quét mã QR để mở E-menu và gọi món tại bàn
+        </p>
+
+        <div className="mx-auto mt-7 flex h-72 w-72 items-center justify-center rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+          {qrImage ? (
+            <img
+              src={qrImage}
+              alt={`QR ${table.name}`}
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <QrCode className="h-40 w-40 text-gray-700" />
+          )}
+        </div>
+
+        <div className="mt-5 break-all rounded-lg bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-600">
+          {qrValue}
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={copyQr}
+            className="h-11 rounded-lg border-[#26338d] text-sm font-bold text-[#26338d]"
+          >
+            Sao chép link
+          </Button>
+          <Button
+            type="button"
+            onClick={() => window.open(qrValue, "_blank", "noopener,noreferrer")}
+            className="h-11 rounded-lg bg-[#26338d] text-sm font-bold text-white hover:bg-[#1d2874]"
+          >
+            Mở E-menu
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CreateTableCard = ({ onClick }) => (
   <button
     type="button"
@@ -167,6 +226,7 @@ const MaManageTables = () => {
   const [selectedOrderTable, setSelectedOrderTable] = useState(null);
   const [currentOrder, setCurrentOrder] = useState(null);
   const [editingTable, setEditingTable] = useState(null);
+  const [qrTable, setQrTable] = useState(null);
 
   const fetchTables = async () => {
     if (!accessToken || !branchId) return;
@@ -325,6 +385,7 @@ const MaManageTables = () => {
               }}
               onDetailClick={handleDetailClick}
               onEditTable={setEditingTable}
+              onQrClick={setQrTable}
             />
           ))}
           <CreateTableCard onClick={() => setShowCreate(true)} />
@@ -354,6 +415,7 @@ const MaManageTables = () => {
         }}
         initialOrder={currentOrder}
       />
+      <TableQrModal table={qrTable} onClose={() => setQrTable(null)} />
     </section>
   );
 };

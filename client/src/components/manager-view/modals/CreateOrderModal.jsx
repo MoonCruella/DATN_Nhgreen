@@ -211,7 +211,7 @@ const CreateOrderModal = ({
     }
   };
 
-  const handlePayment = async () => {
+  const handlePayment = async (paymentMethod = "cod") => {
     if (!validateSelectedItems() || submitting) return;
 
     if (!createdOrder?._id) {
@@ -224,6 +224,7 @@ const CreateOrderModal = ({
       const response = await orderApi.completeDineInOrder(
         accessToken,
         createdOrder._id,
+        paymentMethod,
       );
       setCreatedOrder(response?.data?.order || createdOrder);
       setOrderStatus("completed");
@@ -254,7 +255,22 @@ const CreateOrderModal = ({
     }
 
     if (orderStatus === "processing") {
-      handlePayment();
+      if (!validateSelectedItems()) return;
+      setShowOrderDetail(true);
+      return;
+    }
+
+    setShowOrderDetail(false);
+  };
+
+  const handleOrderDetailPrimaryAction = (paymentMethod) => {
+    if (orderStatus === "selecting") {
+      handleConfirmOrder();
+      return;
+    }
+
+    if (orderStatus === "processing") {
+      handlePayment(paymentMethod);
       return;
     }
 
@@ -262,7 +278,7 @@ const CreateOrderModal = ({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 left-0 z-50 bg-[#f7f7f8] md:left-[280px]">
+    <div className="fixed bottom-0 right-0 left-[280px] top-[65px] z-50 bg-[#f7f7f8]">
       <div className="flex h-full flex-col">
         <header className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3 text-lg font-bold lg:text-xl">
@@ -408,6 +424,7 @@ const CreateOrderModal = ({
         open={showOrderDetail}
         table={table}
         items={selectedItems}
+        order={createdOrder}
         totalQuantity={totalQuantity}
         totalAmount={totalAmount}
         primaryActionLabel={
@@ -415,7 +432,7 @@ const CreateOrderModal = ({
         }
         onClose={() => setShowOrderDetail(false)}
         onAddMore={() => setShowOrderDetail(false)}
-        onPrimaryAction={handlePrimaryAction}
+        onPrimaryAction={handleOrderDetailPrimaryAction}
       />
     </div>
   );

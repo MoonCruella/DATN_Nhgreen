@@ -265,10 +265,10 @@ const orderApi = {
     }
   },
 
-  completeDineInOrder: async (accessToken, orderId) => {
+  completeDineInOrder: async (accessToken, orderId, paymentMethod = "cod") => {
     const response = await axiosPrivate.put(
       `/api/orders/${orderId}/dine-in/complete`,
-      {},
+      { payment_method: paymentMethod },
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,

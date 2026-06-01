@@ -6,6 +6,7 @@ import {
   IconChefHat,
   IconStar,
   IconTable,
+  IconUsers,
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
@@ -39,6 +40,11 @@ const ManagerLayout = () => {
       link: "/manager/tables",
       label: "Quản lý bàn",
       icon: IconTable,
+    },
+    {
+      link: "/manager/customers",
+      label: "Quản lý khách hàng",
+      icon: IconUsers,
     },
     {
       link: "/manager/dishes",
