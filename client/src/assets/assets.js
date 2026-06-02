@@ -35,11 +35,7 @@ import avatar from "./avatar.png";
 import add_icon from "./add_order_icon.png";
 import paid from "./paid.png";
 import momo_icon from "./momo.png";
-import serving_dish from "./serving-dish.png";<<<<<<< .mine
-
-=======
-
->>>>>>> .theirs
+import serving_dish from "./serving-dish.png";
 export const assets = {
   logo,
   xIcon,
