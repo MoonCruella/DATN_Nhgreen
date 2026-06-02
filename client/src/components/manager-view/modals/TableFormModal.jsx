@@ -45,7 +45,7 @@ const TableFormModal = ({ open, onClose, onSubmit, branchId }) => {
           <input
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
-            className="h-12 w-full rounded-lg border border-gray-200 px-4 text-lg font-medium text-slate-900 outline-none placeholder:text-slate-300 focus:border-[#26338d]"
+            className="h-12 w-full rounded-lg border border-gray-200 px-4 text-lg font-medium text-slate-900 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
             placeholder="Nhập tên bàn"
             required
           />
@@ -56,8 +56,8 @@ const TableFormModal = ({ open, onClose, onSubmit, branchId }) => {
           disabled={!canSubmit}
           className={`h-12 w-full rounded-lg text-lg font-bold text-white ${
             canSubmit
-              ? "bg-[#26338d] hover:bg-[#1d2874]"
-              : "cursor-not-allowed bg-[#a8afd0] hover:bg-[#a8afd0]"
+              ? "bg-[#34ad54] hover:bg-[#2f9b45]"
+              : "cursor-not-allowed bg-[#bbf7d0] hover:bg-[#bbf7d0]"
           }`}
         >
           Lưu
@@ -68,3 +68,5 @@ const TableFormModal = ({ open, onClose, onSubmit, branchId }) => {
 };
 
 export default TableFormModal;
+
+

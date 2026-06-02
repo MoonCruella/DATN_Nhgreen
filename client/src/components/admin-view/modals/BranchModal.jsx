@@ -342,7 +342,7 @@ const BranchModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
                   type="button"
                   onClick={handleFetchCoordinates}
                   disabled={loadingCoords}
-                  className="text-xs text-blue-600 hover:underline mt-1 text-left"
+                  className="text-xs text-green-600 hover:underline mt-1 text-left"
                 >
                   {loadingCoords
                     ? "Đang lấy tọa độ..."
@@ -493,7 +493,7 @@ const BranchModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
               className={`px-4 py-2 rounded ${
                 !isDirty || saving
                   ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                  : "bg-gray-800 text-white"
+                  : "bg-green-600 text-white"
               }`}
             >
               {saving ? "Đang lưu..." : "Lưu"}
@@ -506,3 +506,5 @@ const BranchModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
 };
 
 export default BranchModal;
+
+

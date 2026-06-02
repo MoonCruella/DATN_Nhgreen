@@ -85,3 +85,5 @@ const CategoriesTable = ({ categories = [], onRowClick, isLoading }) => {
 };
 
 export default CategoriesTable;
+
+

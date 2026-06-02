@@ -1689,9 +1689,15 @@ export const updateShippingInfo = async (req, res) => {
 export const completeDineInOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
+    const allowedPaymentMethods = ["cod", "momo", "vnpay", "zalopay"];
+    const paymentMethod = req.body?.payment_method || "cod";
 
     if (!mongoose.Types.ObjectId.isValid(orderId)) {
       return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
+    }
+
+    if (!allowedPaymentMethods.includes(paymentMethod)) {
+      return response.sendError(res, "Phương thức thanh toán không hợp lệ", 400);
     }
 
     const order = await Order.findById(orderId);
@@ -1743,6 +1749,7 @@ export const completeDineInOrder = async (req, res) => {
 
     order.status = "completed";
     order.completed_at = now;
+    order.payment_method = paymentMethod;
     order.payment_status = "paid";
     order.payment_date = now;
     order.history = order.history || [];

@@ -208,7 +208,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
                   <Switch
-                    className="data-[state=checked]:bg-gray-800 data-[state=checked]:border-gray-800 bg-gray-200 border-gray-200 cursor-pointer"
+                    className="data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 bg-gray-200 border-gray-200 cursor-pointer"
                     checked={form.isPercent}
                     onCheckedChange={(val) => handleChange("isPercent", val)}
                   />
@@ -435,7 +435,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
             </Button>
             <Button
               onClick={handleSubmit}
-              className="px-4 py-2 rounded-md bg-gray-800 hover:bg-gray-900 text-white transition cursor-pointer"
+              className="px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white transition cursor-pointer"
             >
               Lưu
             </Button>
@@ -445,3 +445,5 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
     </Dialog>
   );
 }
+
+

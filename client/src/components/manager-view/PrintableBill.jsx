@@ -167,3 +167,5 @@ const PrintableBill = React.forwardRef(
 PrintableBill.displayName = "PrintableBill";
 
 export default PrintableBill;
+
+

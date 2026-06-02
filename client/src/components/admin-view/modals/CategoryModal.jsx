@@ -238,7 +238,7 @@ const CategoryModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
                   className={`px-3 py-2 rounded ${
                     uploading || saving || deleting
                       ? "bg-gray-300 text-gray-900"
-                      : "bg-gray-800 text-white hover:bg-gray-700 cursor-pointer"
+                      : "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
                   }`}
                 >
                   {uploading ? "Đang tải..." : "Chọn ảnh"}
@@ -325,7 +325,7 @@ const CategoryModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
                 saving ||
                 String(form.name || "").trim().length === 0
                   ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                  : "bg-gray-800 text-white"
+                  : "bg-green-600 text-white"
               }`}
             >
               {saving ? "Đang lưu..." : "Lưu"}
@@ -338,3 +338,5 @@ const CategoryModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
 };
 
 export default CategoryModal;
+
+

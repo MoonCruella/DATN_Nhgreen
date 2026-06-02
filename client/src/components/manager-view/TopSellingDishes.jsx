@@ -181,7 +181,7 @@ const TopSellingDishes = () => {
 
                     {/* Category */}
                     <div className="col-span-2 flex items-center justify-center">
-                      <span className="text-sm text-gray-600 px-2 py-1 bg-blue-50 rounded">
+                      <span className="text-sm text-gray-600 px-2 py-1 bg-green-50 rounded">
                         {dish.category_name}
                       </span>
                     </div>
@@ -304,3 +304,5 @@ const TopSellingDishes = () => {
 };
 
 export default TopSellingDishes;
+
+

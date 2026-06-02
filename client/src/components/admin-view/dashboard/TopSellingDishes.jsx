@@ -91,7 +91,7 @@ const TopSellingDishes = ({ branchId, branchName }) => {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-40">
-            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
         </CardContent>
       </Card>
@@ -120,7 +120,7 @@ const TopSellingDishes = ({ branchId, branchName }) => {
               onClick={() => handleFilterChange("period", "today")}
               className={
                 filters.period === "today"
-                  ? "bg-blue-600 hover:bg-blue-700"
+                  ? "bg-green-600 hover:bg-green-700"
                   : ""
               }
             >
@@ -131,7 +131,7 @@ const TopSellingDishes = ({ branchId, branchName }) => {
               variant={filters.period === "week" ? "default" : "outline"}
               onClick={() => handleFilterChange("period", "week")}
               className={
-                filters.period === "week" ? "bg-blue-600 hover:bg-blue-700" : ""
+                filters.period === "week" ? "bg-green-600 hover:bg-green-700" : ""
               }
             >
               Tuần
@@ -142,7 +142,7 @@ const TopSellingDishes = ({ branchId, branchName }) => {
               onClick={() => handleFilterChange("period", "month")}
               className={
                 filters.period === "month"
-                  ? "bg-blue-600 hover:bg-blue-700"
+                  ? "bg-green-600 hover:bg-green-700"
                   : ""
               }
             >
@@ -186,7 +186,7 @@ const TopSellingDishes = ({ branchId, branchName }) => {
       <CardContent>
         {loading ? (
           <div className="flex items-center justify-center h-40">
-            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : dishes.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
@@ -275,7 +275,7 @@ const TopSellingDishes = ({ branchId, branchName }) => {
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-center font-medium text-gray-900">
                         {dish.total_quantity}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-right font-semibold text-blue-600">
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-right font-semibold text-green-600">
                         {formatCurrency(dish.total_revenue)}
                       </td>
                     </tr>
@@ -372,3 +372,5 @@ const TopSellingDishes = ({ branchId, branchName }) => {
 };
 
 export default TopSellingDishes;
+
+

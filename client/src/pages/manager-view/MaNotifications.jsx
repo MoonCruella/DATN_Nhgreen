@@ -154,7 +154,7 @@ const MaNotifications = () => {
   const getNotificationIcon = (type) => {
     switch (type) {
       case "new_order":
-        return <Package className="w-5 h-5 text-blue-600" />;
+        return <Package className="w-5 h-5 text-green-600" />;
       case "order_status":
         return <Clock className="w-5 h-5 text-orange-600" />;
       case "order_confirmed":
@@ -211,7 +211,7 @@ const MaNotifications = () => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-gray-800 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Đang tải thông báo...</p>
         </div>
       </div>
@@ -257,14 +257,14 @@ const MaNotifications = () => {
               key={notification._id}
               onClick={() => handleNotificationClick(notification)}
               className={`bg-white rounded-xl shadow-sm p-5 hover:shadow-md transition-all cursor-pointer ${
-                !notification.is_read ? "border-l-4 border-blue-500" : ""
+                !notification.is_read ? "border-l-4 border-green-500" : ""
               }`}
             >
               <div className="flex items-start gap-4">
                 {/* Icon */}
                 <div
                   className={`p-3 rounded-full ${
-                    !notification.is_read ? "bg-blue-50" : "bg-gray-50"
+                    !notification.is_read ? "bg-green-50" : "bg-gray-50"
                   }`}
                 >
                   {getNotificationIcon(notification.type)}
@@ -292,7 +292,7 @@ const MaNotifications = () => {
 
                     {/* Unread indicator */}
                     {!notification.is_read && (
-                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                      <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
                     )}
                   </div>
                 </div>
@@ -336,7 +336,7 @@ const MaNotifications = () => {
                         onClick={() => setPage(pageNum)}
                         className={`px-3 py-1 rounded text-sm ${
                           page === pageNum
-                            ? "bg-gray-800 text-white"
+                            ? "bg-green-600 text-white"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer"
                         }`}
                       >
@@ -374,3 +374,5 @@ const MaNotifications = () => {
 };
 
 export default MaNotifications;
+
+

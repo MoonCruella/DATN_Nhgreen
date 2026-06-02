@@ -80,9 +80,9 @@ const AIModelManager = () => {
         )}
 
         {/* Description */}
-        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
           <div className="flex items-start gap-2">
-            <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-green-600 mt-0.5" />
             <div className="text-sm text-gray-700">
               <p className="font-medium mb-1">Train lại model khi:</p>
               <ul className="list-disc list-inside space-y-1 text-gray-600">
@@ -119,3 +119,5 @@ const AIModelManager = () => {
 };
 
 export default AIModelManager;
+
+

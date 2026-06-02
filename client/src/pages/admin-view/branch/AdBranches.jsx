@@ -87,7 +87,7 @@ const AdminBranches = () => {
           <div className="text-lg font-medium">Quản lý chi nhánh</div>
           <button
             onClick={() => navigate("/admin/branches/create")}
-            className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition cursor-pointer"
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition cursor-pointer"
           >
             + Thêm chi nhánh
           </button>
@@ -167,3 +167,5 @@ const AdminBranches = () => {
 };
 
 export default AdminBranches;
+
+

@@ -163,3 +163,5 @@ const RatingsTable = ({
 };
 
 export default RatingsTable;
+
+

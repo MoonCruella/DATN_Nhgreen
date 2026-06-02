@@ -80,6 +80,26 @@ const requireManager = async (req, res, next) => {
   }
 };
 
+const requireAdminOrManager = async (req, res, next) => {
+  try {
+    if (!["admin", "manager"].includes(req.user.role)) {
+      return response.sendError(
+        res,
+        "Không có quyền truy cập. Cần role admin hoặc manager",
+        403
+      );
+    }
+    next();
+  } catch (error) {
+    return response.sendError(
+      res,
+      "Lỗi kiểm tra quyền truy cập",
+      500,
+      error.message
+    );
+  }
+};
+
 const checkAuthOptional = async (req, res, next) => {
   try {
     const authHeader = req.headers["authorization"];
@@ -109,4 +129,10 @@ const checkAuthOptional = async (req, res, next) => {
     next();
   }
 };
-export { authMiddleware, requireAdmin, requireManager, checkAuthOptional };
+export {
+  authMiddleware,
+  requireAdmin,
+  requireManager,
+  requireAdminOrManager,
+  checkAuthOptional,
+};

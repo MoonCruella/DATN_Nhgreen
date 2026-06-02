@@ -319,7 +319,7 @@ const IngredientModal = ({
                   className={`px-3 py-2 rounded transition transform ${
                     uploading || saving || deleting
                       ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                      : "bg-gray-800 text-white hover:bg-gray-700 hover:scale-105 cursor-pointer"
+                      : "bg-green-600 text-white hover:bg-green-700 hover:scale-105 cursor-pointer"
                   }`}
                 >
                   {uploading ? "Đang tải..." : "Chọn ảnh"}
@@ -449,7 +449,7 @@ const IngredientModal = ({
               className={`px-4 py-2 rounded transition ${
                 !isDirty || saving || uploading || deleting
                   ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                  : "bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
+                  : "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
               }`}
             >
               {saving ? "Đang lưu..." : "Lưu"}
@@ -462,3 +462,5 @@ const IngredientModal = ({
 };
 
 export default IngredientModal;
+
+

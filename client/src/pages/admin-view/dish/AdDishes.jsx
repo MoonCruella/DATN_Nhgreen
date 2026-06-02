@@ -245,7 +245,7 @@ const AdminDishes = () => {
           <div className="text-lg font-medium">Quản lý món ăn</div>
           <button
             onClick={() => navigate("/admin/dishes/create")}
-            className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition cursor-pointer"
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition cursor-pointer"
           >
             + Thêm món mới
           </button>
@@ -343,7 +343,7 @@ const AdminDishes = () => {
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="text-center">
-                <div className="w-12 h-12 border-4 border-gray-800 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                 <p className="text-gray-600">Đang tải...</p>
               </div>
             </div>
@@ -484,7 +484,7 @@ const AdminDishes = () => {
                         disabled={page === currentPage}
                         className={`px-3 py-1 rounded-lg text-sm transition border ${
                           page === currentPage
-                            ? "bg-gray-800 text-white border-gray-800"
+                            ? "bg-green-600 text-white border-green-600"
                             : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200 cursor-pointer"
                         }`}
                       >
@@ -516,3 +516,5 @@ const AdminDishes = () => {
 };
 
 export default AdminDishes;
+
+

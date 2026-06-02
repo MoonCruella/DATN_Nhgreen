@@ -159,10 +159,10 @@ const AdminLayout = () => {
   return (
     <div className="flex h-screen font-medium">
       {/* Sidebar */}
-      <nav className="h-full w-[280px] p-6 flex flex-col bg-gray-900">
+      <nav className="h-full w-[280px] p-6 flex flex-col bg-green-900">
         <div className="flex-1 overflow-y-auto">
           {/* Header */}
-          <div className="flex items-center justify-between pb-6 mb-9 border-b border-gray-800">
+          <div className="flex items-center justify-between pb-6 mb-9 border-b border-green-800">
             <div className="flex items-center gap-2">
               <img
                 src={assets.logo}
@@ -171,7 +171,7 @@ const AdminLayout = () => {
               />
               <span className="text-white font-medium text-xl">NHGreen</span>
             </div>
-            <span className="bg-gray-800 text-gray-200 text-sm px-2 py-1 rounded font-bold">
+            <span className="bg-green-800 text-green-50 text-sm px-2 py-1 rounded font-bold">
               v1.0.0
             </span>
           </div>
@@ -193,13 +193,13 @@ const AdminLayout = () => {
                     ${
                       isActive
                         ? "bg-white text-gray-900 shadow"
-                        : "text-gray-300 hover:bg-gray-800"
+                        : "text-white hover:bg-green-800"
                     }`}
                 >
                   <item.icon
                     stroke={1.5}
                     className={`mr-4 w-6 h-6 ${
-                      isActive ? "text-blue-700" : "text-gray-400"
+                      isActive ? "text-green-700" : "text-gray-400"
                     }`}
                   />
                   <span>{item.label}</span>
@@ -215,14 +215,14 @@ const AdminLayout = () => {
         </div>
 
         {/* Footer */}
-        <div className="mt-6 border-t border-gray-800">
+        <div className="mt-6 border-t border-green-800">
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className={`flex items-center w-full text-sm text-gray-200 px-4 py-3 rounded-md font-medium transition-colors cursor-pointer ${
+            className={`flex items-center w-full text-sm text-white px-4 py-3 rounded-md font-medium transition-colors cursor-pointer ${
               isLoggingOut
                 ? "opacity-60 cursor-not-allowed"
-                : "hover:bg-gray-800"
+                : "hover:bg-green-800"
             }`}
           >
             <IconLogout className="mr-4 w-6 h-6 text-gray-400" stroke={1.5} />
@@ -259,3 +259,5 @@ const AdminLayout = () => {
 };
 
 export default AdminLayout;
+
+

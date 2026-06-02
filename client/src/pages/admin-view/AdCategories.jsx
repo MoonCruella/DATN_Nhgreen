@@ -155,7 +155,7 @@ const AdminCategories = () => {
 
             <button
               onClick={handleAdd}
-              className="bg-gray-800 text-white px-4 py-2 rounded-lg transition transform hover:scale-105 hover:bg-gray-700 active:scale-95 cursor-pointer"
+              className="bg-green-600 text-white px-4 py-2 rounded-lg transition transform hover:scale-105 hover:bg-green-700 active:scale-95 cursor-pointer"
             >
               + Thêm danh mục
             </button>
@@ -178,7 +178,7 @@ const AdminCategories = () => {
               className={`px-3 py-1 rounded ${
                 page === 1
                   ? "bg-gray-200 text-gray-400"
-                  : "bg-gray-800 text-white"
+                  : "bg-green-600 text-white"
               }`}
             >
               {"<"}
@@ -188,7 +188,7 @@ const AdminCategories = () => {
                 key={idx}
                 onClick={() => setPage(idx + 1)}
                 className={`px-3 py-1 rounded ${
-                  page === idx + 1 ? "bg-gray-800 text-white" : "bg-gray-200"
+                  page === idx + 1 ? "bg-green-600 text-white" : "bg-gray-200"
                 }`}
               >
                 {idx + 1}
@@ -200,7 +200,7 @@ const AdminCategories = () => {
               className={`px-3 py-1 rounded ${
                 page === totalPages
                   ? "bg-gray-200 text-gray-400"
-                  : "bg-gray-800 text-white"
+                  : "bg-green-600 text-white"
               }`}
             >
               {">"}
@@ -221,3 +221,5 @@ const AdminCategories = () => {
 };
 
 export default AdminCategories;
+
+

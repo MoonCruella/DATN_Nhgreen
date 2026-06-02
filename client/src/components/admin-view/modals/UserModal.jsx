@@ -71,7 +71,7 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
   const getRoleBadge = (role) => {
     const roleMap = {
       admin: { text: "Admin", color: "bg-red-100 text-red-800" },
-      manager: { text: "Manager", color: "bg-blue-100 text-blue-800" },
+      manager: { text: "Manager", color: "bg-green-100 text-green-800" },
       customer: { text: "Khách hàng", color: "bg-green-100 text-green-800" },
     };
     const badge = roleMap[role] || {
@@ -190,7 +190,7 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
                         </p>
                         <p className="text-gray-600">{addr.full_address}</p>
                         {addr.is_default && (
-                          <span className="inline-block mt-1 px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">
+                          <span className="inline-block mt-1 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded">
                             Mặc định
                           </span>
                         )}
@@ -427,3 +427,5 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
 };
 
 export default UserModal;
+
+

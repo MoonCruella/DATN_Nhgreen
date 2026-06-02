@@ -170,7 +170,7 @@ const AdminIngredients = () => {
             <div className="flex items-center">
               <button
                 onClick={handleAdd}
-                className="bg-gray-800 text-white px-4 py-2 rounded-lg transition transform hover:scale-105 hover:bg-gray-700 active:scale-95 cursor-pointer"
+                className="bg-green-600 text-white px-4 py-2 rounded-lg transition transform hover:scale-105 hover:bg-green-700 active:scale-95 cursor-pointer"
               >
                 + Thêm nguyên liệu
               </button>
@@ -213,3 +213,5 @@ const AdminIngredients = () => {
 };
 
 export default AdminIngredients;
+
+

@@ -193,7 +193,7 @@ const AdminVouchers = () => {
 
           <button
             onClick={handleAddVoucher}
-            className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition cursor-pointer"
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition cursor-pointer"
           >
             + Thêm Voucher
           </button>
@@ -218,7 +218,7 @@ const AdminVouchers = () => {
                   className={`px-3 py-1 rounded ${
                     page === 1
                       ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                      : "bg-gray-800 text-white cursor-pointer"
+                      : "bg-green-600 text-white cursor-pointer"
                   }`}
                 >
                   {"<"}
@@ -230,7 +230,7 @@ const AdminVouchers = () => {
                     onClick={() => setPage(idx + 1)}
                     className={`px-3 py-1 rounded ${
                       page === idx + 1
-                        ? "bg-gray-800 text-white"
+                        ? "bg-green-600 text-white"
                         : "bg-gray-200 cursor-pointer"
                     }`}
                   >
@@ -244,7 +244,7 @@ const AdminVouchers = () => {
                   className={`px-3 py-1 rounded ${
                     page === totalPages
                       ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                      : "bg-gray-800 text-white cursor-pointer"
+                      : "bg-green-600 text-white cursor-pointer"
                   }`}
                 >
                   {">"}
@@ -285,3 +285,5 @@ const AdminVouchers = () => {
 };
 
 export default AdminVouchers;
+
+

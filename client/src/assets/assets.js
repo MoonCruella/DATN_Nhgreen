@@ -34,8 +34,8 @@ import vegetarian_meals from "./vegetarian_meals.png";
 import avatar from "./avatar.png";
 import add_icon from "./add_order_icon.png";
 import paid from "./paid.png";
+import serving_dish from "./serving-dish.png";
 import momo_icon from "./momo.png";
-
 export const assets = {
   logo,
   xIcon,
@@ -74,6 +74,7 @@ export const assets = {
   avatar,
   add_icon,
   paid,
+  serving_dish,
 };
 export const categoriesColors = [
   {

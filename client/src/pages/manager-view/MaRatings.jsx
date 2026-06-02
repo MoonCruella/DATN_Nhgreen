@@ -1,18 +1,60 @@
-import React, { useState, useEffect } from "react";
-import { Search, RotateCcw } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  PackageOpen,
+  Search,
+  Star,
+  Store,
+} from "lucide-react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import ratingApi from "@/api/ratingApi";
-import RatingsTable from "@/components/admin-view/tables/RatingsTable";
 import RatingModal from "@/components/admin-view/modals/RatingModal";
+import FilterSelect from "@/components/common/FilterSelect";
+
+const formatDate = (value) => {
+  if (!value) return "-";
+  return new Date(value).toLocaleDateString("vi-VN");
+};
+
+const StarRating = ({ rating }) => (
+  <div className="flex items-center gap-0.5">
+    {[1, 2, 3, 4, 5].map((star) => (
+      <Star
+        key={star}
+        className={`h-4 w-4 ${
+          star <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+        }`}
+      />
+    ))}
+  </div>
+);
+
+const ratingOptions = [
+  { value: "all", label: "Tất cả sao" },
+  { value: "5", label: "5 sao" },
+  { value: "4", label: "4 sao" },
+  { value: "3", label: "3 sao" },
+  { value: "2", label: "2 sao" },
+  { value: "1", label: "1 sao" },
+];
 
 const ManagerRating = () => {
+  const { accessToken } = useSelector((state) => state.auth);
   const [ratings, setRatings] = useState([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [selectedRating, setSelectedRating] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [filterRating, setFilterRating] = useState("all");
+  const [appliedRating, setAppliedRating] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -20,235 +62,286 @@ const ManagerRating = () => {
     total_pages: 0,
   });
 
-  // Filters
-  const [filters, setFilters] = useState({
-    searchUser: "",
-    searchDish: "",
-    rating: "all",
-  });
-
-  // Debounced filters
-  const [debouncedFilters, setDebouncedFilters] = useState({
-    searchUser: "",
-    searchDish: "",
-  });
-
-  const { accessToken } = useSelector((state) => state.auth);
-
-  // Debounce search filters
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedFilters({
-        searchUser: filters.searchUser,
-        searchDish: filters.searchDish,
-      });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [filters.searchUser, filters.searchDish]);
+    const fetchRatings = async () => {
+      if (!accessToken) return;
 
-  // Fetch ratings
-  const fetchRatings = async () => {
-    setLoading(true);
-    try {
-      const params = {
-        page: pagination.page,
-        limit: pagination.limit,
-        ...(debouncedFilters.searchUser && {
-          searchUser: debouncedFilters.searchUser,
-        }),
-        ...(debouncedFilters.searchDish && {
-          searchDish: debouncedFilters.searchDish,
-        }),
-      };
+      setLoading(true);
+      try {
+        const params = {
+          page: currentPage,
+          limit: pageSize,
+          ...(appliedSearch && { search: appliedSearch }),
+        };
 
-      const response = await ratingApi.getAllForManager(accessToken, params);
+        const response = await ratingApi.getAllForManager(accessToken, params);
+        let nextRatings = response.data.ratings || [];
 
-      let filteredRatings = response.data.ratings;
+        if (appliedRating !== "all") {
+          const ratingValue = Number(appliedRating);
+          nextRatings = nextRatings.filter((item) => item.rating === ratingValue);
+        }
 
-      // Apply rating filter on frontend
-      if (filters.rating !== "all") {
-        const ratingValue = parseInt(filters.rating);
-        filteredRatings = filteredRatings.filter(
-          (r) => r.rating === ratingValue
-        );
+        setRatings(nextRatings);
+        setPagination(response.data.pagination || {});
+      } catch (error) {
+        console.error("Error fetching ratings:", error);
+        toast.error("Không thể tải danh sách đánh giá");
+      } finally {
+        setLoading(false);
+        setInitialLoading(false);
       }
+    };
 
-      setRatings(filteredRatings);
-      setPagination(response.data.pagination);
-    } catch (error) {
-      console.error("Error fetching ratings:", error);
-      toast.error("Không thể tải danh sách đánh giá");
-    } finally {
-      setLoading(false);
-      setInitialLoading(false);
-    }
-  };
-
-  useEffect(() => {
     fetchRatings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    pagination.page,
-    debouncedFilters.searchUser,
-    debouncedFilters.searchDish,
-    filters.rating,
-  ]);
+  }, [accessToken, appliedSearch, appliedRating, currentPage, pageSize]);
 
-  // Handle filter changes
-  const handleFilterChange = (key, value) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-    setPagination((prev) => ({ ...prev, page: 1 }));
+  const totalPages = useMemo(
+    () => Math.max(1, pagination.total_pages || 1),
+    [pagination.total_pages]
+  );
+  const totalItems = pagination.total || 0;
+  const startIndex = totalItems ? (currentPage - 1) * pageSize + 1 : 0;
+  const endIndex = Math.min(currentPage * pageSize, totalItems);
+  const hasActiveFilters =
+    Boolean(appliedSearch.trim()) || appliedRating !== "all";
+
+  const changePage = (page) => {
+    if (page < 1 || page > totalPages || page === currentPage) return;
+    setCurrentPage(page);
   };
 
-  // Handle view details
-  const handleViewDetails = (rating) => {
-    setSelectedRating(rating);
-    setShowModal(true);
+  const applyFilters = () => {
+    setAppliedSearch(searchTerm.trim());
+    setAppliedRating(filterRating);
+    setCurrentPage(1);
+  };
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setAppliedSearch("");
+    setFilterRating("all");
+    setAppliedRating("all");
+    setCurrentPage(1);
   };
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Quản lý đánh giá</h1>
-        <p className="text-gray-600 mt-1">
-          Tổng số: {pagination.total} đánh giá
-          {(filters.searchUser !== debouncedFilters.searchUser ||
-            filters.searchDish !== debouncedFilters.searchDish) && (
-            <span className="text-gray-500 ml-2">(đang gõ...)</span>
-          )}
-        </p>
-      </div>
+    <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
+      <header className="mb-5 flex items-center gap-2 text-lg font-bold">
+        <div className="flex items-center gap-2 text-gray-900">
+          <Store className="h-5 w-5" strokeWidth={1.8} />
+          Quản lý bán hàng
+        </div>
+        <ChevronRight className="h-5 w-5 text-gray-500" />
+        <div className="text-[#34ad54]">Quản lý đánh giá</div>
+      </header>
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search User */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tìm theo người dùng
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Nhập tên người dùng..."
-                value={filters.searchUser}
-                onChange={(e) =>
-                  handleFilterChange("searchUser", e.target.value)
-                }
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            </div>
+      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative w-full lg:w-[300px]">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") applyFilters();
+              }}
+              placeholder="Người đánh giá, món ăn"
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
+            />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
           </div>
 
-          {/* Search Dish */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tìm theo món ăn
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Nhập tên món ăn..."
-                value={filters.searchDish}
-                onChange={(e) =>
-                  handleFilterChange("searchDish", e.target.value)
-                }
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            </div>
-          </div>
+          <div className="text-base font-bold text-gray-500">Lọc bởi:</div>
 
-          {/* Rating Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Đánh giá
-            </label>
-            <select
-              value={filters.rating}
-              onChange={(e) => handleFilterChange("rating", e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+          <FilterSelect
+            label="Đánh giá"
+            value={filterRating}
+            onChange={setFilterRating}
+            options={ratingOptions}
+            className="lg:w-[220px]"
+          />
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-base font-bold text-[#34ad54] underline underline-offset-4 transition hover:text-[#2f9b45]"
             >
-              <option value="all">Tất cả</option>
-              <option value="5">5 sao</option>
-              <option value="4">4 sao</option>
-              <option value="3">3 sao</option>
-              <option value="2">2 sao</option>
-              <option value="1">1 sao</option>
-            </select>
-          </div>
+              Chọn mặc định
+            </button>
+          )}
         </div>
 
-        {/* Clear Filters Button */}
-        {(filters.searchUser || filters.searchDish || filters.rating !== "all") && (
-          <div className="mt-4 flex justify-end">
-            <Button
-              onClick={() => {
-                setFilters({
-                  searchUser: "",
-                  searchDish: "",
-                  rating: "all",
-                });
-                setPagination((prev) => ({ ...prev, page: 1 }));
-              }}
-              variant="outline"
-              className="cursor-pointer flex items-center gap-2"
-            >
-              <RotateCcw className="w-4 h-4" /> Xóa bộ lọc
-            </Button>
-          </div>
-        )}
+        <Button
+          type="button"
+          onClick={applyFilters}
+          className="h-12 min-w-[110px] rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45]"
+        >
+          Áp dụng
+        </Button>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow">
-        <RatingsTable
-          ratings={ratings}
-          isLoading={initialLoading || loading}
-          onRowClick={handleViewDetails}
-        />
+      <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
+        <div className="grid min-w-[1120px] grid-cols-[70px_1.3fr_1.15fr_0.8fr_1.55fr_1fr_0.75fr] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
+          <div>STT</div>
+          <div>Sản phẩm</div>
+          <div>Người đánh giá</div>
+          <div>Đánh giá</div>
+          <div>Nội dung</div>
+          <div>Ngày tạo</div>
+          <div>Hành động</div>
+        </div>
 
-        {/* Pagination */}
-        {pagination.total_pages > 1 && (
-          <div className="flex justify-center items-center gap-2 py-4 border-t">
-            <button
-              onClick={() =>
-                setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-              }
-              disabled={pagination.page === 1}
-              className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer"
-            >
-              Trước
-            </button>
-            <span className="text-sm text-gray-600">
-              Trang {pagination.page} / {pagination.total_pages}
-            </span>
-            <button
-              onClick={() =>
-                setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-              }
-              disabled={pagination.page === pagination.total_pages}
-              className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer"
-            >
-              Sau
-            </button>
-          </div>
-        )}
+        <div className="overflow-x-auto">
+          {initialLoading || loading ? (
+            <div className="flex min-h-[360px] min-w-[1120px] items-center justify-center text-base font-medium text-slate-500">
+              Đang tải danh sách đánh giá...
+            </div>
+          ) : ratings.length === 0 ? (
+            <div className="flex min-h-[360px] min-w-[1120px] flex-col items-center justify-center gap-3 text-slate-500">
+              <PackageOpen className="h-12 w-12 text-slate-300" />
+              <p className="text-base font-medium">Không có đánh giá phù hợp</p>
+            </div>
+          ) : (
+            <div className="min-w-[1120px]">
+              {ratings.map((rating, index) => {
+                const imageUrl =
+                  rating.dish_id?.imageUrls?.[
+                    rating.dish_id?.defaultImageIndex || 0
+                  ] || "/placeholder.png";
+
+                return (
+                  <div
+                    key={rating._id}
+                    className="grid min-h-16 grid-cols-[70px_1.3fr_1.15fr_0.8fr_1.55fr_1fr_0.75fr] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
+                  >
+                    <div>{startIndex + index}</div>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <img
+                        src={imageUrl}
+                        alt={rating.dishName || "Món ăn"}
+                        className="h-12 w-12 shrink-0 rounded-md object-cover"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-slate-800">
+                          {rating.dishName || "N/A"}
+                        </p>
+                        <p className="truncate text-sm text-slate-400">
+                          #{rating.dish_id?._id?.slice(-6) || "N/A"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-slate-800">
+                        {rating.userName || "N/A"}
+                      </p>
+                      <p className="truncate text-sm text-slate-400">
+                        {rating.userEmail || "-"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StarRating rating={rating.rating} />
+                      <span className="font-semibold text-slate-700">
+                        {rating.rating}/5
+                      </span>
+                    </div>
+                    <div className="truncate pr-4 text-slate-600">
+                      {rating.content || "-"}
+                    </div>
+                    <div>{formatDate(rating.created_at)}</div>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRating(rating)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition hover:bg-[#34ad54]/10 hover:text-[#34ad54]"
+                        aria-label="Xem chi tiết đánh giá"
+                      >
+                        <Eye className="h-5 w-5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Rating Detail Modal */}
-      {showModal && selectedRating && (
+      {totalItems > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+          <p className="text-sm font-bold text-gray-500">
+            Hiển thị {startIndex}-{endIndex} trên {totalItems} đánh giá
+          </p>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => changePage(1)}
+                disabled={currentPage === 1}
+                className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                «
+              </button>
+              <button
+                type="button"
+                onClick={() => changePage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              <div className="min-w-[30px] px-2 text-center text-sm font-bold text-gray-700">
+                {currentPage}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => changePage(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+                className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => changePage(totalPages)}
+                disabled={currentPage >= totalPages}
+                className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                »
+              </button>
+            </div>
+
+            <div className="relative">
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setCurrentPage(1);
+                }}
+                className="appearance-none rounded-md border border-gray-200 bg-white px-4 py-2 pr-8 text-sm font-bold text-gray-700 hover:border-gray-300 focus:border-[#34ad54] focus:outline-none"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-700" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedRating && (
         <RatingModal
           rating={selectedRating}
-          onClose={() => {
-            setShowModal(false);
-            setSelectedRating(null);
-          }}
+          onClose={() => setSelectedRating(null)}
         />
       )}
-    </div>
+    </section>
   );
 };
 

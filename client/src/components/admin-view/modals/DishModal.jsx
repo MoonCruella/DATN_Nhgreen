@@ -517,7 +517,7 @@ const ProductModal = ({
                           className={`pointer-events-auto bg-white p-2 rounded-full ${
                             i === form.defaultImageIndex
                               ? "text-yellow-500 shadow-lg"
-                              : "text-blue-600"
+                              : "text-green-600"
                           }`}
                           aria-label="Đặt ảnh mặc định"
                         >
@@ -713,3 +713,5 @@ const ProductModal = ({
 };
 
 export default ProductModal;
+
+

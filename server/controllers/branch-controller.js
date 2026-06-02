@@ -291,7 +291,9 @@ export const getBranchDishes = async (req, res) => {
 
     // Lấy món ăn theo filters và populate category
     const dishes = await Dish.find(dishQuery)
-      .select("_id name description price imageUrls defaultImageIndex category")
+      .select(
+        "_id name description price sale_price unit imageUrls defaultImageIndex category"
+      )
       .populate("category", "name");
 
     // Lấy trạng thái của các món tại chi nhánh này
@@ -308,6 +310,8 @@ export const getBranchDishes = async (req, res) => {
         name: dish.name,
         description: dish.description,
         price: dish.price,
+        sale_price: dish.sale_price,
+        unit: dish.unit,
         defaultImageIndex: dish.defaultImageIndex,
         imageUrls: dish.imageUrls || [],
         category: dish.category,

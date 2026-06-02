@@ -120,3 +120,5 @@ const RatingModal = ({ rating, onClose }) => {
 };
 
 export default RatingModal;
+
+
