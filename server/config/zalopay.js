@@ -9,6 +9,11 @@ const zalopayConfig = {
     process.env.ZP_CREATE_ENDPOINT || "https://sb-openapi.zalopay.vn/v2/create",
   queryEndpoint:
     process.env.ZP_QUERY_ENDPOINT || "https://sb-openapi.zalopay.vn/v2/query",
+  refundEndpoint:
+    process.env.ZP_REFUND_ENDPOINT || "https://sb-openapi.zalopay.vn/v2/refund",
+  queryRefundEndpoint:
+    process.env.ZP_QUERY_REFUND_ENDPOINT ||
+    "https://sb-openapi.zalopay.vn/v2/query_refund",
   // Your server public base URL
   serverBaseUrl: process.env.SERVER_BASE_URL,
   // Frontend checkout page to redirect after payment

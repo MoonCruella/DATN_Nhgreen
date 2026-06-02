@@ -275,6 +275,7 @@ const ProfileOrders = () => {
 
         toast.error(
           error?.response?.data?.message ||
+            error?.response?.data?.error ||
             error?.message ||
             "Có lỗi xảy ra khi hủy đơn hàng"
         );
@@ -337,6 +338,7 @@ const ProfileOrders = () => {
 
       toast.error(
         error?.response?.data?.message ||
+          error?.response?.data?.error ||
           error?.message ||
           "Có lỗi xảy ra khi gửi yêu cầu hủy đơn hàng"
       );

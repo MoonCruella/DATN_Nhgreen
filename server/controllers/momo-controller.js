@@ -39,6 +39,18 @@ function buildResponseSignature(payload, accessKey) {
   ].join("&");
 }
 
+function buildRefundSignature(payload) {
+  return [
+    `accessKey=${momoConfig.accessKey}`,
+    `amount=${payload.amount}`,
+    `description=${payload.description}`,
+    `orderId=${payload.orderId}`,
+    `partnerCode=${payload.partnerCode}`,
+    `requestId=${payload.requestId}`,
+    `transId=${payload.transId}`,
+  ].join("&");
+}
+
 export const createPayment = async (req, res) => {
   try {
     const { orderId, amount, orderInfo } = req.body;
@@ -133,13 +145,23 @@ export const momoReturn = (req, res) => {
     const success =
       payload.signature === expectedSignature &&
       String(payload.resultCode) === "0";
-    const message = success ? "Payment success" : "Payment failed";
+    const message = payload.message || (success ? "Payment success" : "Payment failed");
     const orderId = payload.orderId || "";
+    const resultCode = payload.resultCode || "";
+    const transId = payload.transId || "";
+    const requestId = payload.requestId || "";
+    const amount = payload.amount || "";
 
     return res.redirect(
       `${momoConfig.frontendRedirectUrl}?success=${success}&message=${encodeURIComponent(
         message
-      )}&orderId=${encodeURIComponent(orderId)}`
+      )}&orderId=${encodeURIComponent(orderId)}&resultCode=${encodeURIComponent(
+        resultCode
+      )}&transId=${encodeURIComponent(transId)}&requestId=${encodeURIComponent(
+        requestId
+      )}&amount=${encodeURIComponent(
+        amount
+      )}`
     );
   } catch (err) {
     console.error("MoMo return error:", err);
@@ -149,4 +171,58 @@ export const momoReturn = (req, res) => {
       )}`
     );
   }
+};
+
+export const requestMomoRefund = async ({
+  transId,
+  amount,
+  description,
+}) => {
+  const missingFields = [];
+  if (!transId) missingFields.push("transId");
+  if (!amount) missingFields.push("amount");
+  if (missingFields.length > 0) {
+    throw new Error(
+      `Thiếu thông tin giao dịch MoMo để hoàn tiền: ${missingFields.join(
+        ", "
+      )}`
+    );
+  }
+
+  const timestamp = Date.now();
+  const refundOrderId = `refund_${timestamp}`;
+  const requestId = `${refundOrderId}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+  const payload = {
+    partnerCode: momoConfig.partnerCode,
+    orderId: refundOrderId,
+    requestId,
+    amount: Math.round(Number(amount)),
+    transId: Number(transId),
+    lang: "vi",
+    description: description || `Hoan tien giao dich MoMo ${transId}`,
+  };
+
+  const rawSignature = buildRefundSignature(payload);
+  const signature = signHmacSha256(rawSignature, momoConfig.secretKey);
+
+  const response = await fetch(momoConfig.refundEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, signature }),
+  });
+  const data = await response.json();
+  const resultCode = Number(data.resultCode);
+  const success = response.ok && resultCode === 0;
+
+  return {
+    success,
+    data: {
+      ...data,
+      refund_order_id: refundOrderId,
+      refund_request_id: requestId,
+    },
+    message: data.message || `resultCode=${data.resultCode || ""}`,
+  };
 };

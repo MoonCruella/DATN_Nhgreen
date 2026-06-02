@@ -16,6 +16,14 @@ function makeAppTransId(orderId) {
   return `${yy}${mm}${dd}_${suffix}`;
 }
 
+function makeRefundId() {
+  const d = new Date();
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yy}${mm}${dd}_${zalopayConfig.app_id}_${Date.now()}`;
+}
+
 // Create payment via ZaloPay v2/create
 export const createPayment = async (req, res) => {
   try {
@@ -159,4 +167,68 @@ export const queryStatus = async (req, res) => {
     console.error("ZaloPay queryStatus error:", err);
     return res.status(500).json({ success: false, message: err.message });
   }
+};
+
+export const requestZalopayRefund = async ({
+  zpTransId,
+  amount,
+  description,
+}) => {
+  const missingFields = [];
+  if (!zpTransId) missingFields.push("zpTransId");
+  if (!amount) missingFields.push("amount");
+  if (missingFields.length > 0) {
+    throw new Error(
+      `Thiếu thông tin giao dịch ZaloPay để hoàn tiền: ${missingFields.join(
+        ", "
+      )}`
+    );
+  }
+
+  const appId = Number(zalopayConfig.app_id);
+  const refundAmount = Math.round(Number(amount));
+  const refundDescription =
+    description || `Hoan tien giao dich ZaloPay ${zpTransId}`;
+  const timestamp = Date.now();
+  const mRefundId = makeRefundId();
+
+  const macData = [
+    appId,
+    zpTransId,
+    refundAmount,
+    refundDescription,
+    timestamp,
+  ].join("|");
+  const mac = hmacSHA256(macData, zalopayConfig.key1);
+
+  const formBody = new URLSearchParams();
+  formBody.append("app_id", String(appId));
+  formBody.append("m_refund_id", mRefundId);
+  formBody.append("zp_trans_id", String(zpTransId));
+  formBody.append("amount", String(refundAmount));
+  formBody.append("timestamp", String(timestamp));
+  formBody.append("description", refundDescription);
+  formBody.append("mac", mac);
+
+  const response = await fetch(zalopayConfig.refundEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formBody.toString(),
+  });
+  const data = await response.json();
+  const returnCode = Number(data.return_code);
+  const success = response.ok && [1, 3].includes(returnCode);
+  const message =
+    data.return_message ||
+    data.sub_return_message ||
+    `return_code=${data.return_code || ""}`;
+
+  return {
+    success,
+    data: {
+      ...data,
+      m_refund_id: mRefundId,
+    },
+    message,
+  };
 };

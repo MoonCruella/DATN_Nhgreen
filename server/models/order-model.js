@@ -226,6 +226,12 @@ const orderSchema = new mongoose.Schema(
     vnpay_create_date: String,
     vnpay_pay_date: String,
     vnpay_amount: Number,
+    momo_request_id: String,
+    momo_trans_id: String,
+    momo_amount: Number,
+    zalopay_app_trans_id: String,
+    zalopay_zp_trans_id: String,
+    zalopay_amount: Number,
     refund_status: {
       type: String,
       enum: ["none", "success", "failed"],

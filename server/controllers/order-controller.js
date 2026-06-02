@@ -14,6 +14,8 @@ import CartItem from "../models/cart-model.js";
 import Rating from "../models/rating-model.js";
 import { getIO } from "../config/socket.js";
 import { requestVnpayRefund } from "./vnpay-controller.js";
+import { requestZalopayRefund } from "./zalopay-controller.js";
+import { requestMomoRefund } from "./momo-controller.js";
 import {
   createFuzzyMongoQuery,
   sortByRelevance,
@@ -76,6 +78,22 @@ const getVnpayRefundMissingFields = (order) => {
   }
   const amountValue = Number(order.vnpay_amount || 0);
   if (amountValue <= 0 && !order.total_amount) missing.push("amount");
+  return missing;
+};
+
+const getZalopayRefundMissingFields = (order) => {
+  const missing = [];
+  if (!order.zalopay_zp_trans_id) missing.push("zalopay_zp_trans_id");
+  const amountValue = Number(order.zalopay_amount || order.total_amount || 0);
+  if (amountValue <= 0) missing.push("amount");
+  return missing;
+};
+
+const getMomoRefundMissingFields = (order) => {
+  const missing = [];
+  if (!order.momo_trans_id) missing.push("momo_trans_id");
+  const amountValue = Number(order.momo_amount || order.total_amount || 0);
+  if (amountValue <= 0) missing.push("amount");
   return missing;
 };
 
@@ -505,7 +523,9 @@ export const cancelOrder = async (req, res) => {
         if (missingFields.length > 0) {
           return response.sendError(
             res,
-            "Thiếu thông tin giao dịch VNPay để hoàn tiền",
+            `Thiếu thông tin giao dịch VNPay để hoàn tiền: ${missingFields.join(
+              ", "
+            )}`,
             400,
             missingFields.join(", ")
           );
@@ -523,7 +543,7 @@ export const cancelOrder = async (req, res) => {
           if (!refundResult.success) {
             return response.sendError(
               res,
-              "Hoàn tiền VNPay thất bại",
+              `Hoàn tiền VNPay thất bại: ${refundResult.message}`,
               400,
               refundResult.message
             );
@@ -545,7 +565,118 @@ export const cancelOrder = async (req, res) => {
         } catch (refundError) {
           return response.sendError(
             res,
-            "Không thể hoàn tiền VNPay",
+            `Không thể hoàn tiền VNPay: ${refundError.message}`,
+            400,
+            refundError.message
+          );
+        }
+      }
+
+      if (
+        order.payment_method === "momo" &&
+        order.payment_status === "paid"
+      ) {
+        const missingFields = getMomoRefundMissingFields(order);
+        if (missingFields.length > 0) {
+          return response.sendError(
+            res,
+            `Thiếu thông tin giao dịch MoMo để hoàn tiền: ${missingFields.join(
+              ", "
+            )}`,
+            400,
+            missingFields.join(", ")
+          );
+        }
+        try {
+          const refundResult = await requestMomoRefund({
+            transId: order.momo_trans_id,
+            amount: order.momo_amount || order.total_amount,
+            description: `Hoan tien don hang ${order.order_number}`,
+          });
+
+          if (!refundResult.success) {
+            return response.sendError(
+              res,
+              `Hoàn tiền MoMo thất bại: ${refundResult.message}`,
+              400,
+              refundResult.message
+            );
+          }
+
+          order.payment_status = "refunded";
+          order.refund_status = "success";
+          order.refund_amount = order.total_amount;
+          order.refund_date = now;
+          order.refund_response_code = refundResult.data?.resultCode;
+          order.refund_message = refundResult.data?.message;
+
+          order.history = order.history || [];
+          order.history.push({
+            status: "hoan_tien",
+            date: now,
+            note: "Hoàn tiền MoMo thành công",
+          });
+        } catch (refundError) {
+          return response.sendError(
+            res,
+            `Không thể hoàn tiền MoMo: ${refundError.message}`,
+            400,
+            refundError.message
+          );
+        }
+      }
+
+      if (
+        order.payment_method === "zalopay" &&
+        order.payment_status === "paid"
+      ) {
+        const missingFields = getZalopayRefundMissingFields(order);
+        if (missingFields.length > 0) {
+          return response.sendError(
+            res,
+            `Thiếu thông tin giao dịch ZaloPay để hoàn tiền: ${missingFields.join(
+              ", "
+            )}`,
+            400,
+            missingFields.join(", ")
+          );
+        }
+        try {
+          const refundResult = await requestZalopayRefund({
+            zpTransId: order.zalopay_zp_trans_id,
+            amount: order.zalopay_amount || order.total_amount,
+            description: `Hoan tien don hang ${order.order_number}`,
+          });
+
+          if (!refundResult.success) {
+            return response.sendError(
+              res,
+              `Hoàn tiền ZaloPay thất bại: ${refundResult.message}`,
+              400,
+              refundResult.message
+            );
+          }
+
+          order.payment_status = "refunded";
+          order.refund_status = "success";
+          order.refund_amount = order.total_amount;
+          order.refund_date = now;
+          order.refund_response_code =
+            refundResult.data?.return_code || refundResult.data?.sub_return_code;
+          order.refund_message =
+            refundResult.data?.return_message ||
+            refundResult.data?.sub_return_message;
+
+          order.history = order.history || [];
+          order.history.push({
+            status: "hoan_tien",
+            date: now,
+            note: "Hoàn tiền ZaloPay thành công",
+          });
+        } catch (refundError) {
+          return response.sendError(
+            res,
+            `Không thể hoàn tiền ZaloPay: ${refundError.message}`,
             400,
             refundError.message
           );
@@ -871,6 +1002,12 @@ export const createOrder = async (req, res) => {
       vnpay_create_date,
       vnpay_pay_date,
       vnpay_amount,
+      momo_request_id,
+      momo_trans_id,
+      momo_amount,
+      zalopay_app_trans_id,
+      zalopay_zp_trans_id,
+      zalopay_amount,
     } = req.body;
     const { freeship, discount } = voucherCodes;
     const normalizedOrderChannel =
@@ -1311,6 +1448,16 @@ export const createOrder = async (req, res) => {
         payment_method === "vnpay" ? vnpay_create_date : undefined,
       vnpay_pay_date: payment_method === "vnpay" ? vnpay_pay_date : undefined,
       vnpay_amount: payment_method === "vnpay" ? vnpay_amount : undefined,
+      momo_request_id:
+        payment_method === "momo" ? momo_request_id : undefined,
+      momo_trans_id: payment_method === "momo" ? momo_trans_id : undefined,
+      momo_amount: payment_method === "momo" ? momo_amount : undefined,
+      zalopay_app_trans_id:
+        payment_method === "zalopay" ? zalopay_app_trans_id : undefined,
+      zalopay_zp_trans_id:
+        payment_method === "zalopay" ? zalopay_zp_trans_id : undefined,
+      zalopay_amount:
+        payment_method === "zalopay" ? zalopay_amount : undefined,
       shipping_info: isDineIn ? undefined : shipping_info,
       notes,
       status: initialStatus,
@@ -1504,7 +1651,9 @@ export const updateShippingInfo = async (req, res) => {
           if (missingFields.length > 0) {
             return response.sendError(
               res,
-              "Thiếu thông tin giao dịch VNPay để hoàn tiền",
+              `Thiếu thông tin giao dịch VNPay để hoàn tiền: ${missingFields.join(
+                ", "
+              )}`,
               400,
               missingFields.join(", ")
             );
@@ -1522,7 +1671,7 @@ export const updateShippingInfo = async (req, res) => {
             if (!refundResult.success) {
               return response.sendError(
                 res,
-                "Hoàn tiền VNPay thất bại",
+                `Hoàn tiền VNPay thất bại: ${refundResult.message}`,
                 400,
                 refundResult.message
               );
@@ -1544,7 +1693,119 @@ export const updateShippingInfo = async (req, res) => {
           } catch (refundError) {
             return response.sendError(
               res,
-              "Không thể hoàn tiền VNPay",
+              `Không thể hoàn tiền VNPay: ${refundError.message}`,
+              400,
+              refundError.message
+            );
+          }
+        }
+
+        if (
+          order.payment_method === "momo" &&
+          order.payment_status === "paid"
+        ) {
+          const missingFields = getMomoRefundMissingFields(order);
+          if (missingFields.length > 0) {
+            return response.sendError(
+              res,
+              `Thiếu thông tin giao dịch MoMo để hoàn tiền: ${missingFields.join(
+                ", "
+              )}`,
+              400,
+              missingFields.join(", ")
+            );
+          }
+          try {
+            const refundResult = await requestMomoRefund({
+              transId: order.momo_trans_id,
+              amount: order.momo_amount || order.total_amount,
+              description: `Hoan tien don hang ${order.order_number}`,
+            });
+
+            if (!refundResult.success) {
+              return response.sendError(
+                res,
+                `Hoàn tiền MoMo thất bại: ${refundResult.message}`,
+                400,
+                refundResult.message
+              );
+            }
+
+            order.payment_status = "refunded";
+            order.refund_status = "success";
+            order.refund_amount = order.total_amount;
+            order.refund_date = now;
+            order.refund_response_code = refundResult.data?.resultCode;
+            order.refund_message = refundResult.data?.message;
+
+            order.history = order.history || [];
+            order.history.push({
+              status: "hoan_tien",
+              date: now,
+              note: "Hoàn tiền MoMo thành công",
+            });
+          } catch (refundError) {
+            return response.sendError(
+              res,
+              `Không thể hoàn tiền MoMo: ${refundError.message}`,
+              400,
+              refundError.message
+            );
+          }
+        }
+
+        if (
+          order.payment_method === "zalopay" &&
+          order.payment_status === "paid"
+        ) {
+          const missingFields = getZalopayRefundMissingFields(order);
+          if (missingFields.length > 0) {
+            return response.sendError(
+              res,
+              `Thiếu thông tin giao dịch ZaloPay để hoàn tiền: ${missingFields.join(
+                ", "
+              )}`,
+              400,
+              missingFields.join(", ")
+            );
+          }
+          try {
+            const refundResult = await requestZalopayRefund({
+              zpTransId: order.zalopay_zp_trans_id,
+              amount: order.zalopay_amount || order.total_amount,
+              description: `Hoan tien don hang ${order.order_number}`,
+            });
+
+            if (!refundResult.success) {
+              return response.sendError(
+                res,
+                `Hoàn tiền ZaloPay thất bại: ${refundResult.message}`,
+                400,
+                refundResult.message
+              );
+            }
+
+            order.payment_status = "refunded";
+            order.refund_status = "success";
+            order.refund_amount = order.total_amount;
+            order.refund_date = now;
+            order.refund_response_code =
+              refundResult.data?.return_code ||
+              refundResult.data?.sub_return_code;
+            order.refund_message =
+              refundResult.data?.return_message ||
+              refundResult.data?.sub_return_message;
+
+            order.history = order.history || [];
+            order.history.push({
+              status: "hoan_tien",
+              date: now,
+              note: "Hoàn tiền ZaloPay thành công",
+            });
+          } catch (refundError) {
+            return response.sendError(
+              res,
+              `Không thể hoàn tiền ZaloPay: ${refundError.message}`,
               400,
               refundError.message
             );
