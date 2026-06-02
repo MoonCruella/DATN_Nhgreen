@@ -97,7 +97,7 @@ const PaymentMethodModal = ({
       <button
         type="button"
         onClick={onBack}
-        className="mb-5 inline-flex items-center gap-3 text-xl font-bold text-slate-950 transition hover:text-[#26338d]"
+        className="mb-5 inline-flex items-center gap-3 text-xl font-bold text-slate-950 transition hover:text-[#34ad54]"
       >
         <ArrowLeft className="h-7 w-7" />
         Quay lại
@@ -117,8 +117,8 @@ const PaymentMethodModal = ({
                   onClick={() => setPaymentMethod(method.value)}
                   className={`flex h-14 items-center justify-center gap-2 border-gray-200 text-base font-bold transition md:border-r md:last:border-r-0 ${
                     active
-                      ? "bg-[#26338d] text-white"
-                      : "bg-white text-cyan-500 hover:bg-cyan-50"
+                      ? "bg-[#34ad54] text-white"
+                      : "bg-white text-green-600 hover:bg-green-50"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -161,7 +161,7 @@ const PaymentMethodModal = ({
 
             <div className="flex items-center justify-between text-xl font-bold">
               <span>Tổng cộng</span>
-              <span className="text-3xl text-[#26338d]">
+              <span className="text-3xl text-[#34ad54]">
                 {formatMoneyInput(totalAmount)}
               </span>
             </div>
@@ -207,7 +207,7 @@ const PaymentMethodModal = ({
                     key={amount}
                     type="button"
                     onClick={() => setCashReceived(amount)}
-                    className="h-10 rounded-full border border-[#26338d] px-6 text-base font-bold text-[#26338d] transition hover:bg-[#26338d] hover:text-white"
+                    className="h-10 rounded-full border border-[#34ad54] px-6 text-base font-bold text-[#34ad54] transition hover:bg-[#34ad54] hover:text-white"
                   >
                     {formatCurrency(amount)}
                   </button>
@@ -242,7 +242,7 @@ const PaymentMethodModal = ({
               totalQuantity === 0 ||
               (paymentMethod === "cod" && cashReceived < totalAmount)
             }
-            className="mt-8 h-14 w-full rounded-lg bg-[#26338d] text-lg font-bold text-white hover:bg-[#1d2874] disabled:cursor-not-allowed disabled:bg-[#a8afd0]"
+            className="mt-8 h-14 w-full rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0]"
           >
             Xác nhận thanh toán
           </Button>
@@ -321,7 +321,7 @@ const PaymentMethodModal = ({
 
           <Button
             type="button"
-            className="mx-auto mt-7 flex h-12 w-72 rounded-lg bg-[#26338d] text-base font-bold text-white hover:bg-[#1d2874]"
+            className="mx-auto mt-7 flex h-12 w-72 rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45]"
           >
             In đơn để thanh toán
           </Button>
@@ -332,3 +332,5 @@ const PaymentMethodModal = ({
 };
 
 export default PaymentMethodModal;
+
+

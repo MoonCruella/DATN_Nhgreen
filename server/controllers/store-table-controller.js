@@ -54,9 +54,12 @@ const serializeTable = async (req, table) => {
     order_type: "dine_in",
     status: { $in: ["pending", "confirmed", "processing"] },
   })
-    .select("_id order_number status total_amount created_at")
+    .select("_id order_number status total_amount items.quantity created_at")
     .sort({ created_at: -1 })
     .lean();
+  const currentItemCount =
+    activeOrder?.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) ||
+    0;
 
   return {
     ...plainTable,
@@ -66,6 +69,7 @@ const serializeTable = async (req, table) => {
     current_order_status: activeOrder?.status || null,
     current_order_number: activeOrder?.order_number || null,
     current_total: activeOrder?.total_amount || 0,
+    current_item_count: currentItemCount,
     has_current_order: Boolean(activeOrder),
   };
 };

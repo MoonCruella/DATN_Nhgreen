@@ -230,7 +230,7 @@ const ManagerDashboard = () => {
 
         {/* Revenue Cards for Print */}
         <div className="hidden print:block revenue-cards-print">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-gray-600">DOANH THU HÔM NAY</CardTitle>
             </CardHeader>
@@ -289,7 +289,7 @@ const ManagerDashboard = () => {
       {/* Revenue Cards - Screen only */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:hidden">
         {/* Today Revenue */}
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600">
               HÔM NAY
@@ -367,7 +367,7 @@ const ManagerDashboard = () => {
           size="sm"
           variant={dateRange === "day" ? "default" : "outline"}
           onClick={() => setDateRange("day")}
-          className={dateRange === "day" ? "bg-blue-600 hover:bg-blue-700" : ""}
+          className={dateRange === "day" ? "bg-green-600 hover:bg-green-700" : ""}
         >
           Ngày
         </Button>
@@ -376,7 +376,7 @@ const ManagerDashboard = () => {
           variant={dateRange === "week" ? "default" : "outline"}
           onClick={() => setDateRange("week")}
           className={
-            dateRange === "week" ? "bg-blue-600 hover:bg-blue-700" : ""
+            dateRange === "week" ? "bg-green-600 hover:bg-green-700" : ""
           }
         >
           Tuần
@@ -386,7 +386,7 @@ const ManagerDashboard = () => {
           variant={dateRange === "month" ? "default" : "outline"}
           onClick={() => setDateRange("month")}
           className={
-            dateRange === "month" ? "bg-blue-600 hover:bg-blue-700" : ""
+            dateRange === "month" ? "bg-green-600 hover:bg-green-700" : ""
           }
         >
           Tháng
@@ -449,7 +449,7 @@ const ManagerDashboard = () => {
         <CardContent>
           {chartLoading ? (
             <div className="flex items-center justify-center h-[300px]">
-              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
@@ -497,3 +497,5 @@ const ManagerDashboard = () => {
 };
 
 export default ManagerDashboard;
+
+

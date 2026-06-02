@@ -25,7 +25,7 @@ const OrderModal = ({ open, onClose, order }) => {
   const getStatusBadge = (status) => {
     const statusMap = {
       pending: { text: "Chờ xác nhận", color: "bg-yellow-100 text-yellow-800" },
-      confirmed: { text: "Đã xác nhận", color: "bg-blue-100 text-blue-800" },
+      confirmed: { text: "Đã xác nhận", color: "bg-green-100 text-green-800" },
       processing: {
         text: "Đang xử lý",
         color: "bg-purple-100 text-purple-800",
@@ -281,3 +281,5 @@ const OrderModal = ({ open, onClose, order }) => {
 };
 
 export default OrderModal;
+
+

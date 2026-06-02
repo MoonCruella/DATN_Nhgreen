@@ -60,7 +60,7 @@ const AdminFlashSale = () => {
 
   const getStatusBadge = (status) => {
     const badges = {
-      upcoming: "bg-blue-100 text-blue-800",
+      upcoming: "bg-green-100 text-green-800",
       active: "bg-green-100 text-green-800",
       ended: "bg-gray-100 text-gray-800",
     };
@@ -118,7 +118,7 @@ const AdminFlashSale = () => {
           <div className="text-lg font-medium">Quản lý Flash Sale</div>
           <button
             onClick={() => navigate("/admin/flash-sale/create")}
-            className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 transition cursor-pointer"
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition cursor-pointer"
           >
             + Tạo Flash Sale
           </button>
@@ -288,3 +288,5 @@ const AdminFlashSale = () => {
 };
 
 export default AdminFlashSale;
+
+

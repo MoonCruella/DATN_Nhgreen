@@ -82,3 +82,5 @@ const BranchTable = ({ branches = [], onRowClick, isLoading }) => {
 };
 
 export default BranchTable;
+
+

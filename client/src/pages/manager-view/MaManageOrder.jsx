@@ -1,787 +1,438 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { io } from "socket.io-client";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import orderApi from "@/api/orderApi";
-import branchApi from "@/api/branchApi";
 import {
-  Package,
-  RefreshCw,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
   Search,
-  Clock,
-  User,
-  MapPin,
-  UtensilsCrossed,
-  MailOpen,
+  SlidersHorizontal,
+  Store,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import orderApi from "@/api/orderApi";
+import FilterSelect from "@/components/common/FilterSelect";
+
+const formatCurrency = (value = 0) =>
+  new Intl.NumberFormat("vi-VN").format(value || 0);
+
+const formatDateTime = (value) => {
+  if (!value) return "--";
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+};
+
+const compactOrderCode = (orderNumber = "") =>
+  orderNumber.replace(/^[A-Z]+/i, "").slice(0, 6) || orderNumber;
+
+const getCustomerName = (order) =>
+  order.shipping_info?.recipient_name ||
+  order.shipping_info?.name ||
+  order.guest_info?.name ||
+  "--";
+
+const getCustomerPhone = (order) =>
+  order.shipping_info?.phone || order.guest_info?.phone || "--";
+
+const getItemCount = (order) =>
+  order.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+
+const statusConfig = {
+  pending: {
+    label: "Chờ xác nhận",
+    className: "bg-yellow-100 text-yellow-800",
+    dot: "bg-yellow-500",
+  },
+  confirmed: {
+    label: "Đã xác nhận",
+    className: "bg-green-100 text-green-800",
+    dot: "bg-green-600",
+  },
+  processing: {
+    label: "Đang chuẩn bị",
+    className: "bg-green-100 text-green-800",
+    dot: "bg-green-600",
+  },
+  shipped: {
+    label: "Đang giao",
+    className: "bg-orange-100 text-orange-800",
+    dot: "bg-orange-500",
+  },
+  delivered: {
+    label: "Đã giao",
+    className: "bg-purple-100 text-purple-800",
+    dot: "bg-purple-500",
+  },
+  completed: {
+    label: "Hoàn thành",
+    className: "bg-[#34ad54] text-white",
+    dot: "bg-white",
+  },
+  cancelled: {
+    label: "Đã hủy",
+    className: "bg-red-100 text-red-800",
+    dot: "bg-red-500",
+  },
+  cancel_request: {
+    label: "Yêu cầu hủy",
+    className: "bg-orange-100 text-orange-800",
+    dot: "bg-orange-500",
+  },
+};
+
+const statusOptions = [
+  { value: "all", label: "Tất cả" },
+  { value: "pending", label: "Chờ xác nhận" },
+  { value: "confirmed", label: "Đã xác nhận" },
+  { value: "processing", label: "Đang chuẩn bị" },
+  { value: "shipped", label: "Đang giao" },
+  { value: "delivered", label: "Đã giao" },
+  { value: "completed", label: "Hoàn thành" },
+  { value: "cancelled", label: "Đã hủy" },
+  { value: "cancel_request", label: "Yêu cầu hủy" },
+];
+
+const dateOptions = [
+  { value: "today", label: "Hôm nay" },
+  { value: "yesterday", label: "Hôm qua" },
+  { value: "week", label: "7 ngày qua" },
+  { value: "month", label: "Tháng này" },
+  { value: "all", label: "Tất cả" },
+];
+
+const getNextAction = (status) => {
+  switch (status) {
+    case "pending":
+      return { label: "Xác nhận", status: "confirmed" };
+    case "confirmed":
+      return { label: "Chuẩn bị", status: "processing" };
+    case "processing":
+      return { label: "Giao hàng", status: "shipped" };
+    case "shipped":
+      return { label: "Đã giao", status: "delivered" };
+    default:
+      return null;
+  }
+};
 
 const MaManageOrder = () => {
   const navigate = useNavigate();
   const accessToken = useSelector((state) => state.auth.accessToken);
   const user = useSelector((state) => state.auth.user);
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
   const branchId = user?.branch_id;
-  console.log("user:", user);
-
-  console.log("🔍 MaManageOrder - User info:", {
-    hasAccessToken: !!accessToken,
-    isAuthenticated,
-    userId: user?._id,
-    userRole: user?.role,
-    branchId: branchId,
-  });
-
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!isAuthenticated || !accessToken) {
-      toast.error("Vui lòng đăng nhập để tiếp tục");
-      navigate("/auth/login");
-      return;
-    }
-
-    if (user?.role !== "manager") {
-      toast.error("Bạn không có quyền truy cập trang này");
-      navigate("/");
-      return;
-    }
-
-    if (!branchId) {
-      toast.error("Tài khoản manager chưa được gán chi nhánh");
-      setLoading(false);
-      return;
-    }
-  }, [isAuthenticated, accessToken, user, branchId, navigate]);
-
-  // Fetch branch name
-  useEffect(() => {
-    const fetchBranchName = async () => {
-      if (branchId) {
-        try {
-          const response = await branchApi.getById(branchId);
-          if (response.success) {
-            setBranchName(response.data.name);
-          }
-        } catch (error) {
-          console.error("Error fetching branch name:", error);
-        }
-      }
-    };
-    fetchBranchName();
-  }, [branchId]);
 
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [socket, setSocket] = useState(null);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [branchName, setBranchName] = useState("");
-
-  // Pagination states
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const observerRef = useRef(null);
-  const loadMoreRef = useRef(null);
-
-  // Filters
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
+  const [status, setStatus] = useState("all");
+  const [appliedStatus, setAppliedStatus] = useState("all");
   const [dateFilter, setDateFilter] = useState("today");
+  const [appliedDate, setAppliedDate] = useState("today");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  // Stats
-  const [stats, setStats] = useState({
-    all: 0,
-    pending: 0,
-    confirmed: 0,
-    processing: 0,
-    shipped: 0,
-    delivered: 0,
-    completed: 0,
-    cancelled: 0,
-    cancel_request: 0,
-  });
-
-  // Fetch full stats separately (without pagination)
-  const fetchStats = useCallback(async () => {
-    if (!accessToken || !branchId || !isAuthenticated) {
-      return;
-    }
-
-    try {
-      console.log("🔍 Fetching stats for branch:", branchId);
-      const response = await orderApi.getOrdersByBranch(accessToken, branchId, {
-        date: dateFilter,
-        search: searchQuery,
-        order_type: "online",
-        // No page/limit to get all orders for counting
-        limit: 10000, // Set high limit to get all
-      });
-
-      if (response.success) {
-        const allOrders = response.data.orders || [];
-        const newStats = {
-          all: allOrders.length,
-          pending: allOrders.filter((o) => o.status === "pending").length,
-          confirmed: allOrders.filter((o) => o.status === "confirmed").length,
-          processing: allOrders.filter((o) => o.status === "processing").length,
-          shipped: allOrders.filter((o) => o.status === "shipped").length,
-          delivered: allOrders.filter((o) => o.status === "delivered").length,
-          completed: allOrders.filter((o) => o.status === "completed").length,
-          cancelled: allOrders.filter((o) => o.status === "cancelled").length,
-          cancel_request: allOrders.filter((o) => o.status === "cancel_request").length,
-        };
-        setStats(newStats);
-        console.log("✅ Stats updated:", newStats);
-      }
-    } catch (error) {
-      console.error("❌ Error fetching stats:", error);
-    }
-  }, [accessToken, branchId, isAuthenticated, dateFilter, searchQuery]);
-
-  // Initialize Socket.IO
-  useEffect(() => {
+  const fetchOrders = async () => {
     if (!accessToken || !branchId) return;
 
-    const newSocket = io(
-      import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
-      {
-        auth: { token: accessToken },
-        transports: ["websocket", "polling"],
-      }
-    );
-
-    newSocket.on("connect", () => {
-      console.log("✅ Socket connected");
-      // Join branch-specific room
-      newSocket.emit("join_branch_room", branchId);
-    });
-
-    newSocket.on("connect_error", (error) => {
-      console.error("❌ Socket connection error:", error);
-    });
-
-    // Listen for new orders
-    newSocket.on("new_order", (order) => {
-      console.log("📦 New order received:", order);
-
-      // Extract branch ID (could be string or populated object)
-      const orderBranchId =
-        typeof order.branch_id === "object"
-          ? order.branch_id?._id
-          : order.branch_id;
-
-      console.log("🔍 Branch comparison:", {
-        orderBranchId,
-        orderBranchIdType: typeof order.branch_id,
-        currentBranchId: branchId,
-        match: orderBranchId?.toString() === branchId?.toString(),
-      });
-
-      if (orderBranchId?.toString() === branchId?.toString()) {
-        setOrders((prev) => {
-          const updated = [order, ...prev];
-          return updated;
-        });
-        fetchStats(); // Refresh stats
-        playNotificationSound();
-        toast.success(`Đơn hàng mới #${order.order_number}`);
-      } else {
-        console.log("⚠️ Order branch mismatch - not adding to list");
-      }
-    });
-
-    // Listen for order status updates
-    newSocket.on("order_status_updated", (data) => {
-      console.log("🔄 Order status updated:", data);
-
-      // Extract branch ID (could be string or populated object)
-      const dataBranchId =
-        typeof data.branch_id === "object"
-          ? data.branch_id?._id
-          : data.branch_id;
-
-      if (dataBranchId?.toString() === branchId?.toString()) {
-        setOrders((prev) => {
-          const updated = prev.map((order) =>
-            order._id === data.order_id
-              ? { ...order, status: data.status, ...data.updates }
-              : order
-          );
-          return updated;
-        });
-        fetchStats(); // Refresh stats
-
-        // Show toast notification for cancelled orders
-        if (data.status === "cancelled") {
-          playNotificationSound();
-          toast.error(`Đơn hàng #${data.order_number} đã bị hủy`, {
-            description:
-              data.updates?.cancel_reason || "Khách hàng đã hủy đơn hàng",
-          });
-        } else if (data.status === "cancel_request") {
-          playNotificationSound();
-          toast.warning(`Yêu cầu hủy đơn #${data.order_number}`, {
-            description:
-              data.updates?.cancel_reason || "Khách hàng yêu cầu hủy đơn hàng",
-          });
-        }
-      }
-    });
-
-    // Listen for order confirmed by customer
-    newSocket.on("order_confirmed_by_customer", (data) => {
-      console.log("✅ Order confirmed by customer:", data);
-
-      // Extract branch ID (could be string or populated object)
-      const dataBranchId =
-        typeof data.branch_id === "object"
-          ? data.branch_id?._id
-          : data.branch_id;
-
-      if (dataBranchId?.toString() === branchId?.toString()) {
-        setOrders((prev) => {
-          const updated = prev.map((order) =>
-            order._id === data.order_id
-              ? { ...order, status: "completed", completed_at: new Date() }
-              : order
-          );
-          return updated;
-        });
-        fetchStats(); // Refresh stats
-        toast.success(`Đơn #${data.order_number} đã được xác nhận hoàn thành`);
-      }
-    });
-
-    setSocket(newSocket);
-
-    return () => {
-      newSocket.disconnect();
-    };
-  }, [accessToken, branchId]);
-
-  // Fetch orders
-  const fetchOrders = useCallback(async (pageNum = 1, append = false) => {
-    // Only fetch if authenticated and has branch
-    if (!accessToken || !branchId || !isAuthenticated) {
-      console.log("⏸️ Skipping fetch - not ready:", {
-        hasAccessToken: !!accessToken,
-        hasBranchId: !!branchId,
-        isAuthenticated,
-      });
-      setLoading(false);
-      return;
-    }
-
     try {
-      if (!append) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-      
-      const limit = 10;
-      console.log("🔍 Fetching orders for branch:", branchId, "page:", pageNum);
+      setLoading(true);
       const response = await orderApi.getOrdersByBranch(accessToken, branchId, {
-        date: dateFilter,
-        search: searchQuery,
+        status: appliedStatus,
+        date: appliedDate,
         order_type: "online",
-        page: pageNum,
-        limit: limit,
+        limit: 1000,
       });
-
-      console.log("✅ Orders response:", response);
-      if (response.success) {
-        const newOrders = response.data.orders || [];
-        
-        if (append) {
-          setOrders(prev => [...prev, ...newOrders]);
-        } else {
-          setOrders(newOrders);
-        }
-        
-        setHasMore(newOrders.length === limit);
-      }
+      setOrders(response?.data?.orders || []);
+      setCurrentPage(1);
     } catch (error) {
-      console.error("❌ Error fetching orders:", error);
-      console.error("Error details:", error.response?.data || error.message);
       toast.error(
-        `Lỗi tải danh sách đơn hàng: ${
-          error.response?.data?.message || error.message
-        }`
+        error?.response?.data?.message ||
+          error?.message ||
+          "Không thể tải đơn hàng online",
       );
     } finally {
       setLoading(false);
-      setInitialLoading(false);
-      setLoadingMore(false);
     }
-  }, [
-    accessToken,
-    branchId,
-    isAuthenticated,
-    dateFilter,
-    searchQuery,
-    orders,
-  ]);
-
-  // Load more orders
-  const loadMore = useCallback(() => {
-    if (!loadingMore && hasMore) {
-      const nextPage = page + 1;
-      setPage(nextPage);
-      fetchOrders(nextPage, true);
-    }
-  }, [loadingMore, hasMore, page, fetchOrders]);
-
-  // Reset and fetch when filters change
-  useEffect(() => {
-    setPage(1);
-    setOrders([]);
-    setHasMore(true);
-    fetchOrders(1, false);
-    fetchStats(); // Fetch stats separately
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFilter, searchQuery]);
-
-  // Set up Intersection Observer for infinite scroll
-  useEffect(() => {
-    if (loading || loadingMore || !hasMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadMore();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-
-    observerRef.current = observer;
-
-    return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect();
-      }
-    };
-  }, [loading, loadingMore, hasMore, loadMore]);
-
-  // Play notification sound
-  const playNotificationSound = () => {
-    const audio = new Audio("/notification.mp3");
-    audio.play().catch((e) => console.log("Cannot play sound:", e));
   };
 
-  // Update order status
-  const handleUpdateStatus = async (orderId, newStatus) => {
+  useEffect(() => {
+    fetchOrders();
+  }, [accessToken, branchId, appliedStatus, appliedDate]);
+
+  const filteredOrders = useMemo(() => {
+    const keyword = appliedSearch.trim().toLowerCase();
+    if (!keyword) return orders;
+
+    return orders.filter((order) =>
+      [
+        order.order_number,
+        compactOrderCode(order.order_number),
+        getCustomerName(order),
+        getCustomerPhone(order),
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(keyword)),
+    );
+  }, [orders, appliedSearch]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedOrders = filteredOrders.slice(startIndex, startIndex + pageSize);
+  const hasActiveFilters =
+    Boolean(appliedSearch.trim()) ||
+    appliedStatus !== "all" ||
+    appliedDate !== "today";
+
+  const applyFilters = () => {
+    setAppliedSearch(searchTerm);
+    setAppliedStatus(status);
+    setAppliedDate(dateFilter);
+    setCurrentPage(1);
+  };
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setAppliedSearch("");
+    setStatus("all");
+    setAppliedStatus("all");
+    setDateFilter("today");
+    setAppliedDate("today");
+    setCurrentPage(1);
+  };
+
+  const updateStatus = async (order, nextStatus) => {
     try {
-      setUpdatingStatus(true);
-      const response = await orderApi.updateOrderStatus(
-        accessToken,
-        orderId,
-        newStatus
+      setUpdatingOrderId(order._id);
+      await orderApi.updateOrderStatus(accessToken, order._id, nextStatus);
+      toast.success("Cập nhật trạng thái thành công");
+      setOrders((prev) =>
+        prev.map((item) =>
+          item._id === order._id ? { ...item, status: nextStatus } : item,
+        ),
       );
-
-      if (response.success) {
-        toast.success("Cập nhật trạng thái thành công");
-        setOrders((prev) =>
-          prev.map((order) =>
-            order._id === orderId
-              ? { ...order, status: newStatus, [`${newStatus}_at`]: new Date() }
-              : order
-          )
-        );
-        fetchStats(); // Refresh stats
-      }
     } catch (error) {
-      console.error("Error updating status:", error);
-      toast.error(error.message || "Lỗi cập nhật trạng thái");
+      toast.error(error?.message || "Không thể cập nhật trạng thái");
     } finally {
-      setUpdatingStatus(false);
+      setUpdatingOrderId(null);
     }
   };
-
-  // Get status badge
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      pending: {
-        label: "Chờ xác nhận",
-        className: "bg-yellow-100 text-yellow-800",
-      },
-      confirmed: {
-        label: "Đã xác nhận",
-        className: "bg-blue-100 text-blue-800",
-      },
-      processing: {
-        label: "Đang chuẩn bị",
-        className: "bg-blue-100 text-blue-800",
-      },
-      shipped: {
-        label: "Đang giao",
-        className: "bg-orange-100 text-orange-800",
-      },
-      delivered: {
-        label: "Đã giao hàng",
-        className: "bg-purple-100 text-purple-800",
-      },
-      completed: {
-        label: "Hoàn thành",
-        className: "bg-green-100 text-green-800",
-      },
-      cancelled: { label: "Đã hủy", className: "bg-red-100 text-red-800" },
-      cancel_request: {
-        label: "Yêu cầu hủy",
-        className: "bg-orange-100 text-orange-800 animate-pulse",
-      },
-    };
-
-    const config = statusConfig[status] || statusConfig.pending;
-    return (
-      <Badge className={`${config.className} font-medium`}>
-        {config.label}
-      </Badge>
-    );
-  };
-
-  // Format currency
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(amount);
-  };
-
-  // Format date time
-  const formatDateTime = (date) => {
-    return new Date(date).toLocaleString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  // Get next status actions
-  const getAvailableActions = (status) => {
-    switch (status) {
-      case "pending":
-        return [
-          { label: "Xác nhận đơn", status: "confirmed", variant: "default" },
-        ];
-      case "confirmed":
-        return [
-          {
-            label: "Bắt đầu chuẩn bị",
-            status: "processing",
-            variant: "default",
-          },
-        ];
-      case "processing":
-        return [
-          { label: "Sẵn sàng giao", status: "shipped", variant: "default" },
-        ];
-      case "shipped":
-        return [
-          { label: "Đã giao hàng", status: "delivered", variant: "default" },
-        ];
-      default:
-        return [];
-    }
-  };
-
-  // Filter orders
-  const filteredOrders = orders.filter((order) => {
-    // Status filter
-    if (statusFilter !== "all" && order.status !== statusFilter) return false;
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        order.order_number.toLowerCase().includes(query) ||
-        order.shipping_address?.recipient_name?.toLowerCase().includes(query) ||
-        order.shipping_address?.phone?.includes(query)
-      );
-    }
-
-    return true;
-  });
-
-  if (initialLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-gray-600">Đang tải dữ liệu...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-white rounded-xl shadow-sm p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-              <Package className="w-6 h-6" />
-              Quản lý đơn hàng
-            </h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Chi nhánh: {branchName || "Đang tải..."}
-            </p>
-          </div>
-          <Button
-            onClick={fetchOrders}
-            variant="outline"
-            className="cursor-pointer flex items-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Làm mới
-          </Button>
+    <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
+      <header className="mb-5 flex items-center gap-2 text-lg font-bold">
+        <div className="flex items-center gap-2 text-gray-900">
+          <Store className="h-5 w-5" strokeWidth={1.8} />
+          Quản lý bán hàng
         </div>
+        <ChevronRight className="h-5 w-5 text-gray-500" />
+        <div className="text-[#34ad54]">Đơn hàng online</div>
+      </header>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-2 mb-4">
-          <button
-            onClick={() => setStatusFilter("all")}
-            className={`p-2 rounded-lg text-center transition-all ${
-              statusFilter === "all"
-                ? "bg-gray-700 text-white shadow-md"
-                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-            }`}
-          >
-            <div className="text-sm font-bold">{stats.all}</div>
-            <div className="text-xs mt-0.5">Tất cả</div>
-          </button>
-          <button
-            onClick={() => setStatusFilter("pending")}
-            className={`p-2 rounded-lg text-center transition-all ${
-              statusFilter === "pending"
-                ? "bg-gray-700 text-white shadow-md"
-                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-            }`}
-          >
-            <div className="text-sm font-bold">{stats.pending}</div>
-            <div className="text-xs mt-0.5">Chờ xác nhận</div>
-          </button>
-          <button
-            onClick={() => setStatusFilter("confirmed")}
-            className={`p-2 rounded-lg text-center transition-all ${
-              statusFilter === "confirmed"
-                ? "bg-gray-700 text-white shadow-md"
-                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-            }`}
-          >
-            <div className="text-sm font-bold">{stats.confirmed}</div>
-            <div className="text-xs mt-0.5">Đã xác nhận</div>
-          </button>
-          <button
-            onClick={() => setStatusFilter("processing")}
-            className={`p-2 rounded-lg text-center transition-all ${
-              statusFilter === "processing"
-                ? "bg-gray-700 text-white shadow-md"
-                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-            }`}
-          >
-            <div className="text-sm font-bold">{stats.processing}</div>
-            <div className="text-xs mt-0.5">Đang chuẩn bị</div>
-          </button>
-          <button
-            onClick={() => setStatusFilter("shipped")}
-            className={`p-2 rounded-lg text-center transition-all ${
-              statusFilter === "shipped"
-                ? "bg-gray-700 text-white shadow-md"
-                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-            }`}
-          >
-            <div className="text-sm font-bold">{stats.shipped}</div>
-            <div className="text-xs mt-0.5">Đang giao</div>
-          </button>
-          <button
-            onClick={() => setStatusFilter("delivered")}
-            className={`p-2 rounded-lg text-center transition-all ${
-              statusFilter === "delivered"
-                ? "bg-gray-700 text-white shadow-md"
-                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-            }`}
-          >
-            <div className="text-sm font-bold">{stats.delivered}</div>
-            <div className="text-xs mt-0.5">Đã giao hàng</div>
-          </button>
-          <button
-            onClick={() => setStatusFilter("completed")}
-            className={`p-2 rounded-lg text-center transition-all ${
-              statusFilter === "completed"
-                ? "bg-green-600 text-white shadow-md"
-                : "bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 cursor-pointer"
-            }`}
-          >
-            <div className="text-sm font-bold">{stats.completed}</div>
-            <div className="text-xs mt-0.5">Hoàn thành</div>
-          </button>
-          <button
-            onClick={() => setStatusFilter("cancelled")}
-            className={`p-2 rounded-lg text-center transition-all ${
-              statusFilter === "cancelled"
-                ? "bg-red-600 text-white shadow-md"
-                : "bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 cursor-pointer"
-            }`}
-          >
-            <div className="text-sm font-bold">{stats.cancelled}</div>
-            <div className="text-xs mt-0.5">Đã hủy</div>
-          </button>
-          <button
-            onClick={() => setStatusFilter("cancel_request")}
-            className={`p-2 rounded-lg text-center transition-all ${
-              statusFilter === "cancel_request"
-                ? "bg-gray-700 text-white shadow-md"
-                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 cursor-pointer"
-            }`}
-          >
-            <div className="text-sm font-bold">{stats.cancel_request}</div>
-            <div className="text-xs mt-0.5">Yêu cầu hủy</div>
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative w-full lg:w-[300px]">
             <input
-              type="text"
-              placeholder="Tìm theo mã đơn, tên khách hàng, SĐT..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") applyFilters();
+              }}
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
+              placeholder="Mã đơn, khách hàng, SĐT"
             />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
           </div>
-          <select
+
+          <div className="text-base font-bold text-gray-500">Lọc bởi:</div>
+
+          <FilterSelect
+            label="Trạng thái"
+            value={status}
+            onChange={setStatus}
+            options={statusOptions}
+            className="lg:w-[220px]"
+          />
+
+          <FilterSelect
+            label="Thời gian"
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 cursor-pointer"
-          >
-            <option value="today">Hôm nay</option>
-            <option value="yesterday">Hôm qua</option>
-            <option value="week">7 ngày qua</option>
-            <option value="month">Tháng này</option>
-            <option value="all">Tất cả</option>
-          </select>
+            onChange={setDateFilter}
+            options={dateOptions}
+            className="lg:w-[220px]"
+          />
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="text-base font-bold text-[#34ad54] underline underline-offset-4 hover:text-[#2f9b45]"
+            >
+              Chọn mặc định
+            </button>
+          )}
         </div>
+
+        <Button
+          type="button"
+          onClick={applyFilters}
+          className="h-12 min-w-[110px] rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45]"
+        >
+          Áp dụng
+        </Button>
       </div>
 
-      {/* Orders List */}
-      <div className="space-y-4">
-        {filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-xl p-12 text-center">
-            <MailOpen className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-600 text-lg">Không có đơn hàng nào</p>
+      <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
+        <div className="grid grid-cols-[64px_0.95fr_1.2fr_1.25fr_1.1fr_0.9fr_1.05fr_56px] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
+          <div>STT</div>
+          <div>Mã đơn</div>
+          <div>Thời gian</div>
+          <div>Khách hàng</div>
+          <div>Trạng thái</div>
+          <div>Tổng tiền</div>
+          <div>Hành động</div>
+          <div className="flex justify-end">
+            <SlidersHorizontal className="h-5 w-5" />
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="px-5 py-9 text-center text-base font-bold text-gray-500">
+            Đang tải đơn hàng...
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="px-5 py-9 text-center text-base font-bold text-gray-500">
+            Không có đơn hàng online
           </div>
         ) : (
-          filteredOrders.map((order) => (
-            <div
-              key={order._id}
-              className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-all"
-            >
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                {/* Order Info */}
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="font-bold text-lg">#{order.order_number}</h3>
-                    {getStatusBadge(order.status)}
-                    {order.status === "delivered" && (
-                      <Badge className="bg-purple-100 text-purple-800 animate-pulse">
-                        ⏳ Chờ xác nhận
-                      </Badge>
-                    )}
+          paginatedOrders.map((order, index) => {
+            const config = statusConfig[order.status] || statusConfig.pending;
+            const nextAction = getNextAction(order.status);
+
+            return (
+              <div
+                key={order._id}
+                className="grid min-h-14 grid-cols-[64px_0.95fr_1.2fr_1.25fr_1.1fr_0.9fr_1.05fr_56px] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
+              >
+                <div>{startIndex + index + 1}</div>
+                <div>{compactOrderCode(order.order_number)}</div>
+                <div>{formatDateTime(order.created_at)}</div>
+                <div>
+                  <div className="font-bold text-gray-800">
+                    {getCustomerName(order)}
                   </div>
-                  <div className="space-y-1 text-sm text-gray-600">
-                    <p className="flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      {formatDateTime(order.created_at)}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      {order.shipping_info?.recipient_name ||
-                        order.shipping_info?.name}{" "}
-                      - {order.shipping_info?.phone}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4" />
-                      {order.shipping_info?.address?.street ||
-                        order.shipping_info?.address}
-                      ,{" "}
-                      {order.shipping_info?.address?.ward?.name ||
-                        order.shipping_info?.address?.ward}
-                      ,{" "}
-                      {order.shipping_info?.address?.district?.name ||
-                        order.shipping_info?.address?.district}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <UtensilsCrossed className="w-4 h-4" />
-                      {order.items?.length || 0} món -{" "}
-                      <span className="font-bold text-gray-900">
-                        {formatCurrency(order.total_amount)}
-                      </span>
-                    </p>
+                  <div className="text-sm text-gray-500">
+                    {getCustomerPhone(order)} · {getItemCount(order)} món
                   </div>
                 </div>
-
-                {/* Actions */}
-                <div className="flex flex-col gap-2">
-                  <Button
-                    onClick={() => navigate(`/manager/orders/${order._id}`)}
-                    variant="outline"
-                    className="w-full md:w-auto cursor-pointer"
+                <div>
+                  <span
+                    className={`inline-flex h-8 items-center gap-2 rounded-full px-3 text-sm font-bold ${config.className}`}
                   >
-                    Xem chi tiết
-                  </Button>
-                  {getAvailableActions(order.status).map((action) => (
-                    <Button
-                      key={action.status}
-                      onClick={() =>
-                        handleUpdateStatus(order._id, action.status)
-                      }
-                      disabled={updatingStatus}
-                      variant={action.variant}
-                      className="w-full md:w-auto cursor-pointer bg-gray-800 hover:bg-gray-900 text-white"
-                    >
-                      {action.label}
-                    </Button>
-                  ))}
+                    <span className={`h-2 w-2 rounded-full ${config.dot}`} />
+                    {config.label}
+                  </span>
                 </div>
+                <div>{formatCurrency(order.total_amount)} VND</div>
+                <div className="flex items-center gap-4 text-gray-400">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/manager/orders/${order._id}`)}
+                    className="transition hover:text-[#34ad54]"
+                    title="Xem chi tiết"
+                  >
+                    <Eye className="h-5 w-5" strokeWidth={2.2} />
+                  </button>
+                  {nextAction && (
+                    <button
+                      type="button"
+                      onClick={() => updateStatus(order, nextAction.status)}
+                      disabled={updatingOrderId === order._id}
+                      className="rounded-md bg-[#34ad54] px-3 py-1.5 text-sm font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {updatingOrderId === order._id
+                        ? "..."
+                        : nextAction.label}
+                    </button>
+                  )}
+                </div>
+                <div />
               </div>
-            </div>
-          ))
-        )}
-
-        {/* Load More Indicator */}
-        {hasMore && !loading && filteredOrders.length > 0 && (
-          <div ref={loadMoreRef} className="flex justify-center py-8">
-            {loadingMore ? (
-              <div className="text-gray-600 text-sm">
-                Đang tải thêm...
-              </div>
-            ) : (
-              <div className="text-gray-400 text-sm">Cuộn xuống để tải thêm</div>
-            )}
-          </div>
-        )}
-
-        {/* End of list */}
-        {!hasMore && filteredOrders.length > 0 && (
-          <div className="text-center py-8 text-gray-400 text-sm">
-            Đã hiển thị tất cả đơn hàng
-          </div>
+            );
+          })
         )}
       </div>
-    </div>
+
+      {filteredOrders.length > 0 && (
+        <div className="mt-4 flex items-center justify-end gap-4">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              «
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            <div className="min-w-[30px] px-2 text-center text-sm font-bold text-gray-700">
+              {currentPage}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              »
+            </button>
+          </div>
+
+          <div className="relative">
+            <select
+              value={pageSize}
+              onChange={(event) => {
+                setPageSize(Number(event.target.value));
+                setCurrentPage(1);
+              }}
+              className="appearance-none rounded-md border border-gray-200 bg-white px-4 py-2 pr-8 text-sm font-bold text-gray-700 hover:border-gray-300 focus:border-[#34ad54] focus:outline-none"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-700" />
+          </div>
+        </div>
+      )}
+    </section>
   );
 };
 

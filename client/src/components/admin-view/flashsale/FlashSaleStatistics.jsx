@@ -90,17 +90,17 @@ const FlashSaleStatistics = ({ flashSaleId, flashSaleStatus }) => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         {/* Total Products */}
-        <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+        <div className="bg-green-50 rounded-lg p-4 border border-green-200">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
               <Package className="w-5 h-5 text-white" />
             </div>
-            <p className="text-sm text-blue-600 font-medium">Sản phẩm</p>
+            <p className="text-sm text-green-600 font-medium">Sản phẩm</p>
           </div>
-          <p className="text-2xl font-bold text-blue-900">
+          <p className="text-2xl font-bold text-green-900">
             {summary.totalProducts}
           </p>
-          <p className="text-xs text-blue-600 mt-1">Tổng sản phẩm</p>
+          <p className="text-xs text-green-600 mt-1">Tổng sản phẩm</p>
         </div>
 
         {/* Total Sold */}
@@ -255,12 +255,12 @@ const FlashSaleStatistics = ({ flashSaleId, flashSaleStatus }) => {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex flex-col items-center gap-1">
-                        <span className="text-sm font-semibold text-blue-600">
+                        <span className="text-sm font-semibold text-green-600">
                           {product.salesRate.toFixed(1)}%
                         </span>
                         <div className="w-full bg-gray-200 rounded-full h-1.5">
                           <div
-                            className="bg-blue-600 h-1.5 rounded-full"
+                            className="bg-green-600 h-1.5 rounded-full"
                             style={{ width: `${product.salesRate}%` }}
                           ></div>
                         </div>
@@ -291,3 +291,5 @@ const FlashSaleStatistics = ({ flashSaleId, flashSaleStatus }) => {
 };
 
 export default FlashSaleStatistics;
+
+

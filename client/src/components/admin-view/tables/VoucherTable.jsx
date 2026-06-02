@@ -210,14 +210,14 @@ const VouchersTable = ({ vouchers, onEdit, onDelete, isLoading }) => {
                     <div className="flex justify-center gap-2">
                       <button
                         onClick={() => onEdit && onEdit(voucher)}
-                        className="w-24 h-10 flex items-center justify-center gap-2 rounded-full bg-blue-50 border border-blue-100 text-blue-800 hover:bg-blue-100 shadow-sm transition transform hover:-translate-y-0.5 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-300 whitespace-nowrap cursor-pointer"
+                        className="w-24 h-10 flex items-center justify-center gap-2 rounded-full bg-green-50 border border-green-100 text-green-800 hover:bg-green-100 shadow-sm transition transform hover:-translate-y-0.5 active:scale-95 focus:outline-none focus:ring-2 focus:ring-green-300 whitespace-nowrap cursor-pointer"
                       >
                         <IconEdit size={16} />
                         <span>Sửa</span>
                       </button>
                       <button
                         onClick={() => onDelete && onDelete(voucher._id)}
-                        className="w-24 h-10 flex items-center justify-center gap-2 rounded-full bg-white border border-blue-100 text-red-600 hover:bg-red-50 shadow-sm transition transform hover:-translate-y-0.5 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-300 whitespace-nowrap cursor-pointer"
+                        className="w-24 h-10 flex items-center justify-center gap-2 rounded-full bg-white border border-green-100 text-red-600 hover:bg-red-50 shadow-sm transition transform hover:-translate-y-0.5 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-300 whitespace-nowrap cursor-pointer"
                       >
                         <IconTrash size={16} />
                         <span>Xóa</span>
@@ -256,3 +256,5 @@ const VouchersTable = ({ vouchers, onEdit, onDelete, isLoading }) => {
 };
 
 export default VouchersTable;
+
+

@@ -287,7 +287,7 @@ const CreateOrderModal = ({
               Quản lý bán hàng
             </div>
             <ChevronRight className="h-6 w-6 text-gray-500" />
-            <div className="text-[#26338d]">Danh sách sản phẩm</div>
+            <div className="text-[#34ad54]">Danh sách sản phẩm</div>
           </div>
 
           <button
@@ -301,7 +301,7 @@ const CreateOrderModal = ({
         </header>
 
         <div className="flex items-center gap-4 px-6 pb-5">
-          <div className="flex h-14 min-w-32 items-center justify-center rounded-xl border border-[#26338d] bg-white px-5 text-lg font-bold text-gray-800">
+          <div className="flex h-14 min-w-32 items-center justify-center rounded-xl border border-[#34ad54] bg-white px-5 text-lg font-bold text-gray-800">
             {table.name || "Bàn"}
           </div>
 
@@ -309,7 +309,7 @@ const CreateOrderModal = ({
             <input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              className="h-14 w-full rounded-xl bg-white px-5 pr-12 text-base font-medium text-gray-800 shadow-md outline-none placeholder:text-slate-300 focus:ring-2 focus:ring-[#26338d]/30"
+              className="h-14 w-full rounded-xl bg-white px-5 pr-12 text-base font-medium text-gray-800 shadow-md outline-none placeholder:text-slate-300 focus:ring-2 focus:ring-[#34ad54]/30"
               placeholder="Tìm kiếm (nhập tên món)"
             />
             <Search className="absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400" />
@@ -339,14 +339,14 @@ const CreateOrderModal = ({
                     <img
                       src={getDishImage(dish)}
                       alt={dish.name}
-                      className="h-28 w-28 rounded-lg bg-blue-50 object-cover"
+                      className="h-28 w-28 rounded-lg bg-green-50 object-cover"
                     />
 
                     <div className="flex min-w-0 flex-col">
                       <h3 className="line-clamp-2 text-lg font-bold text-gray-900">
                         {dish.name}
                       </h3>
-                      <div className="mt-1 text-lg font-bold text-[#26338d]">
+                      <div className="mt-1 text-lg font-bold text-[#34ad54]">
                         {formatCurrency(getDishPrice(dish))} VND
                       </div>
 
@@ -371,7 +371,7 @@ const CreateOrderModal = ({
                         <button
                           type="button"
                           onClick={() => updateQuantity(dish._id, 1)}
-                          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#26338d] text-white disabled:opacity-40"
+                          className="flex h-9 w-9 items-center justify-center rounded-full bg-[#34ad54] text-white disabled:opacity-40"
                           disabled={orderStatus === "completed"}
                           title="Tăng số lượng"
                         >
@@ -395,7 +395,7 @@ const CreateOrderModal = ({
               onClick={() => setShowOrderDetail(true)}
               className="flex min-w-0 items-center gap-4 rounded-lg text-left transition hover:bg-gray-50"
             >
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-[#26338d] text-white">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-[#34ad54] text-white">
                 <ShoppingCart className="h-7 w-7" />
               </div>
               <div className="min-w-0">
@@ -412,7 +412,7 @@ const CreateOrderModal = ({
               type="button"
               onClick={handlePrimaryAction}
               disabled={totalQuantity === 0 || submitting}
-              className="h-14 min-w-56 shrink-0 rounded-lg bg-[#26338d] text-lg font-bold text-white hover:bg-[#1d2874] disabled:cursor-not-allowed disabled:bg-[#a8afd0] disabled:hover:bg-[#a8afd0]"
+              className="h-14 min-w-56 shrink-0 rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0]"
             >
               {submitting ? "Đang xác nhận..." : primaryActionLabel}
             </Button>
@@ -439,3 +439,5 @@ const CreateOrderModal = ({
 };
 
 export default CreateOrderModal;
+
+

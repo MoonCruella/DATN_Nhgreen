@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import orderApi from "@/api/orderApi";
 import DineInOrderDetailModal from "@/components/manager-view/modals/DineInOrderDetailModal";
 import CreateOrderModal from "@/components/manager-view/modals/CreateOrderModal";
+import FilterSelect from "@/components/common/FilterSelect";
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
@@ -36,15 +37,21 @@ const compactOrderCode = (orderNumber = "") =>
 const statusConfig = {
   processing: {
     label: "Đang xử lý",
-    className: "bg-[#bfe7fb] text-[#26338d]",
-    dot: "bg-[#26338d]",
+    className: "bg-[#dcfce7] text-[#34ad54]",
+    dot: "bg-[#34ad54]",
   },
   completed: {
     label: "Hoàn thành",
-    className: "bg-[#26338d] text-white",
+    className: "bg-[#34ad54] text-white",
     dot: "bg-white",
   },
 };
+
+const statusOptions = [
+  { value: "all", label: "Tất cả" },
+  { value: "processing", label: "Đang xử lý" },
+  { value: "completed", label: "Hoàn thành" },
+];
 
 const MaDineInOrders = () => {
   const accessToken = useSelector((state) => state.auth.accessToken);
@@ -148,7 +155,7 @@ const MaDineInOrders = () => {
           Quản lý bán hàng
         </div>
         <ChevronRight className="h-5 w-5 text-gray-500" />
-        <div className="text-[#26338d]">Danh sách đơn hàng</div>
+        <div className="text-[#34ad54]">Danh sách đơn hàng</div>
       </header>
 
       <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -160,7 +167,7 @@ const MaDineInOrders = () => {
               onKeyDown={(event) => {
                 if (event.key === "Enter") applyFilters();
               }}
-              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#26338d]"
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
               placeholder="Nhập mã hóa đơn"
             />
             <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
@@ -168,21 +175,13 @@ const MaDineInOrders = () => {
 
           <div className="text-base font-bold text-gray-500">Lọc bởi:</div>
 
-          <div className="relative w-full lg:w-[260px]">
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-              className="h-12 w-full appearance-none rounded-lg border border-gray-200 bg-white px-4 pr-10 pt-4 text-base font-bold text-gray-900 outline-none focus:border-[#26338d]"
-            >
-              <option value="all">Tất cả</option>
-              <option value="processing">Đang xử lý</option>
-              <option value="completed">Hoàn thành</option>
-            </select>
-            <div className="pointer-events-none absolute left-4 top-1 text-xs font-medium text-gray-500">
-              Trạng thái
-            </div>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-900" />
-          </div>
+          <FilterSelect
+            label="Trạng thái"
+            value={status}
+            onChange={setStatus}
+            options={statusOptions}
+            className="lg:w-[220px]"
+          />
 
           {hasActiveFilters && (
             <button
@@ -199,7 +198,7 @@ const MaDineInOrders = () => {
           <Button
             type="button"
             onClick={applyFilters}
-            className="h-12 min-w-[110px] rounded-lg bg-[#26338d] text-base font-bold text-white hover:bg-[#1d2874]"
+            className="h-12 min-w-[110px] rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45]"
           >
             Áp dụng
           </Button>
@@ -207,7 +206,7 @@ const MaDineInOrders = () => {
       </div>
 
       <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
-        <div className="grid grid-cols-[70px_1fr_1.3fr_1.1fr_1.05fr_1fr_56px] items-center border-b border-gray-200 px-5 py-4 text-base font-bold text-slate-600">
+        <div className="grid grid-cols-[70px_1fr_1.3fr_1.1fr_1.05fr_1fr_56px] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
           <div>STT</div>
           <div>Mã hóa đơn</div>
           <div>Thời gian</div>
@@ -253,7 +252,7 @@ const MaDineInOrders = () => {
                   <button
                     type="button"
                     onClick={() => setSelectedOrder(order)}
-                    className="transition hover:text-[#26338d]"
+                    className="transition hover:text-[#34ad54]"
                     title="Xem chi tiết"
                   >
                     <Eye className="h-5 w-5" strokeWidth={2.2} />
@@ -315,7 +314,7 @@ const MaDineInOrders = () => {
                 setPageSize(Number(e.target.value));
                 setCurrentPage(1);
               }}
-              className="appearance-none rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 pr-8 hover:border-gray-300 focus:border-[#26338d] focus:outline-none"
+              className="appearance-none rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 pr-8 hover:border-gray-300 focus:border-[#34ad54] focus:outline-none"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>
@@ -357,3 +356,5 @@ const MaDineInOrders = () => {
 };
 
 export default MaDineInOrders;
+
+

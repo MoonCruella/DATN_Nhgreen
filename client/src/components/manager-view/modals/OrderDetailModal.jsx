@@ -205,7 +205,7 @@ const OrderDetailModal = ({
             </button>
 
             <h2 className="mb-12 text-center text-2xl font-bold text-black">
-              <span className="text-[#26338d]">({totalQuantity})</span>{" "}
+              <span className="text-[#34ad54]">({totalQuantity})</span>{" "}
               {tableName}
             </h2>
 
@@ -265,7 +265,7 @@ const OrderDetailModal = ({
                 <Button
                   type="button"
                   onClick={handleOpenCustomerModal}
-                  className="h-12 rounded-full bg-[#26338d] px-7 text-lg font-bold text-white hover:bg-[#1d2874]"
+                  className="h-12 rounded-full bg-[#34ad54] px-7 text-lg font-bold text-white hover:bg-[#2f9b45]"
                 >
                   <UserPlus className="mr-2 h-5 w-5" />
                   {selectedCustomer?.name || "Thêm khách hàng"}
@@ -287,7 +287,7 @@ const OrderDetailModal = ({
                     type="button"
                     variant="outline"
                     onClick={handleAddMore}
-                    className="h-14 rounded-lg border-cyan-400 text-lg font-bold text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
+                    className="h-14 rounded-lg border-green-500 text-lg font-bold text-green-600 hover:bg-green-50 hover:text-green-700"
                   >
                     Thêm món
                   </Button>
@@ -295,7 +295,7 @@ const OrderDetailModal = ({
                     type="button"
                     onClick={handlePrimaryAction}
                     disabled={totalQuantity === 0}
-                    className="h-14 rounded-lg bg-[#26338d] text-lg font-bold text-white hover:bg-[#1d2874] disabled:cursor-not-allowed disabled:bg-[#a8afd0] disabled:hover:bg-[#a8afd0]"
+                    className="h-14 rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0]"
                   >
                     {primaryActionLabel}
                   </Button>
@@ -320,7 +320,7 @@ const OrderDetailModal = ({
               value={customerPhone}
               onChange={(event) => setCustomerPhone(event.target.value)}
               placeholder="Nhập số điện thoại"
-              className="h-14 w-full border border-gray-200 px-6 text-lg font-medium text-black outline-none placeholder:text-gray-400 focus:border-cyan-400"
+              className="h-14 w-full border border-gray-200 px-6 text-lg font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
             />
 
             {checkingCustomer && (
@@ -376,14 +376,14 @@ const OrderDetailModal = ({
                 type="button"
                 variant="outline"
                 onClick={handleCloseCustomerModal}
-                className="h-12 rounded-lg border-cyan-400 text-base font-black text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
+                className="h-12 rounded-lg border-green-500 text-base font-black text-green-600 hover:bg-green-50 hover:text-green-700"
               >
                 Quay lại
               </Button>
               <Button
                 type="button"
                 onClick={handleCustomerAction}
-                className="h-12 rounded-lg bg-[#26338d] text-base font-black text-white hover:bg-[#1d2874]"
+                className="h-12 rounded-lg bg-[#34ad54] text-base font-black text-white hover:bg-[#2f9b45]"
               >
                 Tạo khách hàng
               </Button>
@@ -408,7 +408,7 @@ const OrderDetailModal = ({
                   value={newCustomerName}
                   onChange={(event) => setNewCustomerName(event.target.value)}
                   placeholder="Nhập tên khách hàng"
-                  className="h-14 w-full rounded-xl border border-gray-200 px-6 text-lg font-medium text-black outline-none placeholder:text-gray-400 focus:border-cyan-400"
+                  className="h-14 w-full rounded-xl border border-gray-200 px-6 text-lg font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
                 />
               </div>
 
@@ -419,7 +419,7 @@ const OrderDetailModal = ({
                 <input
                   value={customerPhone}
                   onChange={(event) => setCustomerPhone(event.target.value)}
-                  className="h-14 w-full rounded-xl border border-gray-200 px-6 text-lg font-medium text-black outline-none focus:border-cyan-400"
+                  className="h-14 w-full rounded-xl border border-gray-200 px-6 text-lg font-medium text-black outline-none focus:border-green-500"
                 />
               </div>
 
@@ -430,7 +430,7 @@ const OrderDetailModal = ({
                 <select
                   value={newCustomerProvince}
                   onChange={(event) => setNewCustomerProvince(event.target.value)}
-                  className="mb-3 h-14 w-full rounded-xl border border-gray-200 bg-white px-6 text-lg font-medium text-slate-700 outline-none focus:border-cyan-400"
+                  className="mb-3 h-14 w-full rounded-xl border border-gray-200 bg-white px-6 text-lg font-medium text-slate-700 outline-none focus:border-green-500"
                 >
                   <option value="">Tỉnh/Thành phố</option>
                   <option value="Sơn La">Sơn La</option>
@@ -440,7 +440,7 @@ const OrderDetailModal = ({
                 <select
                   value={newCustomerWard}
                   onChange={(event) => setNewCustomerWard(event.target.value)}
-                  className="mb-3 h-14 w-full rounded-xl border border-gray-200 bg-white px-6 text-lg font-medium text-slate-700 outline-none focus:border-cyan-400"
+                  className="mb-3 h-14 w-full rounded-xl border border-gray-200 bg-white px-6 text-lg font-medium text-slate-700 outline-none focus:border-green-500"
                 >
                   <option value="">Phường/Xã</option>
                   <option value="Phường Chiềng Lề">Phường Chiềng Lề</option>
@@ -451,7 +451,7 @@ const OrderDetailModal = ({
                   value={newCustomerAddress}
                   onChange={(event) => setNewCustomerAddress(event.target.value)}
                   placeholder="Địa chỉ cụ thể"
-                  className="h-14 w-full rounded-xl border border-gray-200 px-6 text-lg font-medium text-black outline-none placeholder:text-gray-400 focus:border-cyan-400"
+                  className="h-14 w-full rounded-xl border border-gray-200 px-6 text-lg font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
                 />
               </div>
             </div>
@@ -461,7 +461,7 @@ const OrderDetailModal = ({
                 type="button"
                 variant="outline"
                 onClick={handleCreateCustomerBack}
-                className="h-12 rounded-lg border-cyan-400 text-base font-black text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
+                className="h-12 rounded-lg border-green-500 text-base font-black text-green-600 hover:bg-green-50 hover:text-green-700"
               >
                 Quay lại
               </Button>
@@ -469,7 +469,7 @@ const OrderDetailModal = ({
                 type="button"
                 onClick={handleCreateCustomerSubmit}
                 disabled={!canCreateCustomer}
-                className="h-12 rounded-lg bg-[#26338d] text-base font-black text-white hover:bg-[#1d2874] disabled:bg-[#a8afd0] disabled:hover:bg-[#a8afd0]"
+                className="h-12 rounded-lg bg-[#34ad54] text-base font-black text-white hover:bg-[#2f9b45] disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0]"
               >
                 Tạo khách hàng
               </Button>
@@ -493,3 +493,5 @@ const OrderDetailModal = ({
 };
 
 export default OrderDetailModal;
+
+

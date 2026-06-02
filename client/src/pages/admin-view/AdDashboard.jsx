@@ -194,7 +194,7 @@ const AdminDashboard = () => {
             <select
               value={selectedBranchId}
               onChange={(e) => setSelectedBranchId(e.target.value)}
-              className="px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px] cursor-pointer"
+              className="px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 min-w-[200px] cursor-pointer"
             >
               <option value="">Tất cả chi nhánh</option>
               {branches.map((branch) => (
@@ -220,7 +220,7 @@ const AdminDashboard = () => {
       {/* Revenue Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Today Revenue */}
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600">
               HÔM NAY
@@ -299,7 +299,7 @@ const AdminDashboard = () => {
           size="sm"
           variant={dateRange === "day" ? "default" : "outline"}
           onClick={() => setDateRange("day")}
-          className={dateRange === "day" ? "bg-blue-600 hover:bg-blue-700" : ""}
+          className={dateRange === "day" ? "bg-green-600 hover:bg-green-700" : ""}
         >
           Ngày
         </Button>
@@ -308,7 +308,7 @@ const AdminDashboard = () => {
           variant={dateRange === "week" ? "default" : "outline"}
           onClick={() => setDateRange("week")}
           className={
-            dateRange === "week" ? "bg-blue-600 hover:bg-blue-700" : ""
+            dateRange === "week" ? "bg-green-600 hover:bg-green-700" : ""
           }
         >
           Tuần
@@ -318,7 +318,7 @@ const AdminDashboard = () => {
           variant={dateRange === "month" ? "default" : "outline"}
           onClick={() => setDateRange("month")}
           className={
-            dateRange === "month" ? "bg-blue-600 hover:bg-blue-700" : ""
+            dateRange === "month" ? "bg-green-600 hover:bg-green-700" : ""
           }
         >
           Tháng
@@ -433,7 +433,7 @@ const AdminDashboard = () => {
         {/* Revenue Cards - Only visible when printing */}
         <div className="hidden print:block revenue-cards-print">
           {/* Today Revenue */}
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-gray-600">
                 DOANH THU HÔM NAY
@@ -525,7 +525,7 @@ const AdminDashboard = () => {
         <CardContent>
           {chartLoading ? (
             <div className="flex items-center justify-center h-[300px]">
-              <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={300}>
@@ -576,3 +576,5 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+
+

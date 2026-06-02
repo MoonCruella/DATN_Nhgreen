@@ -285,11 +285,11 @@ const MaOrderDetail = () => {
       },
       confirmed: {
         label: "Đã xác nhận",
-        className: "bg-blue-100 text-blue-800",
+        className: "bg-green-100 text-green-800",
       },
       processing: {
         label: "Đang chuẩn bị",
-        className: "bg-blue-100 text-blue-800",
+        className: "bg-green-100 text-green-800",
       },
       shipped: {
         label: "Đang giao",
@@ -350,7 +350,7 @@ const MaOrderDetail = () => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-gray-800 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Đang tải thông tin đơn hàng...</p>
         </div>
       </div>
@@ -409,7 +409,7 @@ const MaOrderDetail = () => {
                     key={action.status}
                     onClick={() => handleUpdateStatus(action.status)}
                     disabled={updatingStatus}
-                    className="cursor-pointer bg-gray-800 hover:bg-gray-900 text-white"
+                    className="cursor-pointer bg-green-600 hover:bg-green-700 text-white"
                   >
                     {updatingStatus ? "Đang cập nhật..." : action.label}
                   </Button>
@@ -782,3 +782,5 @@ const MaOrderDetail = () => {
 };
 
 export default MaOrderDetail;
+
+

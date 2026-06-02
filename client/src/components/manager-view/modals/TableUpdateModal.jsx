@@ -47,7 +47,7 @@ const TableUpdateModal = ({ table, onClose, onDelete, onUpdate }) => {
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            className="h-12 w-full rounded-lg border border-gray-200 px-4 text-lg font-medium text-slate-900 outline-none focus:border-[#26338d]"
+            className="h-12 w-full rounded-lg border border-gray-200 px-4 text-lg font-medium text-slate-900 outline-none focus:border-[#34ad54]"
             required
           />
         </label>
@@ -57,14 +57,14 @@ const TableUpdateModal = ({ table, onClose, onDelete, onUpdate }) => {
             type="button"
             variant="outline"
             onClick={() => onDelete(table)}
-            className="h-12 rounded-lg border-cyan-400 text-lg font-bold text-cyan-500 hover:bg-cyan-50 hover:text-cyan-600"
+            className="h-12 rounded-lg border-green-500 text-lg font-bold text-green-600 hover:bg-green-50 hover:text-green-700"
           >
             Xóa
           </Button>
           <Button
             type="submit"
             disabled={!canSubmit}
-            className="h-12 rounded-lg bg-[#26338d] text-lg font-bold text-white hover:bg-[#1d2874]"
+            className="h-12 rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45]"
           >
             Cập nhật
           </Button>
@@ -75,3 +75,5 @@ const TableUpdateModal = ({ table, onClose, onDelete, onUpdate }) => {
 };
 
 export default TableUpdateModal;
+
+

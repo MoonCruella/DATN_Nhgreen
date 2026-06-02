@@ -11,11 +11,28 @@ const publicRoutes = [
   "/auth/reset-password",
 ];
 const privateRoutes = ["/admin", "/manager"];
+const customerRoutes = [
+  "/home",
+  "/menu",
+  "/products",
+  "/flashsale-products",
+  "/my-cart",
+  "/checkout",
+  "/branches",
+  "/my-account",
+  "/dine-in",
+];
+
+const isRouteOrChild = (path, route) =>
+  path === route || path.startsWith(`${route}/`);
 
 const CheckAuth = ({ isAuthenticated, user, children }) => {
   const location = useLocation();
   const path = location.pathname;
   const isLoading = useSelector((state) => state.auth.isLoading);
+  const isCustomerRoute = customerRoutes.some((route) =>
+    isRouteOrChild(path, route)
+  );
 
   // Nếu đang check/refresh token thì chờ, tránh redirect nhảy lung tung
   if (isLoading) {
@@ -67,11 +84,7 @@ const CheckAuth = ({ isAuthenticated, user, children }) => {
   }
 
   // Nếu manager vào customer → ép về dashboard manager
-  if (
-    isAuthenticated &&
-    user?.role === "manager" &&
-    path.includes("customer")
-  ) {
+  if (isAuthenticated && user?.role === "manager" && isCustomerRoute) {
     return <Navigate to="/manager/dashboard" replace />;
   }
 

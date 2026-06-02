@@ -27,7 +27,7 @@ const ManagerRatingsTable = ({
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-sm p-8 text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-800 mx-auto"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
         <p className="mt-4 text-gray-500">Đang tải...</p>
       </div>
     );
@@ -201,3 +201,5 @@ const ManagerRatingsTable = ({
 };
 
 export default ManagerRatingsTable;
+
+

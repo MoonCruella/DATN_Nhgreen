@@ -68,9 +68,9 @@ const DineInOrderDetailModal = ({
         </button>
 
         {isPaid && (
-          <div className="pointer-events-none absolute right-12 top-4 hidden h-40 w-40 rotate-[-16deg] items-center justify-center rounded-full border-[8px] border-[#26338d]/45 text-[#26338d]/45 md:flex">
-            <div className="h-24 w-24 rounded-full border-[1px] border-[#26338d]/45" />
-            <div className="absolute rounded-lg border-1 border-[#26338d]/45 px-4 py-2 text-lg font-black">
+          <div className="pointer-events-none absolute right-12 top-4 hidden h-40 w-40 rotate-[-16deg] items-center justify-center rounded-full border-[8px] border-[#34ad54]/45 text-[#34ad54]/45 md:flex">
+            <div className="h-24 w-24 rounded-full border-[1px] border-[#34ad54]/45" />
+            <div className="absolute rounded-lg border-1 border-[#34ad54]/45 px-4 py-2 text-lg font-black">
               Đã thanh toán
             </div>
           </div>
@@ -153,7 +153,7 @@ const DineInOrderDetailModal = ({
             <div className="text-right">{getTableName(order)}</div>
 
             <div>Khách hàng:</div>
-            <div className="inline-flex items-center justify-center rounded-full bg-[#26338d] px-4 py-1.5 text-sm font-bold text-white">
+            <div className="inline-flex items-center justify-center rounded-full bg-[#34ad54] px-4 py-1.5 text-sm font-bold text-white">
               <UserCircle className="mr-2 h-4 w-4" />
               {getCustomerName(order)}
             </div>
@@ -177,7 +177,7 @@ const DineInOrderDetailModal = ({
           <button
             type="button"
             onClick={onPrint}
-            className="flex-1 h-11 rounded-lg border border-cyan-400 text-base font-bold text-cyan-500 transition hover:bg-cyan-50"
+            className="flex-1 h-11 rounded-lg border border-green-500 text-base font-bold text-green-600 transition hover:bg-green-50"
           >
             In đơn hàng
           </button>
@@ -185,7 +185,7 @@ const DineInOrderDetailModal = ({
             <button
               type="button"
               onClick={onPayment}
-              className="flex-1 h-11 rounded-lg bg-[#26338d] text-base font-bold text-white transition hover:bg-[#1d2874]"
+              className="flex-1 h-11 rounded-lg bg-[#34ad54] text-base font-bold text-white transition hover:bg-[#2f9b45]"
             >
               Thanh toán
             </button>
@@ -197,3 +197,5 @@ const DineInOrderDetailModal = ({
 };
 
 export default DineInOrderDetailModal;
+
+

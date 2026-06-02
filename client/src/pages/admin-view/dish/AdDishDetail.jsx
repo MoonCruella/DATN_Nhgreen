@@ -397,7 +397,7 @@ const AdminDishDetail = () => {
                 </Button>
                 <Button
                   onClick={() => setIsEditing(true)}
-                  className="bg-gray-800 hover:bg-gray-900 cursor-pointer"
+                  className="bg-green-600 hover:bg-green-700 cursor-pointer"
                 >
                   Chỉnh sửa
                 </Button>
@@ -421,7 +421,7 @@ const AdminDishDetail = () => {
                 <Button
                   onClick={handleSave}
                   disabled={uploading}
-                  className="bg-gray-800 hover:bg-gray-900 cursor-pointer"
+                  className="bg-green-600 hover:bg-green-700 cursor-pointer"
                 >
                   Lưu thay đổi
                 </Button>
@@ -630,7 +630,7 @@ const AdminDishDetail = () => {
                               className={`pointer-events-auto bg-white p-2 rounded-full ${
                                 i === formData.defaultImageIndex
                                   ? "text-yellow-500 shadow-lg"
-                                  : "text-blue-600"
+                                  : "text-green-600"
                               }`}
                             >
                               {i === formData.defaultImageIndex ? (
@@ -704,7 +704,7 @@ const AdminDishDetail = () => {
                 <Button
                   onClick={() => setShowIngredientModal(true)}
                   variant="outline"
-                  className="border-gray-800 text-gray-800 hover:bg-gray-50 cursor-pointer"
+                  className="border-green-600 text-green-700 hover:bg-green-50 cursor-pointer"
                 >
                   + Thêm nguyên liệu
                 </Button>
@@ -888,3 +888,5 @@ const AdminDishDetail = () => {
 };
 
 export default AdminDishDetail;
+
+

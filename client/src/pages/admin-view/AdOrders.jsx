@@ -192,7 +192,7 @@ const AdminOrders = () => {
               className={`px-3 py-1 rounded ${
                 page === 1
                   ? "bg-gray-200 text-gray-400"
-                  : "bg-gray-800 text-white cursor-pointer"
+                  : "bg-green-600 text-white cursor-pointer"
               }`}
             >
               {"<"}
@@ -242,7 +242,7 @@ const AdminOrders = () => {
                     onClick={() => setPage(p)}
                     className={`px-3 py-1 rounded ${
                       page === p
-                        ? "bg-gray-800 text-white"
+                        ? "bg-green-600 text-white"
                         : "bg-gray-200 cursor-pointer hover:bg-gray-300"
                     }`}
                   >
@@ -258,7 +258,7 @@ const AdminOrders = () => {
               className={`px-3 py-1 rounded ${
                 page === totalPages
                   ? "bg-gray-200 text-gray-400"
-                  : "bg-gray-800 text-white cursor-pointer"
+                  : "bg-green-600 text-white cursor-pointer"
               }`}
             >
               {">"}
@@ -277,3 +277,5 @@ const AdminOrders = () => {
 };
 
 export default AdminOrders;
+
+

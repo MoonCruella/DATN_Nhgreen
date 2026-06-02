@@ -149,7 +149,7 @@ const ProductsTable = ({
                   className={`px-3 py-1 rounded ${
                     page <= 1
                       ? "bg-gray-200 text-gray-400"
-                      : "bg-gray-800 text-white hover:bg-gray-700 cursor-pointer"
+                      : "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
                   }`}
                 >
                   {"<"}
@@ -161,7 +161,7 @@ const ProductsTable = ({
                     onClick={() => onPageChange && onPageChange(idx + 1)}
                     className={`px-3 py-1 rounded ${
                       page === idx + 1
-                        ? "bg-gray-800 text-white"
+                        ? "bg-green-600 text-white"
                         : "bg-gray-200"
                     }`}
                   >
@@ -175,7 +175,7 @@ const ProductsTable = ({
                   className={`px-3 py-1 rounded ${
                     page >= pages
                       ? "bg-gray-200 text-gray-400"
-                      : "bg-gray-800 text-white hover:bg-gray-700 cursor-pointer"
+                      : "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
                   }`}
                 >
                   {">"}
@@ -190,3 +190,5 @@ const ProductsTable = ({
 };
 
 export default ProductsTable;
+
+

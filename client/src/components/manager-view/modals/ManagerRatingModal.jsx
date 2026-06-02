@@ -185,3 +185,5 @@ const ManagerRatingModal = ({ rating, onClose, onToggleStatus, onRefresh }) => {
 };
 
 export default ManagerRatingModal;
+
+

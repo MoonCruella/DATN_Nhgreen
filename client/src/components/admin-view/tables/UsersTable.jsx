@@ -7,7 +7,7 @@ const UsersTable = ({ users = [], onRowClick, isLoading }) => {
   const getRoleBadge = (role) => {
     const roleMap = {
       admin: { text: "Admin", color: "bg-red-100 text-red-800" },
-      manager: { text: "Manager", color: "bg-blue-100 text-blue-800" },
+      manager: { text: "Manager", color: "bg-green-100 text-green-800" },
       customer: { text: "Khách hàng", color: "bg-green-100 text-green-800" },
     };
     const badge = roleMap[role] || {
@@ -127,3 +127,5 @@ const UsersTable = ({ users = [], onRowClick, isLoading }) => {
 };
 
 export default UsersTable;
+
+

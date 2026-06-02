@@ -1,5 +1,6 @@
 import {
   IconBellRinging,
+  IconChevronDown,
   IconLogout,
   IconReceipt2,
   IconPackage,
@@ -10,9 +11,8 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { assets } from "../../assets/assets";
-import { useDispatch } from "react-redux";
 import { logoutUser } from "@/store/auth-slice";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -27,14 +27,21 @@ const ManagerLayout = () => {
       icon: IconBellRinging,
     },
     {
-      link: "/manager/orders/online",
-      label: "Đơn hàng online",
+      key: "orders",
+      label: "Quản lý đơn hàng",
       icon: IconPackage,
-    },
-    {
-      link: "/manager/orders/dine-in",
-      label: "Đơn hàng tại quán",
-      icon: IconReceipt2,
+      children: [
+        {
+          link: "/manager/orders/online",
+          label: "Đơn hàng online",
+          icon: IconPackage,
+        },
+        {
+          link: "/manager/orders/dine-in",
+          label: "Đơn hàng tại quán",
+          icon: IconReceipt2,
+        },
+      ],
     },
     {
       link: "/manager/tables",
@@ -63,12 +70,31 @@ const ManagerLayout = () => {
   const activePath = location.pathname;
   const dispatch = useDispatch();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [openMenus, setOpenMenus] = useState({
+    orders: activePath.startsWith("/manager/orders"),
+  });
   const accessToken = useSelector((state) => state.auth.accessToken);
   const user = useSelector((state) => state.auth.user);
-  // Unread notification count + manual refresh capability
   const { count: sidebarNotificationCount } = useNotificationCount();
 
-  // Logout handler
+  const isLinkActive = (link) =>
+    activePath === link || activePath.startsWith(link + "/");
+
+  const getActiveItemLabel = () => {
+    for (const item of data) {
+      if (item.children) {
+        const activeChild = item.children.find((child) =>
+          isLinkActive(child.link)
+        );
+        if (activeChild) return activeChild.label;
+      }
+
+      if (item.link && isLinkActive(item.link)) return item.label;
+    }
+
+    return "Dashboard";
+  };
+
   const handleLogout = async () => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
@@ -76,8 +102,6 @@ const ManagerLayout = () => {
     try {
       await dispatch(logoutUser()).unwrap();
       toast.success("Đăng xuất thành công");
-
-      // Chuyển hướng đến trang login
       navigate("/auth/login");
     } catch {
       toast.error("Có lỗi xảy ra khi đăng xuất");
@@ -87,7 +111,6 @@ const ManagerLayout = () => {
     }
   };
 
-  // Auto join branch room for realtime order updates
   useEffect(() => {
     if (!accessToken || !user?.branch_id) return;
     const socket = io(import.meta.env.VITE_API_BASE_URL, {
@@ -105,52 +128,107 @@ const ManagerLayout = () => {
 
   return (
     <div className="flex h-screen font-medium">
-      {/* Sidebar */}
-      <nav className="h-full w-[280px] p-6 flex flex-col bg-gray-900">
+      <nav className="flex h-full w-[280px] flex-col bg-green-900 p-6">
         <div className="flex-1 overflow-y-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between pb-6 mb-9 border-b border-gray-800">
+          <div className="mb-9 flex items-center justify-between border-b border-green-800 pb-6">
             <div className="flex items-center gap-2">
               <img
                 src={assets.logo}
                 alt="Logo"
-                className="w-10 h-10 rounded-lg"
+                className="h-10 w-10 rounded-lg"
               />
-              <span className="text-white font-medium text-xl">NHGreen</span>
+              <span className="text-xl font-medium text-white">NHGreen</span>
             </div>
-            <span className="bg-gray-800 text-gray-200 text-sm px-2 py-1 rounded font-bold">
+            <span className="rounded bg-green-800 px-2 py-1 text-sm font-bold text-green-50">
               v1.0.0
             </span>
           </div>
 
-          {/* Links */}
           <div className="space-y-1">
             {data.map((item) => {
-              const isActive =
-                activePath === item.link ||
-                activePath.startsWith(item.link + "/");
+              if (item.children) {
+                const isOpen = openMenus[item.key];
+
+                return (
+                  <div key={item.label}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenMenus((prev) => ({
+                          ...prev,
+                          [item.key]: !isOpen,
+                        }))
+                      }
+                      className="flex w-full items-center rounded-md px-4 py-3 font-semibold text-white transition-colors hover:bg-green-800"
+                    >
+                      <item.icon
+                        stroke={1.5}
+                        className="mr-4 h-6 w-6 text-gray-400"
+                      />
+                      <span className="flex-1 text-left">{item.label}</span>
+                      <IconChevronDown
+                        stroke={1.5}
+                        className={`h-5 w-5 transition-transform ${
+                          isOpen ? "rotate-180" : ""
+                        } text-gray-400`}
+                      />
+                    </button>
+
+                    {isOpen && (
+                      <div className="mt-1 space-y-1 pl-6">
+                        {item.children.map((child) => {
+                          const isChildActive = isLinkActive(child.link);
+
+                          return (
+                            <Link
+                              to={child.link}
+                              key={child.label}
+                              className={`flex items-center rounded-md px-4 py-2.5 text-base font-semibold transition-colors ${
+                                isChildActive
+                                  ? "bg-white text-gray-900"
+                                  : "text-white hover:bg-green-800"
+                              }`}
+                            >
+                              <child.icon
+                                stroke={1.5}
+                                className={`mr-3 h-5 w-5 ${
+                                  isChildActive
+                                    ? "text-green-700"
+                                    : "text-gray-400"
+                                }`}
+                              />
+                              <span>{child.label}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              const isActive = isLinkActive(item.link);
               return (
                 <Link
                   to={item.link}
                   key={item.label}
-                  className={`flex items-center  px-4 py-3 rounded-md font-semibold transition-colors
-                    ${
-                      isActive
-                        ? "bg-white text-gray-900 shadow"
-                        : "text-gray-300 hover:bg-gray-800"
-                    }`}
+                  className={`flex items-center rounded-md px-4 py-3 font-semibold transition-colors ${
+                    isActive
+                      ? "bg-white text-gray-900"
+                      : "text-white hover:bg-green-800"
+                  }`}
                 >
                   <item.icon
                     stroke={1.5}
-                    className={`mr-4 w-6 h-6 ${
-                      isActive ? "text-blue-700" : "text-gray-400"
+                    className={`mr-4 h-6 w-6 ${
+                      isActive ? "text-green-700" : "text-gray-400"
                     }`}
                   />
                   {item.label === "Thông báo" ? (
                     <span className="relative">
                       {item.label}
                       {sidebarNotificationCount > 0 && (
-                        <span className="absolute -top-1 -right-6 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                        <span className="absolute -right-6 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
                           {sidebarNotificationCount > 9
                             ? "9+"
                             : sidebarNotificationCount}
@@ -166,40 +244,32 @@ const ManagerLayout = () => {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-6 border-t border-gray-800">
+        <div className="mt-6 border-t border-green-800">
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className={`flex items-center w-full text-sm text-gray-200 px-4 py-3 rounded-md font-medium transition-colors cursor-pointer ${
+            className={`flex w-full cursor-pointer items-center rounded-md px-4 py-3 text-sm font-medium text-white transition-colors ${
               isLoggingOut
-                ? "opacity-60 cursor-not-allowed"
-                : "hover:bg-gray-800"
+                ? "cursor-not-allowed opacity-60"
+                : "hover:bg-green-800"
             }`}
           >
-            <IconLogout className="mr-4 w-6 h-6 text-gray-400" stroke={1.5} />
-            <span>{isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}</span>
+            <IconLogout className="mr-4 h-6 w-6 text-gray-400" stroke={1.5} />
+            <span>{isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}</span>
           </button>
         </div>
       </nav>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col bg-white overflow-hidden">
-        {/* Header Bar */}
-        <div className="bg-white shadow-sm p-4 flex justify-between items-center border-b">
+      <main className="flex flex-1 flex-col overflow-hidden bg-white">
+        <div className="flex items-center justify-between border-b bg-white p-4 shadow-sm">
           <h1 className="text-xl font-semibold text-green-700">
-            {data.find(
-              (item) =>
-                item.link === activePath ||
-                activePath.startsWith(item.link + "/")
-            )?.label || "Dashboard"}
+            {getActiveItemLabel()}
           </h1>
           <div className="flex items-center gap-4">
             <NotificationBell />
           </div>
         </div>
 
-        {/* Content Area - scrollable */}
         <div id="manager-content" className="flex-1 overflow-y-auto bg-gray-50">
           <div className="w-full px-3 py-3">
             <Outlet />
@@ -211,3 +281,5 @@ const ManagerLayout = () => {
 };
 
 export default ManagerLayout;
+
+

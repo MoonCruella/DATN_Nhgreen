@@ -187,7 +187,7 @@ const AdminUserAccount = () => {
               className={`px-3 py-1 rounded ${
                 page === 1
                   ? "bg-gray-200 text-gray-400"
-                  : "bg-gray-800 text-white cursor-pointer"
+                  : "bg-green-600 text-white cursor-pointer"
               }`}
             >
               {"<"}
@@ -198,7 +198,7 @@ const AdminUserAccount = () => {
                 onClick={() => setPage(idx + 1)}
                 className={`px-3 py-1 rounded ${
                   page === idx + 1
-                    ? "bg-gray-800 text-white"
+                    ? "bg-green-600 text-white"
                     : "bg-gray-200 cursor-pointer"
                 }`}
               >
@@ -211,7 +211,7 @@ const AdminUserAccount = () => {
               className={`px-3 py-1 rounded ${
                 page === totalPages
                   ? "bg-gray-200 text-gray-400"
-                  : "bg-gray-800 text-white cursor-pointer"
+                  : "bg-green-600 text-white cursor-pointer"
               }`}
             >
               {">"}
@@ -232,3 +232,5 @@ const AdminUserAccount = () => {
 };
 
 export default AdminUserAccount;
+
+

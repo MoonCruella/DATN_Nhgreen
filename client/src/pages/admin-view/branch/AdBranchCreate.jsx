@@ -287,7 +287,7 @@ const AdminBranchCreate = () => {
             <Button
               onClick={handleCreate}
               disabled={saving}
-              className="bg-gray-800 hover:bg-gray-900 cursor-pointer"
+              className="bg-green-600 hover:bg-green-700 cursor-pointer"
             >
               Tạo chi nhánh
             </Button>
@@ -518,3 +518,5 @@ const AdminBranchCreate = () => {
 };
 
 export default AdminBranchCreate;
+
+

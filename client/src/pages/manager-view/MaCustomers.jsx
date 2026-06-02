@@ -1,40 +1,60 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Eye, PackageOpen, Plus, Search, Store } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  PackageOpen,
+  PencilLine,
+  Plus,
+  Search,
+  Store,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import userApi from "@/api/userApi";
+import CustomerCreateModal from "@/components/manager-view/modals/CustomerCreateModal";
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
 
+const defaultPagination = {
+  current_page: 1,
+  total_pages: 0,
+  total_customers: 0,
+  per_page: 20,
+};
+
 const MaCustomers = () => {
   const [customers, setCustomers] = useState([]);
-  const [pagination, setPagination] = useState({
-    current_page: 1,
-    total_pages: 0,
-    total_customers: 0,
-    per_page: 20,
-  });
+  const [pagination, setPagination] = useState(defaultPagination);
   const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pageSize, setPageSize] = useState(20);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const params = useMemo(
     () => ({
       page: pagination.current_page,
-      limit: pagination.per_page,
-      search: searchTerm.trim(),
+      limit: pageSize,
+      search: appliedSearch.trim(),
     }),
-    [pagination.current_page, pagination.per_page, searchTerm]
+    [pagination.current_page, pageSize, appliedSearch],
   );
 
   useEffect(() => {
-    const timer = setTimeout(async () => {
+    const fetchCustomers = async () => {
       try {
         setLoading(true);
         const res = await userApi.getManagerCustomers(params);
-        setCustomers(res?.data?.customers || []);
+        const payload = res?.data || res || {};
+
+        setCustomers(Array.isArray(payload.customers) ? payload.customers : []);
         setPagination((prev) => ({
           ...prev,
-          ...(res?.data?.pagination || {}),
+          ...(payload.pagination || {}),
+          per_page: pageSize,
         }));
       } catch (error) {
         console.error("Fetch customers error:", error);
@@ -42,137 +62,226 @@ const MaCustomers = () => {
       } finally {
         setLoading(false);
       }
-    }, 250);
+    };
 
-    return () => clearTimeout(timer);
-  }, [params]);
+    fetchCustomers();
+  }, [params, pageSize, refreshKey]);
 
-  const handleSearchChange = (event) => {
-    setSearchTerm(event.target.value);
+  const totalPages = Math.max(1, pagination.total_pages || 1);
+  const startIndex =
+    pagination.total_customers === 0
+      ? 0
+      : (pagination.current_page - 1) * pageSize + 1;
+  const endIndex = Math.min(
+    pagination.current_page * pageSize,
+    pagination.total_customers,
+  );
+  const hasActiveFilters = Boolean(appliedSearch.trim());
+
+  const applyFilters = () => {
+    setAppliedSearch(searchTerm.trim());
+    setPagination((prev) => ({ ...prev, current_page: 1 }));
+  };
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setAppliedSearch("");
     setPagination((prev) => ({ ...prev, current_page: 1 }));
   };
 
   const changePage = (page) => {
+    if (page < 1 || page > totalPages) return;
     setPagination((prev) => ({ ...prev, current_page: page }));
   };
 
   return (
-    <div className="min-h-[calc(100vh-90px)] bg-gray-50 px-8 py-8">
-      <div className="mb-8 flex items-center gap-4">
-        <Store className="h-8 w-8 text-gray-900" strokeWidth={1.8} />
-        <span className="text-2xl font-bold text-gray-900">Quản lý bán hàng</span>
-        <ChevronRight className="h-7 w-7 text-gray-500" strokeWidth={2.2} />
-        <h1 className="text-3xl font-black text-[#1f2c86]">
-          Danh sách khách hàng
-        </h1>
-      </div>
+    <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
+      <header className="mb-5 flex items-center gap-2 text-lg font-bold">
+        <div className="flex items-center gap-2 text-gray-900">
+          <Store className="h-5 w-5" strokeWidth={1.8} />
+          Quản lý bán hàng
+        </div>
+        <ChevronRight className="h-5 w-5 text-gray-500" />
+        <div className="text-[#34ad54]">Quản lý khách hàng</div>
+      </header>
 
-      <div className="mb-16 flex items-center gap-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-5 top-1/2 h-7 w-7 -translate-y-1/2 text-gray-400" />
-          <input
-            value={searchTerm}
-            onChange={handleSearchChange}
-            placeholder="Tìm theo mã khách hàng, tên, SĐT khách hàng"
-            className="h-14 w-full rounded-xl border border-gray-100 bg-white pl-16 pr-5 text-2xl font-medium text-gray-700 shadow-sm outline-none placeholder:text-gray-400 focus:border-sky-300"
-          />
+      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative w-full lg:w-[300px]">
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") applyFilters();
+              }}
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
+              placeholder="Mã KH, tên, SĐT"
+            />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => toast.info("Chức năng thêm khách hàng sẽ được bổ sung sau")}
-          className="flex h-14 items-center gap-2 rounded-xl border border-sky-400 bg-white px-5 text-2xl font-bold text-sky-500 hover:bg-sky-50"
-        >
-          <Plus className="h-7 w-7" />
-          Thêm
-        </button>
+        <div className="flex gap-3">
+          <Button
+            type="button"
+            onClick={applyFilters}
+            className="h-12 min-w-[110px] rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45]"
+          >
+            Áp dụng
+          </Button>
+
+          <Button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            variant="outline"
+            className="h-12 rounded-lg border-[#34ad54] bg-white px-5 text-base font-bold text-[#34ad54] hover:bg-green-50 hover:text-[#2f9b45]"
+          >
+            <Plus className="h-5 w-5" />
+            Thêm
+          </Button>
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-        <table className="w-full table-fixed">
-          <thead>
-            <tr className="border-b border-gray-100 text-left text-2xl font-black text-gray-600">
-              <th className="w-[5%] px-6 py-6">STT</th>
-              <th className="w-[14%] px-6 py-6">Mã khách hàng</th>
-              <th className="w-[18%] px-6 py-6">Tên khách hàng</th>
-              <th className="w-[14%] px-6 py-6">Số điện thoại</th>
-              <th className="w-[13%] px-6 py-6">Tổng chi tiêu</th>
-              <th className="w-[13%] px-6 py-6">Điểm thưởng</th>
-              <th className="w-[15%] px-6 py-6">Tổng SL đơn hàng</th>
-              <th className="w-[8%] px-6 py-6 text-center">Hành động</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={8} className="h-64 text-center text-xl text-gray-500">
-                  Đang tải dữ liệu...
-                </td>
-              </tr>
-            ) : customers.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="h-64">
-                  <div className="flex flex-col items-center justify-center text-gray-600">
-                    <PackageOpen className="h-28 w-28 text-blue-100" strokeWidth={1.2} />
-                    <div className="mt-3 text-2xl font-medium">Không có dữ liệu</div>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              customers.map((customer) => (
-                <tr
-                  key={customer._id}
-                  className="border-b border-gray-100 text-xl font-semibold text-gray-700 last:border-b-0 hover:bg-gray-50"
+      <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
+        <div className="grid grid-cols-[70px_1fr_1.45fr_1.05fr_1.05fr_0.95fr_1.05fr_0.8fr] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
+          <div>STT</div>
+          <div>Mã khách hàng</div>
+          <div>Tên khách hàng</div>
+          <div>Số điện thoại</div>
+          <div>Tổng chi tiêu</div>
+          <div>Điểm thưởng</div>
+          <div>Tổng SL đơn hàng</div>
+          <div>Hành động</div>
+        </div>
+
+        {loading ? (
+          <div className="px-5 py-9 text-center text-base font-bold text-gray-500">
+            Đang tải dữ liệu...
+          </div>
+        ) : customers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center px-5 py-12 text-gray-600">
+            <PackageOpen
+              className="h-16 w-16 text-green-100"
+              strokeWidth={1.2}
+            />
+            <div className="mt-3 text-base font-bold">
+              Không có dữ liệu khách hàng
+            </div>
+          </div>
+        ) : (
+          customers.map((customer, index) => (
+            <div
+              key={customer._id || customer.customer_code || index}
+              className="grid min-h-16 grid-cols-[70px_1fr_1.45fr_1.05fr_1.05fr_0.95fr_1.05fr_0.8fr] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
+            >
+              <div>
+                {customer.stt ||
+                  (pagination.current_page - 1) * pageSize + index + 1}
+              </div>
+              <div>{customer.customer_code || "-"}</div>
+              <div className="truncate font-bold text-gray-800">
+                {customer.name || "-"}
+              </div>
+              <div>{customer.phone || "-"}</div>
+              <div>{formatCurrency(customer.total_spent)} VND</div>
+              <div>{formatCurrency(customer.reward_points)}</div>
+              <div>{formatCurrency(customer.total_orders)}</div>
+              <div className="text-gray-400">
+                <button
+                  type="button"
+                  onClick={() =>
+                    toast.info("Chức năng chỉnh sửa khách hàng sẽ được bổ sung")
+                  }
+                  className="transition hover:text-[#34ad54]"
+                  title="Chỉnh sửa"
                 >
-                  <td className="px-6 py-5">{customer.stt}</td>
-                  <td className="px-6 py-5">{customer.customer_code}</td>
-                  <td className="truncate px-6 py-5">{customer.name || "-"}</td>
-                  <td className="px-6 py-5">{customer.phone || "-"}</td>
-                  <td className="px-6 py-5">
-                    {formatCurrency(customer.total_spent)} VND
-                  </td>
-                  <td className="px-6 py-5">
-                    {formatCurrency(customer.reward_points)}
-                  </td>
-                  <td className="px-6 py-5">{customer.total_orders}</td>
-                  <td className="px-6 py-5 text-center">
-                    <button
-                      type="button"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-sky-500 hover:bg-sky-50"
-                      title="Xem chi tiết"
-                    >
-                      <Eye className="h-5 w-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  <PencilLine className="h-5 w-5" strokeWidth={2.1} />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
-      {pagination.total_pages > 1 && (
-        <div className="mt-6 flex items-center justify-end gap-2">
-          {Array.from({ length: pagination.total_pages }, (_, index) => {
-            const page = index + 1;
-            return (
+      {pagination.total_customers > 0 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+          <p className="text-sm font-bold text-gray-500">
+            Hiển thị {startIndex}-{endIndex} trên{" "}
+            {formatCurrency(pagination.total_customers)} khách hàng
+          </p>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               <button
-                key={page}
                 type="button"
-                onClick={() => changePage(page)}
-                className={`h-10 min-w-10 rounded-lg px-3 text-sm font-bold ${
-                  page === pagination.current_page
-                    ? "bg-[#1f2c86] text-white"
-                    : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                }`}
+                onClick={() => changePage(1)}
+                disabled={pagination.current_page === 1}
+                className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {page}
+                «
               </button>
-            );
-          })}
+              <button
+                type="button"
+                onClick={() => changePage(pagination.current_page - 1)}
+                disabled={pagination.current_page === 1}
+                className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              <div className="min-w-[30px] px-2 text-center text-sm font-bold text-gray-700">
+                {pagination.current_page}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => changePage(pagination.current_page + 1)}
+                disabled={pagination.current_page >= totalPages}
+                className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => changePage(totalPages)}
+                disabled={pagination.current_page >= totalPages}
+                className="rounded-md border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                »
+              </button>
+            </div>
+
+            <div className="relative">
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setPagination((prev) => ({ ...prev, current_page: 1 }));
+                }}
+                className="appearance-none rounded-md border border-gray-200 bg-white px-4 py-2 pr-8 text-sm font-bold text-gray-700 hover:border-gray-300 focus:border-[#34ad54] focus:outline-none"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-700" />
+            </div>
+          </div>
         </div>
       )}
-    </div>
+
+      <CustomerCreateModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={() => {
+          setPagination((prev) => ({ ...prev, current_page: 1 }));
+          setAppliedSearch("");
+          setSearchTerm("");
+          setRefreshKey((prev) => prev + 1);
+        }}
+      />
+    </section>
   );
 };
 

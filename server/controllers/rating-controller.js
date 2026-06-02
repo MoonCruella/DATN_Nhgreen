@@ -706,9 +706,13 @@ export const getOrderRatings = async (req, res) => {
 // Manager: Get all ratings with filters
 export const getAllRatingsForManager = async (req, res) => {
   try {
-    const { page = 1, limit = 10, searchUser, searchDish } = req.query;
+    const { page = 1, limit = 10, search, searchUser, searchDish } = req.query;
     const skip = (page - 1) * limit;
     const managerBranchId = req.user.branch_id;
+    const keyword = search || "";
+    const keywordRegex = keyword
+      ? createVietnameseRegex(removeVietnameseTones(keyword))
+      : null;
 
     // Manager phải có branch_id
     if (!managerBranchId) {
@@ -754,16 +758,26 @@ export const getAllRatingsForManager = async (req, res) => {
       {
         $match: {
           "order.branch_id": new mongoose.Types.ObjectId(managerBranchId),
-          ...(searchUser && {
-            "user.name": createVietnameseRegex(
-              removeVietnameseTones(searchUser)
-            ),
-          }),
-          ...(searchDish && {
-            "dish.name": createVietnameseRegex(
-              removeVietnameseTones(searchDish)
-            ),
-          }),
+          ...(keywordRegex
+            ? {
+                $or: [
+                  { "user.name": keywordRegex },
+                  { "user.email": keywordRegex },
+                  { "dish.name": keywordRegex },
+                ],
+              }
+            : {
+                ...(searchUser && {
+                  "user.name": createVietnameseRegex(
+                    removeVietnameseTones(searchUser)
+                  ),
+                }),
+                ...(searchDish && {
+                  "dish.name": createVietnameseRegex(
+                    removeVietnameseTones(searchDish)
+                  ),
+                }),
+              }),
         },
       },
       {
