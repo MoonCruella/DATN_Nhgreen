@@ -56,6 +56,7 @@ const OrderModal = ({ open, onClose, order }) => {
     const methodMap = {
       cod: "Thanh toán khi nhận hàng",
       vnpay: "VNPay",
+      momo: "MoMo",
       zalopay: "ZaloPay",
     };
     return methodMap[method] || method;

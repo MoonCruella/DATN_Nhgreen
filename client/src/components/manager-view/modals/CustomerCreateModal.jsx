@@ -67,7 +67,7 @@ const CustomerCreateModal = ({ open, onClose, onCreated }) => {
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 px-4">
-      <div className="relative w-full max-w-[560px] rounded-[16px] bg-white px-8 py-8 shadow-2xl">
+      <div className="relative max-h-[90vh] w-full max-w-[480px] overflow-y-auto rounded-xl bg-white px-6 py-6 shadow-xl">
         <button
           type="button"
           onClick={onClose}
@@ -77,43 +77,43 @@ const CustomerCreateModal = ({ open, onClose, onCreated }) => {
           <X className="h-5 w-5" />
         </button>
 
-        <h3 className="mb-8 text-center text-xl font-black text-black">
+        <h3 className="mb-5 text-center text-lg font-bold text-black">
           Tạo khách hàng mới
         </h3>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div>
-            <label className="mb-3 block text-lg font-black text-black">
+            <label className="mb-2 block text-sm font-bold text-black">
               Tên khách hàng<span className="text-red-500">*</span>
             </label>
             <input
               value={form.name}
               onChange={(event) => updateForm("name", event.target.value)}
               placeholder="Nhập tên khách hàng"
-              className="h-14 w-full rounded-xl border border-gray-200 px-6 text-lg font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
+              className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
             />
           </div>
 
           <div>
-            <label className="mb-3 block text-lg font-black text-black">
+            <label className="mb-2 block text-sm font-bold text-black">
               Số điện thoại<span className="text-red-500">*</span>
             </label>
             <input
               value={form.phone}
               onChange={(event) => updateForm("phone", event.target.value)}
               placeholder="Nhập số điện thoại"
-              className="h-14 w-full rounded-xl border border-gray-200 px-6 text-lg font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
+              className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
             />
           </div>
 
           <div>
-            <label className="mb-3 block text-lg font-black text-black">
+            <label className="mb-2 block text-sm font-bold text-black">
               Địa chỉ
             </label>
             <select
               value={form.province}
               onChange={(event) => updateForm("province", event.target.value)}
-              className="mb-3 h-14 w-full rounded-xl border border-gray-200 bg-white px-6 text-lg font-medium text-slate-700 outline-none focus:border-green-500"
+              className="mb-2 h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-green-500"
             >
               <option value="">Tỉnh/Thành phố</option>
               <option value="Sơn La">Sơn La</option>
@@ -123,7 +123,7 @@ const CustomerCreateModal = ({ open, onClose, onCreated }) => {
             <select
               value={form.ward}
               onChange={(event) => updateForm("ward", event.target.value)}
-              className="mb-3 h-14 w-full rounded-xl border border-gray-200 bg-white px-6 text-lg font-medium text-slate-700 outline-none focus:border-green-500"
+              className="mb-2 h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-green-500"
             >
               <option value="">Phường/Xã</option>
               <option value="Phường Chiềng Lề">Phường Chiềng Lề</option>
@@ -134,17 +134,17 @@ const CustomerCreateModal = ({ open, onClose, onCreated }) => {
               value={form.detail}
               onChange={(event) => updateForm("detail", event.target.value)}
               placeholder="Địa chỉ cụ thể"
-              className="h-14 w-full rounded-xl border border-gray-200 px-6 text-lg font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
+              className="h-11 w-full rounded-lg border border-gray-200 px-4 text-sm font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
             />
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-3">
+        <div className="mt-6 grid grid-cols-2 gap-3">
           <Button
             type="button"
             variant="outline"
             onClick={onClose}
-            className="h-12 rounded-lg border-green-500 text-base font-black text-green-600 hover:bg-green-50 hover:text-green-700"
+            className="h-10 rounded-lg border-green-500 text-sm font-bold text-green-600 hover:bg-green-50 hover:text-green-700"
           >
             Quay lại
           </Button>
@@ -152,7 +152,7 @@ const CustomerCreateModal = ({ open, onClose, onCreated }) => {
             type="button"
             onClick={handleSubmit}
             disabled={creating}
-            className="h-12 rounded-lg bg-[#34ad54] text-base font-black text-white hover:bg-[#2f9b45] disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0]"
+            className="h-10 rounded-lg bg-[#34ad54] text-sm font-bold text-white hover:bg-[#2f9b45] disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0]"
           >
             {creating ? "Đang tạo..." : "Tạo khách hàng"}
           </Button>

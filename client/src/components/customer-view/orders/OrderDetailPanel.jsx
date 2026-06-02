@@ -273,6 +273,8 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
                   ? "Thanh toán khi nhận hàng (COD)"
                   : order.payment_method === "vnpay"
                   ? "Thanh toán VNPAY"
+                  : order.payment_method === "momo"
+                  ? "Thanh toán MoMo"
                   : order.payment_method === "zalopay"
                   ? "Thanh toán ZaloPay"
                   : "Khác"}

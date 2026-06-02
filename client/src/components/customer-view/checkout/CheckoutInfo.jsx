@@ -534,7 +534,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
       {/* Payment Method */}
       <div>
         <h4 className="text-lg font-semibold mb-3">Phương thức thanh toán</h4>
-        <div className="grid sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {[
             {
               value: "cod",
@@ -542,6 +542,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
               icon: assets.cod_icon,
             },
             { value: "vnpay", label: "VNPAY", icon: assets.vnpay_icon },
+            { value: "momo", label: "MoMo", icon: assets.momo_icon },
             { value: "zalopay", label: "ZaloPay", icon: assets.zalo_pay },
           ].map((method) => {
             const isSelected = paymentMethod === method.value;
