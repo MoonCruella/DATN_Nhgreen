@@ -159,10 +159,10 @@ const AdminLayout = () => {
   return (
     <div className="flex h-screen font-medium">
       {/* Sidebar */}
-      <nav className="h-full w-[280px] p-6 flex flex-col bg-green-900">
+      <nav className="h-full w-[280px] px-6 pb-6 flex flex-col bg-green-900">
         <div className="flex-1 overflow-y-auto">
           {/* Header */}
-          <div className="flex items-center justify-between pb-6 mb-9 border-b border-green-800">
+          <div className="flex h-[65px] items-center justify-between mb-6 border-b border-green-800">
             <div className="flex items-center gap-2">
               <img
                 src={assets.logo}

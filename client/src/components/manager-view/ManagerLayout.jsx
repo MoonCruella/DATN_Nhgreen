@@ -128,9 +128,9 @@ const ManagerLayout = () => {
 
   return (
     <div className="flex h-screen font-medium">
-      <nav className="flex h-full w-[280px] flex-col bg-green-900 p-6">
+      <nav className="flex h-full w-[280px] flex-col bg-green-900 px-6 pb-6">
         <div className="flex-1 overflow-y-auto">
-          <div className="mb-9 flex items-center justify-between border-b border-green-800 pb-6">
+          <div className="mb-6 flex h-[65px] items-center justify-between border-b border-green-800">
             <div className="flex items-center gap-2">
               <img
                 src={assets.logo}
