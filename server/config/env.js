@@ -21,6 +21,6 @@ export const config = {
   },
 
   // AI Service
-  aiServiceUrl: process.env.AI_SERVICE_URL || "http://localhost:8001",
+  aiServiceUrl: process.env.AI_SERVICE_URL,
   aiApiKey: process.env.AI_API_KEY,
 };

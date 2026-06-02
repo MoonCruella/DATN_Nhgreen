@@ -57,7 +57,7 @@ const MaNotifications = () => {
     if (!accessToken) return;
 
     const newSocket = io(
-      import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+      import.meta.env.VITE_API_BASE_URL,
       {
         auth: { token: accessToken },
         transports: ["websocket", "polling"],

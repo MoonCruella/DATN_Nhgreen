@@ -142,6 +142,8 @@ const PrintableBill = React.forwardRef(
             <span>
               {order.payment_status === "paid"
                 ? "Đã thanh toán"
+                : order.payment_status === "refunded"
+                ? "Đã hoàn tiền"
                 : "Chưa thanh toán"}
             </span>
           </div>

@@ -608,8 +608,8 @@ const AuthPage = () => {
             )}
 
             <div className="my-7">
+              <div className="font-bold text-left mb-2">Tên đăng nhập</div>
               <div className="relative">
-                <div className="font-bold text-left">Tên đăng nhập</div>
                 <input
                   type="email"
                   name="email"
@@ -639,8 +639,8 @@ const AuthPage = () => {
             </div>
 
             <div className="my-7">
+              <div className="font-bold text-left mb-2">Mật khẩu</div>
               <div className="relative">
-                <div className="font-bold text-left">Mật khẩu</div>
                 <input
                   type="password"
                   name="password"

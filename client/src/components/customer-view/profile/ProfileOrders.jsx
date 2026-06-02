@@ -117,7 +117,7 @@ const ProfileOrders = () => {
     if (!accessToken || !user?._id) return;
 
     const newSocket = io(
-      import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+      import.meta.env.VITE_API_BASE_URL,
       {
         auth: { token: accessToken },
         transports: ["websocket", "polling"],
@@ -273,7 +273,11 @@ const ProfileOrders = () => {
           return;
         }
 
-        toast.error(error.message || "Có lỗi xảy ra khi hủy đơn hàng");
+        toast.error(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Có lỗi xảy ra khi hủy đơn hàng"
+        );
       }
       return;
     }
@@ -332,7 +336,9 @@ const ProfileOrders = () => {
       }
 
       toast.error(
-        error.message || "Có lỗi xảy ra khi gửi yêu cầu hủy đơn hàng"
+        error?.response?.data?.message ||
+          error?.message ||
+          "Có lỗi xảy ra khi gửi yêu cầu hủy đơn hàng"
       );
     }
   };

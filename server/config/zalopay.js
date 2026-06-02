@@ -9,11 +9,11 @@ const zalopayConfig = {
     process.env.ZP_CREATE_ENDPOINT || "https://sb-openapi.zalopay.vn/v2/create",
   queryEndpoint:
     process.env.ZP_QUERY_ENDPOINT || "https://sb-openapi.zalopay.vn/v2/query",
-  // Your server public base URL, e.g., http://localhost:3000
-  serverBaseUrl: process.env.SERVER_BASE_URL || "http://localhost:3000",
+  // Your server public base URL
+  serverBaseUrl: process.env.SERVER_BASE_URL,
   // Frontend checkout page to redirect after payment
   frontendRedirectUrl:
-    process.env.ZP_FE_REDIRECT_URL || "http://localhost:5173/checkout",
+    process.env.ZP_FE_REDIRECT_URL,
 };
 
 export default zalopayConfig;

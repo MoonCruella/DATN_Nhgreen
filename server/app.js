@@ -28,7 +28,7 @@ import momoRouter from "./routes/momo-routes.js";
 const app = express();
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://192.168.0.80:5173"],
+    origin: [process.env.CLIENT_URL],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     allowedHeaders: [
       "Content-Type",

@@ -193,6 +193,8 @@ const OrderModal = ({ open, onClose, order }) => {
                   <span>
                     {order.payment_status === "paid" ? (
                       <span className="text-green-600">Đã thanh toán</span>
+                    ) : order.payment_status === "refunded" ? (
+                      <span className="text-purple-600">Hoàn tiền</span>
                     ) : (
                       <span className="text-yellow-600">Chưa thanh toán</span>
                     )}

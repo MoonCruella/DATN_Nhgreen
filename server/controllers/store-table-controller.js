@@ -9,8 +9,7 @@ import response from "../helpers/response.js";
 const getQrUrl = (req, qrToken) => {
   const baseUrl =
     process.env.QR_CLIENT_BASE_URL ||
-    process.env.CLIENT_URL ||
-    "http://localhost:5173/dine-in";
+    process.env.CLIENT_URL;
 
   return `${baseUrl.replace(/\/$/, "")}/${qrToken}`;
 };

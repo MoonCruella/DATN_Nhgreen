@@ -75,7 +75,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
     if (!accessToken || !user?._id || !orderId) return;
 
     const newSocket = io(
-      import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+      import.meta.env.VITE_API_BASE_URL,
       {
         auth: { token: accessToken },
         transports: ["websocket", "polling"],
@@ -141,6 +141,11 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
         text: "text-green-800",
         label: "Đã thanh toán",
       },
+      hoan_tien: {
+        bg: "bg-purple-100",
+        text: "text-purple-800",
+        label: "Hoàn tiền",
+      },
       confirmed: {
         bg: "bg-blue-100",
         text: "text-blue-800",
@@ -174,7 +179,8 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
       },
     };
 
-    const config = statusConfig[status] || {
+    const normalizedStatus = status === "refund" ? "hoan_tien" : status;
+    const config = statusConfig[normalizedStatus] || {
       bg: "bg-gray-100",
       text: "text-gray-800",
       label: status,

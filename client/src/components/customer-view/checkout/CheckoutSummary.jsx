@@ -214,12 +214,23 @@ const CheckoutSummary = ({
 
     try {
       if (method === "vnpay") {
-        const { success, url, message } = await vnpayApi.createPayment(
-          accessToken,
-          orderData.orderId,
-          totalAmount
-        );
+        const { success, url, vnpCreateDate, message } =
+          await vnpayApi.createPayment(
+            accessToken,
+            orderData.orderId,
+            totalAmount
+          );
         if (success) {
+          if (vnpCreateDate) {
+            const storedOrderData = {
+              ...orderData,
+              vnpay_create_date: vnpCreateDate,
+            };
+            localStorage.setItem(
+              "pendingOrderData",
+              JSON.stringify(storedOrderData)
+            );
+          }
           window.location.href = url;
         } else {
           toast.error("Tạo thanh toán VNPay thất bại: " + message);
@@ -280,6 +291,9 @@ const CheckoutSummary = ({
     const query = new URLSearchParams(location.search);
     const success = query.get("success");
     const orderId = query.get("orderId");
+    const vnpTransactionNo = query.get("vnp_TransactionNo");
+    const vnpPayDate = query.get("vnp_PayDate");
+    const vnpAmount = query.get("vnp_Amount");
     const momoResultCode = query.get("resultCode");
     const appTransId =
       query.get("apptransid") || localStorage.getItem("zaloAppTransId");
@@ -313,7 +327,18 @@ const CheckoutSummary = ({
       }
       if (!accessToken || !pendingOrderData) return; // wait for token / data
       setLoading(true);
-      orderApi.createOrder(accessToken, pendingOrderData).then(async (res) => {
+      const orderPayload =
+        paymentMethodFromStorage === "vnpay"
+          ? {
+              ...pendingOrderData,
+              vnpay_txn_ref: orderId,
+              vnpay_transaction_no: vnpTransactionNo || undefined,
+              vnpay_pay_date: vnpPayDate || undefined,
+              vnpay_amount: vnpAmount ? Number(vnpAmount) : undefined,
+            }
+          : pendingOrderData;
+
+      orderApi.createOrder(accessToken, orderPayload).then(async (res) => {
         if (res.success) {
           toast.success("Thanh toán VNPay thành công!");
           await updateFlashSaleSoldCounts();

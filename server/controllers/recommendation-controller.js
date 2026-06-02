@@ -1,7 +1,7 @@
 import axios from "axios";
 import Dish from "../models/dish-model.js";
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8001";
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL;
 const AI_API_KEY = process.env.AI_API_KEY;
 
 /**

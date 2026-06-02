@@ -10,9 +10,9 @@ const momoConfig = {
   endpoint:
     process.env.MOMO_ENDPOINT ||
     "https://test-payment.momo.vn/v2/gateway/api/create",
-  serverBaseUrl: process.env.SERVER_BASE_URL || "http://localhost:3000",
+  serverBaseUrl: process.env.SERVER_BASE_URL,
   frontendRedirectUrl:
-    process.env.MOMO_FE_REDIRECT_URL || "http://localhost:5173/checkout",
+    process.env.MOMO_FE_REDIRECT_URL,
 };
 
 momoConfig.redirectUrl =

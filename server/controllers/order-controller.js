@@ -13,6 +13,7 @@ import * as orderSchedulerService from "../services/order-scheduler-service.js";
 import CartItem from "../models/cart-model.js";
 import Rating from "../models/rating-model.js";
 import { getIO } from "../config/socket.js";
+import { requestVnpayRefund } from "./vnpay-controller.js";
 import {
   createFuzzyMongoQuery,
   sortByRelevance,
@@ -61,6 +62,21 @@ const checkOrderRatingStatus = async (orderId, userId) => {
     console.error("Error checking rating status:", error);
     return { all_rated: false, rated_count: 0, total_items: 0 };
   }
+};
+
+const getVnpayRefundMissingFields = (order) => {
+  const missing = [];
+  if (!order.vnpay_txn_ref) missing.push("vnpay_txn_ref");
+  if (!order.vnpay_transaction_no || order.vnpay_transaction_no === "0") {
+    missing.push("vnpay_transaction_no");
+  }
+  const transactionDate = order.vnpay_create_date || order.vnpay_pay_date;
+  if (!transactionDate || String(transactionDate).length !== 14) {
+    missing.push("vnpay_create_date");
+  }
+  const amountValue = Number(order.vnpay_amount || 0);
+  if (amountValue <= 0 && !order.total_amount) missing.push("amount");
+  return missing;
 };
 
 //Get user orders with filter and pagination
@@ -484,6 +500,58 @@ export const cancelOrder = async (req, res) => {
     // 3. Các trạng thái khác: không cho phép hủy
 
     if (["pending", "confirmed"].includes(order.status)) {
+      if (order.payment_method === "vnpay" && order.payment_status === "paid") {
+        const missingFields = getVnpayRefundMissingFields(order);
+        if (missingFields.length > 0) {
+          return response.sendError(
+            res,
+            "Thiếu thông tin giao dịch VNPay để hoàn tiền",
+            400,
+            missingFields.join(", ")
+          );
+        }
+        try {
+          const refundResult = await requestVnpayRefund({
+            txnRef: order.vnpay_txn_ref,
+            amount: order.vnpay_amount || order.total_amount * 100,
+            transactionNo: order.vnpay_transaction_no,
+            transactionDate: order.vnpay_create_date || order.vnpay_pay_date,
+            ipAddr: req.ip,
+            orderInfo: `Hoan tien don hang ${order.order_number}`,
+          });
+
+          if (!refundResult.success) {
+            return response.sendError(
+              res,
+              "Hoàn tiền VNPay thất bại",
+              400,
+              refundResult.message
+            );
+          }
+
+          order.payment_status = "refunded";
+          order.refund_status = "success";
+          order.refund_amount = order.total_amount;
+          order.refund_date = now;
+          order.refund_response_code = refundResult.data?.vnp_ResponseCode;
+          order.refund_message = refundResult.data?.vnp_Message;
+
+          order.history = order.history || [];
+          order.history.push({
+            status: "hoan_tien",
+            date: now,
+            note: "Hoàn tiền VNPay thành công",
+          });
+        } catch (refundError) {
+          return response.sendError(
+            res,
+            "Không thể hoàn tiền VNPay",
+            400,
+            refundError.message
+          );
+        }
+      }
+
       // Hủy trực tiếp cho pending/confirmed
       order.status = "cancelled";
       order.cancelled_at = now;
@@ -798,6 +866,11 @@ export const createOrder = async (req, res) => {
       dine_in_session_id,
       dine_in_session_token,
       guest_info = {},
+      vnpay_txn_ref,
+      vnpay_transaction_no,
+      vnpay_create_date,
+      vnpay_pay_date,
+      vnpay_amount,
     } = req.body;
     const { freeship, discount } = voucherCodes;
     const normalizedOrderChannel =
@@ -1231,6 +1304,13 @@ export const createOrder = async (req, res) => {
       payment_date: ["vnpay", "momo", "zalopay"].includes(payment_method)
         ? now
         : undefined,
+      vnpay_txn_ref: payment_method === "vnpay" ? vnpay_txn_ref : undefined,
+      vnpay_transaction_no:
+        payment_method === "vnpay" ? vnpay_transaction_no : undefined,
+      vnpay_create_date:
+        payment_method === "vnpay" ? vnpay_create_date : undefined,
+      vnpay_pay_date: payment_method === "vnpay" ? vnpay_pay_date : undefined,
+      vnpay_amount: payment_method === "vnpay" ? vnpay_amount : undefined,
       shipping_info: isDineIn ? undefined : shipping_info,
       notes,
       status: initialStatus,
@@ -1417,12 +1497,66 @@ export const updateShippingInfo = async (req, res) => {
     if (order.status === "cancel_request") {
       // Manager chấp nhận hủy: cancel_request → cancelled
       if (shipping_status === "cancelled") {
+        const now = new Date();
+
+        if (order.payment_method === "vnpay" && order.payment_status === "paid") {
+          const missingFields = getVnpayRefundMissingFields(order);
+          if (missingFields.length > 0) {
+            return response.sendError(
+              res,
+              "Thiếu thông tin giao dịch VNPay để hoàn tiền",
+              400,
+              missingFields.join(", ")
+            );
+          }
+          try {
+            const refundResult = await requestVnpayRefund({
+              txnRef: order.vnpay_txn_ref,
+              amount: order.vnpay_amount || order.total_amount * 100,
+              transactionNo: order.vnpay_transaction_no,
+              transactionDate: order.vnpay_create_date || order.vnpay_pay_date,
+              ipAddr: req.ip,
+              orderInfo: `Hoan tien don hang ${order.order_number}`,
+            });
+
+            if (!refundResult.success) {
+              return response.sendError(
+                res,
+                "Hoàn tiền VNPay thất bại",
+                400,
+                refundResult.message
+              );
+            }
+
+            order.payment_status = "refunded";
+            order.refund_status = "success";
+            order.refund_amount = order.total_amount;
+            order.refund_date = now;
+            order.refund_response_code = refundResult.data?.vnp_ResponseCode;
+            order.refund_message = refundResult.data?.vnp_Message;
+
+            order.history = order.history || [];
+            order.history.push({
+              status: "hoan_tien",
+              date: now,
+              note: "Hoàn tiền VNPay thành công",
+            });
+          } catch (refundError) {
+            return response.sendError(
+              res,
+              "Không thể hoàn tiền VNPay",
+              400,
+              refundError.message
+            );
+          }
+        }
+
         order.status = "cancelled";
-        order.cancelled_at = new Date();
+        order.cancelled_at = now;
         order.history = order.history || [];
         order.history.push({
           status: "cancelled",
-          date: new Date(),
+          date: now,
           note: note || "Shop đã chấp nhận yêu cầu hủy đơn",
         });
         await order.save();

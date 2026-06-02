@@ -283,6 +283,10 @@ const MaOrderDetail = () => {
         label: "Đã thanh toán",
         className: "bg-green-100 text-green-800",
       },
+      hoan_tien: {
+        label: "Hoàn tiền",
+        className: "bg-purple-100 text-purple-800",
+      },
       confirmed: {
         label: "Đã xác nhận",
         className: "bg-green-100 text-green-800",
@@ -310,7 +314,8 @@ const MaOrderDetail = () => {
       },
     };
 
-    const config = statusConfig[status] || statusConfig.pending;
+    const normalizedStatus = status === "refund" ? "hoan_tien" : status;
+    const config = statusConfig[normalizedStatus] || statusConfig.pending;
     return (
       <Badge className={`${config.className} font-medium text-base px-3 py-1`}>
         {config.label}
@@ -770,6 +775,8 @@ const MaOrderDetail = () => {
                 <p className="font-medium">
                   {order.payment_status === "paid" ? (
                     <span className="text-green-600">✓ Đã thanh toán</span>
+                  ) : order.payment_status === "refunded" ? (
+                    <span className="text-purple-600">⟲ Đã hoàn tiền</span>
                   ) : (
                     <span className="text-yellow-600">⏳ Chưa thanh toán</span>
                   )}
