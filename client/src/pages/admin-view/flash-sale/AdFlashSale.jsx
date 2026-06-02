@@ -5,6 +5,9 @@ import flashsaleApi from "@/api/flashsaleApi";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import TableSkeleton from "@/components/admin-view/TableSkeleton";
+import { ChevronRight, Search, Store } from "lucide-react";
+import FilterSelect from "@/components/common/FilterSelect";
+import AdminPagination from "@/components/admin-view/AdminPagination";
 
 const AdminFlashSale = () => {
   const navigate = useNavigate();
@@ -20,6 +23,11 @@ const AdminFlashSale = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [startDateFilter, setStartDateFilter] = useState("");
   const [endDateFilter, setEndDateFilter] = useState("");
+  const [appliedStatusFilter, setAppliedStatusFilter] = useState("all");
+  const [appliedStartDateFilter, setAppliedStartDateFilter] = useState("");
+  const [appliedEndDateFilter, setAppliedEndDateFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   // Debounce search term
   useEffect(() => {
@@ -35,7 +43,8 @@ const AdminFlashSale = () => {
       setLoading(true);
       const params = {
         limit: 100,
-        status: statusFilter !== "all" ? statusFilter : undefined,
+        status:
+          appliedStatusFilter !== "all" ? appliedStatusFilter : undefined,
         q: debouncedSearchTerm || undefined,
       };
       Object.keys(params).forEach(
@@ -56,7 +65,7 @@ const AdminFlashSale = () => {
 
   useEffect(() => {
     fetchFlashSales();
-  }, [debouncedSearchTerm, statusFilter]);
+  }, [debouncedSearchTerm, appliedStatusFilter]);
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -84,16 +93,16 @@ const AdminFlashSale = () => {
   useEffect(() => {
     const filtered = flashSales.filter((fs) => {
       // Filter by start date
-      if (startDateFilter) {
+      if (appliedStartDateFilter) {
         const fsStartDate = new Date(fs.startTime).setHours(0, 0, 0, 0);
-        const filterStartDate = new Date(startDateFilter).setHours(0, 0, 0, 0);
+        const filterStartDate = new Date(appliedStartDateFilter).setHours(0, 0, 0, 0);
         if (fsStartDate < filterStartDate) return false;
       }
 
       // Filter by end date
-      if (endDateFilter) {
+      if (appliedEndDateFilter) {
         const fsEndDate = new Date(fs.endTime).setHours(0, 0, 0, 0);
-        const filterEndDate = new Date(endDateFilter).setHours(0, 0, 0, 0);
+        const filterEndDate = new Date(appliedEndDateFilter).setHours(0, 0, 0, 0);
         if (fsEndDate > filterEndDate) return false;
       }
 
@@ -101,7 +110,8 @@ const AdminFlashSale = () => {
     });
 
     setFilteredFlashSales(filtered);
-  }, [flashSales, startDateFilter, endDateFilter]);
+    setPage(1);
+  }, [flashSales, appliedStartDateFilter, appliedEndDateFilter]);
 
   // Reset filters
   const resetFilters = () => {
@@ -109,141 +119,145 @@ const AdminFlashSale = () => {
     setStatusFilter("all");
     setStartDateFilter("");
     setEndDateFilter("");
+    setAppliedStatusFilter("all");
+    setAppliedStartDateFilter("");
+    setAppliedEndDateFilter("");
+    setPage(1);
   };
+  const applyFilters = () => {
+    setAppliedStatusFilter(statusFilter);
+    setAppliedStartDateFilter(startDateFilter);
+    setAppliedEndDateFilter(endDateFilter);
+    setPage(1);
+  };
+  const hasActiveFilters =
+    Boolean(searchTerm.trim()) ||
+    statusFilter !== "all" ||
+    appliedStatusFilter !== "all" ||
+    Boolean(startDateFilter) ||
+    Boolean(endDateFilter) ||
+    Boolean(appliedStartDateFilter) ||
+    Boolean(appliedEndDateFilter);
+  const paginatedFlashSales = filteredFlashSales.slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  );
+  const totalPages = Math.max(1, Math.ceil(filteredFlashSales.length / pageSize));
 
   return (
-    <main className="bg-gray-50 min-h-screen">
-      <section className="w-full px-4 pt-8">
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between">
-          <div className="text-lg font-medium">Quản lý Flash Sale</div>
-          <button
-            onClick={() => navigate("/admin/flash-sale/create")}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition cursor-pointer"
+    <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
+      <header className="mb-5 flex items-center gap-2 text-lg font-bold">
+        <div className="flex items-center gap-2 text-gray-900">
+          <Store className="h-5 w-5" strokeWidth={1.8} />
+          Quản trị hệ thống
+        </div>
+        <ChevronRight className="h-5 w-5 text-gray-500" />
+        <div className="text-[#34ad54]">Quản lý Flash Sale</div>
+      </header>
+
+      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:flex-1">
+          <div className="relative w-full lg:w-[300px]">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tên chương trình"
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
+            />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          </div>
+
+          <div className="text-base font-bold text-gray-500">Lọc bởi:</div>
+
+          <FilterSelect
+            label="Trạng thái"
+            value={statusFilter}
+            onChange={(value) => {
+              setStatusFilter(value);
+            }}
+            options={[
+              { value: "all", label: "Tất cả trạng thái" },
+              { value: "upcoming", label: "Sắp diễn ra" },
+              { value: "active", label: "Đang diễn ra" },
+              { value: "ended", label: "Đã kết thúc" },
+            ]}
+            className="lg:w-[220px]"
+          />
+
+          <input
+            type="date"
+            value={startDateFilter}
+            onChange={(e) => {
+              setStartDateFilter(e.target.value);
+            }}
+            className="h-12 rounded-lg border border-gray-200 bg-white px-4 text-base font-bold text-gray-800 outline-none focus:border-[#34ad54]"
+          />
+          <input
+            type="date"
+            value={endDateFilter}
+            onChange={(e) => {
+              setEndDateFilter(e.target.value);
+            }}
+            disabled={!startDateFilter}
+            className="h-12 rounded-lg border border-gray-200 bg-white px-4 text-base font-bold text-gray-800 outline-none focus:border-[#34ad54] disabled:cursor-not-allowed disabled:bg-gray-100"
+          />
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="whitespace-nowrap text-base font-bold text-[#34ad54] underline underline-offset-4 hover:text-[#2f9b45]"
+            >
+              Chọn mặc định
+            </button>
+          )}
+
+          <Button
+            type="button"
+            onClick={applyFilters}
+            className="h-12 min-w-[110px] rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45] lg:ml-auto"
           >
-            + Tạo Flash Sale
-          </button>
+            Áp dụng
+          </Button>
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Search by name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tìm kiếm theo tên
-              </label>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Nhập tên chương trình..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400 transition"
-              />
-            </div>
+        <Button
+          type="button"
+          onClick={() => navigate("/admin/flash-sale/create")}
+          className="h-12 rounded-lg bg-[#34ad54] px-5 text-base font-bold text-white hover:bg-[#2f9b45]"
+        >
+          + Tạo Flash Sale
+        </Button>
+      </div>
 
-            {/* Status filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Trạng thái
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400 transition cursor-pointer"
-              >
-                <option value="all">Tất cả</option>
-                <option value="upcoming">Sắp diễn ra</option>
-                <option value="active">Đang diễn ra</option>
-                <option value="ended">Đã kết thúc</option>
-              </select>
-            </div>
-
-            {/* Start date filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Từ ngày bắt đầu
-              </label>
-              <input
-                type="date"
-                value={startDateFilter}
-                onChange={(e) => setStartDateFilter(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400 transition cursor-pointer"
-              />
-            </div>
-
-            {/* End date filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Đến ngày kết thúc
-              </label>
-              <input
-                type="date"
-                value={endDateFilter}
-                onChange={(e) => setEndDateFilter(e.target.value)}
-                disabled={!startDateFilter}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-400 transition cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
-              />
-            </div>
-
-            {/* Reset button */}
-            <div className="flex items-end">
-              <button
-                onClick={resetFilters}
-                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition cursor-pointer"
-              >
-                Đặt lại bộ lọc
-              </button>
-            </div>
-          </div>
-
-          {/* Filter summary */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="flex items-center gap-2">
-              {(loading || searchTerm !== debouncedSearchTerm) && (
-                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-              )}
-              <p className="text-sm text-gray-600">
-                Hiển thị{" "}
-                <span className="font-semibold text-gray-900">
-                  {filteredFlashSales.length}
-                </span>{" "}
-                / {flashSales.length} Flash Sale
-                {searchTerm !== debouncedSearchTerm && (
-                  <span className="text-gray-500 ml-2">(đang gõ...)</span>
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="pb-16 w-full px-4">
+      <section className="pb-16 w-full">
         {/* Flash Sales Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
           {initialLoading ? (
             <TableSkeleton rows={8} columns={5} />
           ) : (
             <table className="w-full">
-              <thead className="bg-gray-100 border-b">
+              <thead className="border-b border-gray-200 bg-white">
                 <tr>
-                  <th className="px-6 py-3 text-left text-base font-bold text-gray-700">
+                  <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                     Tên chương trình
                   </th>
-                  <th className="px-6 py-3 text-left text-base font-bold text-gray-700">
+                  <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                     Thời gian bắt đầu
                   </th>
-                  <th className="px-6 py-3 text-left text-base font-bold text-gray-700">
+                  <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                     Thời gian kết thúc
                   </th>
-                  <th className="px-6 py-3 text-left text-base font-bold text-gray-700">
+                  <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                     Sản phẩm
                   </th>
-                  <th className="px-6 py-3 text-left text-base font-bold text-gray-700">
+                  <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                     Trạng thái
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody>
                 {filteredFlashSales.length === 0 ? (
                   <tr>
                     <td
@@ -256,25 +270,25 @@ const AdminFlashSale = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredFlashSales.map((fs) => (
+                  paginatedFlashSales.map((fs) => (
                     <tr
                       key={fs._id}
-                      className="hover:bg-gray-50 cursor-pointer transition"
+                      className="cursor-pointer border-b border-gray-100 text-base font-medium text-[#444] transition hover:bg-gray-50 last:border-b-0"
                       onClick={() => navigate(`/admin/flash-sale/${fs._id}`)}
                     >
-                      <td className="px-6 py-4 font-medium text-gray-900">
+                      <td className="px-5 py-3 font-bold text-gray-800">
                         {fs.title}
                       </td>
-                      <td className="px-6 py-4  text-gray-900">
+                      <td className="px-5 py-3 text-gray-700">
                         {new Date(fs.startTime).toLocaleString("vi-VN")}
                       </td>
-                      <td className="px-6 py-4  text-gray-900">
+                      <td className="px-5 py-3 text-gray-700">
                         {new Date(fs.endTime).toLocaleString("vi-VN")}
                       </td>
-                      <td className="px-6 py-4  text-gray-900">
+                      <td className="px-5 py-3 text-gray-700">
                         {fs.dishes?.length || 0} SP
                       </td>
-                      <td className="px-6 py-4">{getStatusBadge(fs.status)}</td>
+                      <td className="px-5 py-3">{getStatusBadge(fs.status)}</td>
                     </tr>
                   ))
                 )}
@@ -282,8 +296,17 @@ const AdminFlashSale = () => {
             </table>
           )}
         </div>
+        <AdminPagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={filteredFlashSales.length}
+          pageSize={pageSize}
+          itemLabel="Flash Sale"
+          onPageChange={setPage}
+          disabled={loading}
+        />
       </section>
-    </main>
+    </section>
   );
 };
 

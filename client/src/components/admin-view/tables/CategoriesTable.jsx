@@ -4,21 +4,21 @@ import TableSkeleton from "../TableSkeleton";
 const CategoriesTable = ({ categories = [], onRowClick, isLoading }) => {
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
         <TableSkeleton rows={5} columns={4} />
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto shadow rounded-xl bg-white">
+    <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
       <table className="w-full text-left">
-        <thead className="bg-gray-200">
+        <thead className="border-b border-gray-200 bg-white">
           <tr>
-            <th className="py-3 px-4 text-gray-700">Hình ảnh</th>
-            <th className="py-3 px-4 text-gray-700">Tên</th>
-            <th className="py-3 px-4 text-gray-700">Mô tả</th>
-            <th className="py-3 px-4 text-gray-700 text-center">Trạng thái</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Hình ảnh</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Tên</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Mô tả</th>
+            <th className="px-5 py-3 text-center text-base font-bold text-slate-600">Trạng thái</th>
           </tr>
         </thead>
         <tbody className="bg-white">
@@ -26,27 +26,27 @@ const CategoriesTable = ({ categories = [], onRowClick, isLoading }) => {
             categories.map((c) => (
               <tr
                 key={c._id}
-                className="border-b hover:bg-gray-50 cursor-pointer"
+                className="cursor-pointer border-b border-gray-100 text-base font-medium text-[#444] transition hover:bg-gray-50 last:border-b-0"
                 onClick={() => onRowClick && onRowClick(c)}
               >
-                <td className="py-2 px-4">
+                <td className="px-5 py-3">
                   {c.imageUrl ? (
                     <img
                       src={c.imageUrl}
                       alt={c.name}
-                      className="w-10 h-10 rounded object-cover"
+                      className="h-12 w-12 rounded-lg object-cover"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center text-sm">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-sm">
                       —
                     </div>
                   )}
                 </td>
-                <td className="py-3 px-4 text-gray-700">{c.name}</td>
-                <td className="py-3 px-4 text-gray-700">
+                <td className="px-5 py-3 font-bold text-gray-800">{c.name}</td>
+                <td className="px-5 py-3 text-gray-700">
                   {c.description || "-"}
                 </td>
-                <td className="py-3 px-4 text-center">
+                <td className="px-5 py-3 text-center">
                   {c.status === "available" ? (
                     <span className="text-sm font-medium text-green-600">
                       Đang bán

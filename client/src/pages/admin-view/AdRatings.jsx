@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { Search } from "lucide-react";
+import { ChevronRight, Search, Store } from "lucide-react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
 import ratingApi from "@/api/ratingApi";
 import RatingsTable from "@/components/admin-view/tables/RatingsTable";
 import RatingModal from "@/components/admin-view/modals/RatingModal";
+import FilterSelect from "@/components/common/FilterSelect";
+import AdminPagination from "@/components/admin-view/AdminPagination";
+import { Button } from "@/components/ui/button";
 
 const AdminRating = () => {
   const [ratings, setRatings] = useState([]);
@@ -25,6 +28,7 @@ const AdminRating = () => {
     searchDish: "",
     rating: "all",
   });
+  const [appliedRating, setAppliedRating] = useState("all");
 
   const { accessToken } = useSelector((state) => state.auth);
 
@@ -45,8 +49,8 @@ const AdminRating = () => {
       console.log("Fetched ratings:", filteredRatings);
       
       // Apply rating filter on frontend
-      if (filters.rating !== "all") {
-        const ratingValue = parseInt(filters.rating);
+      if (appliedRating !== "all") {
+        const ratingValue = parseInt(appliedRating);
         filteredRatings = filteredRatings.filter(r => r.rating === ratingValue);
       }
 
@@ -64,13 +68,31 @@ const AdminRating = () => {
   useEffect(() => {
     fetchRatings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page, filters.searchUser, filters.searchDish, filters.rating]);
+  }, [pagination.page, filters.searchUser, filters.searchDish, appliedRating]);
 
   // Handle filter changes
   const handleFilterChange = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
     setPagination((prev) => ({ ...prev, page: 1 }));
   };
+  const resetFilters = () => {
+    setFilters({
+      searchUser: "",
+      searchDish: "",
+      rating: "all",
+    });
+    setAppliedRating("all");
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+  const applyFilters = () => {
+    setAppliedRating(filters.rating);
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  };
+  const hasActiveFilters =
+    Boolean(filters.searchUser.trim()) ||
+    Boolean(filters.searchDish.trim()) ||
+    filters.rating !== "all" ||
+    appliedRating !== "all";
 
   // Handle view details
   const handleViewDetails = (rating) => {
@@ -79,108 +101,96 @@ const AdminRating = () => {
   };
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Quản lý đánh giá</h1>
-        <p className="text-gray-600 mt-1">
-          Tổng số: {pagination.total} đánh giá
-        </p>
-      </div>
+    <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
+      <header className="mb-5 flex items-center gap-2 text-lg font-bold">
+        <div className="flex items-center gap-2 text-gray-900">
+          <Store className="h-5 w-5" strokeWidth={1.8} />
+          Quản trị hệ thống
+        </div>
+        <ChevronRight className="h-5 w-5 text-gray-500" />
+        <div className="text-[#34ad54]">Quản lý đánh giá</div>
+      </header>
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search User */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tìm theo người dùng
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Nhập tên người dùng..."
-                value={filters.searchUser}
-                onChange={(e) => handleFilterChange("searchUser", e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
-              />
-              <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            </div>
+      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:flex-1">
+          <div className="relative w-full lg:w-[260px]">
+            <input
+              type="text"
+              placeholder="Người dùng"
+              value={filters.searchUser}
+              onChange={(e) => handleFilterChange("searchUser", e.target.value)}
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
+            />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
           </div>
 
-          {/* Search Dish */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tìm theo món ăn
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Nhập tên món ăn..."
-                value={filters.searchDish}
-                onChange={(e) => handleFilterChange("searchDish", e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg"
-              />
-              <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            </div>
+          <div className="relative w-full lg:w-[260px]">
+            <input
+              type="text"
+              placeholder="Món ăn"
+              value={filters.searchDish}
+              onChange={(e) => handleFilterChange("searchDish", e.target.value)}
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
+            />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
           </div>
 
-          {/* Rating Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Đánh giá
-            </label>
-            <select
-              value={filters.rating}
-              onChange={(e) => handleFilterChange("rating", e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg cursor-pointer"
+          <div className="text-base font-bold text-gray-500">Lọc bởi:</div>
+
+          <FilterSelect
+            label="Đánh giá"
+            value={filters.rating}
+            onChange={(value) => handleFilterChange("rating", value)}
+            options={[
+              { value: "all", label: "Tất cả đánh giá" },
+              { value: "5", label: "5 sao" },
+              { value: "4", label: "4 sao" },
+              { value: "3", label: "3 sao" },
+              { value: "2", label: "2 sao" },
+              { value: "1", label: "1 sao" },
+            ]}
+            className="lg:w-[220px]"
+          />
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="whitespace-nowrap text-base font-bold text-[#34ad54] underline underline-offset-4 hover:text-[#2f9b45]"
             >
-              <option value="all">Tất cả</option>
-              <option value="5">5 sao</option>
-              <option value="4">4 sao</option>
-              <option value="3">3 sao</option>
-              <option value="2">2 sao</option>
-              <option value="1">1 sao</option>
-            </select>
-          </div>
+              Chọn mặc định
+            </button>
+          )}
+
+          <Button
+            type="button"
+            onClick={applyFilters}
+            className="h-12 min-w-[110px] rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45] lg:ml-auto"
+          >
+            Áp dụng
+          </Button>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-lg shadow">
+      <section className="pb-16 w-full">
         <RatingsTable
           ratings={ratings}
           isLoading={initialLoading}
           onRowClick={handleViewDetails}
         />
 
-        {/* Pagination */}
-        {pagination.total_pages > 1 && (
-          <div className="flex justify-center items-center gap-2 py-4 border-t">
-            <button
-              onClick={() =>
-                setPagination((prev) => ({ ...prev, page: prev.page - 1 }))
-              }
-              disabled={pagination.page === 1}
-              className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer"
-            >
-              Trước
-            </button>
-            <span className="text-sm text-gray-600">
-              Trang {pagination.page} / {pagination.total_pages}
-            </span>
-            <button
-              onClick={() =>
-                setPagination((prev) => ({ ...prev, page: prev.page + 1 }))
-              }
-              disabled={pagination.page === pagination.total_pages}
-              className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 cursor-pointer"
-            >
-              Sau
-            </button>
-          </div>
-        )}
-      </div>
+        <AdminPagination
+          currentPage={pagination.page}
+          totalPages={pagination.total_pages}
+          totalItems={pagination.total}
+          pageSize={pagination.limit}
+          itemLabel="đánh giá"
+          onPageChange={(page) =>
+            setPagination((prev) => ({ ...prev, page }))
+          }
+          disabled={loading}
+        />
+      </section>
 
       {/* Rating Detail Modal */}
       {showModal && selectedRating && (
@@ -192,7 +202,7 @@ const AdminRating = () => {
           }}
         />
       )}
-    </div>
+    </section>
   );
 };
 

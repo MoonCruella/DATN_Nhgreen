@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import uploadApi from "@/api/uploadApi";
 import { useSelector } from "react-redux";
+import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const CategoryModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
   const { accessToken } = useSelector((s) => s.auth || {});
@@ -158,66 +160,67 @@ const CategoryModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 px-4 animate-fade-in"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white rounded-xl p-6 w-full max-w-2xl">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">
+      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white px-6 py-6 shadow-xl animate-modal-pop">
+        <button
+          type="button"
+          onClick={handleClose}
+          className="absolute right-4 top-4 rounded-md p-1 text-gray-500 hover:bg-gray-100"
+          title="Đóng"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="mb-5">
+          <h3 className="text-center text-lg font-bold text-black">
             {initialData ? "Chi tiết / Sửa danh mục" : "Thêm danh mục"}
           </h3>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 cursor-pointer"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label className="flex flex-col">
-            <span className="text-sm text-gray-600">
+            <span className="mb-2 text-sm font-bold text-black">
               Tên <span className="text-red-500">*</span>
             </span>
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="border rounded px-3 py-2"
+              className="h-11 rounded-lg border border-gray-200 px-4 text-sm font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
             />
           </label>
 
           <label className="flex flex-col">
-            <span className="text-sm text-gray-600">Trạng thái</span>
+            <span className="mb-2 text-sm font-bold text-black">Trạng thái</span>
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="border rounded px-3 py-2 cursor-pointer"
+              className="h-11 cursor-pointer rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-green-500"
             >
               <option value="available">Đang bán</option>
               <option value="suspended">Đã ngừng bán</option>
             </select>
           </label>
 
-          <label className="col-span-2 flex flex-col">
-            <span className="text-sm text-gray-600">Mô tả</span>
+          <label className="flex flex-col md:col-span-2">
+            <span className="mb-2 text-sm font-bold text-black">Mô tả</span>
             <textarea
               value={form.description}
               onChange={(e) =>
                 setForm({ ...form, description: e.target.value })
               }
-              className="border rounded px-3 py-2"
+              className="min-h-24 rounded-lg border border-gray-200 px-4 py-3 text-sm font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
             />
           </label>
 
           <div className="flex items-center gap-4">
-            <div className="w-28 h-28 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
+            <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
               {form.imageUrl ? (
                 <img
                   src={form.imageUrl}
                   alt={form.name}
-                  className="w-full h-full object-cover"
+                  className="h-full w-full object-cover"
                 />
               ) : (
                 <div className="text-gray-400">No image</div>
@@ -235,10 +238,10 @@ const CategoryModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
                 <button
                   onClick={() => fileRef.current && fileRef.current.click()}
                   disabled={uploading || saving || deleting}
-                  className={`px-3 py-2 rounded ${
+                  className={`h-10 rounded-lg px-3 text-sm font-bold ${
                     uploading || saving || deleting
-                      ? "bg-gray-300 text-gray-900"
-                      : "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
+                      ? "cursor-not-allowed bg-gray-300 text-gray-600"
+                      : "cursor-pointer bg-[#34ad54] text-white hover:bg-[#2f9b45]"
                   }`}
                 >
                   {uploading ? "Đang tải..." : "Chọn ảnh"}
@@ -246,7 +249,7 @@ const CategoryModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
                 <button
                   onClick={handleRemoveImage}
                   disabled={uploading || saving || deleting}
-                  className="px-3 py-2 rounded bg-gray-100 cursor-pointer"
+                  className="h-10 cursor-pointer rounded-lg bg-gray-100 px-3 text-sm font-bold hover:bg-gray-200"
                 >
                   Xóa
                 </button>
@@ -306,30 +309,33 @@ const CategoryModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
             </div>
           )}
 
-          <div className="mt-2 flex justify-end gap-3">
-            <button
+          <div className="mt-2 grid grid-cols-2 gap-3">
+            <Button
+              type="button"
+              variant="outline"
               onClick={handleClose}
-              className="px-4 py-2 bg-gray-100 rounded cursor-pointer"
+              className="h-10 rounded-lg border-green-500 text-sm font-bold text-green-600 hover:bg-green-50 hover:text-green-700"
             >
-              Đóng
-            </button>
-            <button
+              Quay lại
+            </Button>
+            <Button
+              type="button"
               onClick={handleSave}
               disabled={
                 !isDirty ||
                 saving ||
                 String(form.name || "").trim().length === 0
               }
-              className={`px-4 py-2 rounded ${
+              className={`h-10 rounded-lg text-sm font-bold ${
                 !isDirty ||
                 saving ||
                 String(form.name || "").trim().length === 0
-                  ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                  : "bg-green-600 text-white"
+                  ? "cursor-not-allowed bg-[#bbf7d0] text-white hover:bg-[#bbf7d0]"
+                  : "bg-[#34ad54] text-white hover:bg-[#2f9b45]"
               }`}
             >
               {saving ? "Đang lưu..." : "Lưu"}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

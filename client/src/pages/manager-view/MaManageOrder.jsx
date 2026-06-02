@@ -137,7 +137,6 @@ const MaManageOrder = () => {
   const [dateFilter, setDateFilter] = useState("today");
   const [appliedDate, setAppliedDate] = useState("today");
   const [searchTerm, setSearchTerm] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -170,7 +169,7 @@ const MaManageOrder = () => {
   }, [accessToken, branchId, appliedStatus, appliedDate]);
 
   const filteredOrders = useMemo(() => {
-    const keyword = appliedSearch.trim().toLowerCase();
+    const keyword = searchTerm.trim().toLowerCase();
     if (!keyword) return orders;
 
     return orders.filter((order) =>
@@ -183,18 +182,17 @@ const MaManageOrder = () => {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(keyword)),
     );
-  }, [orders, appliedSearch]);
+  }, [orders, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedOrders = filteredOrders.slice(startIndex, startIndex + pageSize);
   const hasActiveFilters =
-    Boolean(appliedSearch.trim()) ||
+    Boolean(searchTerm.trim()) ||
     appliedStatus !== "all" ||
     appliedDate !== "today";
 
   const applyFilters = () => {
-    setAppliedSearch(searchTerm);
     setAppliedStatus(status);
     setAppliedDate(dateFilter);
     setCurrentPage(1);
@@ -202,7 +200,6 @@ const MaManageOrder = () => {
 
   const resetFilters = () => {
     setSearchTerm("");
-    setAppliedSearch("");
     setStatus("all");
     setAppliedStatus("all");
     setDateFilter("today");
@@ -243,9 +240,9 @@ const MaManageOrder = () => {
           <div className="relative w-full lg:w-[300px]">
             <input
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") applyFilters();
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setCurrentPage(1);
               }}
               className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
               placeholder="Mã đơn, khách hàng, SĐT"

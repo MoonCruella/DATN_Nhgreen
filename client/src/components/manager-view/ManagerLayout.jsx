@@ -80,6 +80,26 @@ const ManagerLayout = () => {
   const isLinkActive = (link) =>
     activePath === link || activePath.startsWith(link + "/");
 
+  const closeAllMenus = () => {
+    setOpenMenus((prev) =>
+      Object.fromEntries(Object.keys(prev).map((key) => [key, false]))
+    );
+  };
+
+  const toggleMenu = (menuKey, isOpen) => {
+    setOpenMenus((prev) =>
+      Object.fromEntries(
+        Object.keys(prev).map((key) => [key, key === menuKey ? !isOpen : false])
+      )
+    );
+  };
+
+  const keepMenuOpen = (menuKey) => {
+    setOpenMenus((prev) =>
+      Object.fromEntries(Object.keys(prev).map((key) => [key, key === menuKey]))
+    );
+  };
+
   const getActiveItemLabel = () => {
     for (const item of data) {
       if (item.children) {
@@ -153,12 +173,7 @@ const ManagerLayout = () => {
                   <div key={item.label}>
                     <button
                       type="button"
-                      onClick={() =>
-                        setOpenMenus((prev) => ({
-                          ...prev,
-                          [item.key]: !isOpen,
-                        }))
-                      }
+                      onClick={() => toggleMenu(item.key, isOpen)}
                       className="flex w-full items-center rounded-md px-4 py-3 font-semibold text-white transition-colors hover:bg-green-800"
                     >
                       <item.icon
@@ -183,6 +198,7 @@ const ManagerLayout = () => {
                             <Link
                               to={child.link}
                               key={child.label}
+                              onClick={() => keepMenuOpen(item.key)}
                               className={`flex items-center rounded-md px-4 py-2.5 text-base font-semibold transition-colors ${
                                 isChildActive
                                   ? "bg-white text-gray-900"
@@ -212,6 +228,7 @@ const ManagerLayout = () => {
                 <Link
                   to={item.link}
                   key={item.label}
+                  onClick={closeAllMenus}
                   className={`flex items-center rounded-md px-4 py-3 font-semibold transition-colors ${
                     isActive
                       ? "bg-white text-gray-900"
@@ -246,7 +263,10 @@ const ManagerLayout = () => {
 
         <div className="mt-6 border-t border-green-800">
           <button
-            onClick={handleLogout}
+            onClick={() => {
+              closeAllMenus();
+              handleLogout();
+            }}
             disabled={isLoggingOut}
             className={`flex w-full cursor-pointer items-center rounded-md px-4 py-3 text-sm font-medium text-white transition-colors ${
               isLoggingOut

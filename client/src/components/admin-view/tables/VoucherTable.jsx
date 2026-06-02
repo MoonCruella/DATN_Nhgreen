@@ -59,23 +59,23 @@ const VouchersTable = ({ vouchers, onEdit, onDelete, isLoading }) => {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
         <TableSkeleton rows={8} columns={9} />
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto shadow rounded-xl bg-white">
+    <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
       <table className="w-full text-left">
-        <thead className="bg-gray-200">
+        <thead className="border-b border-gray-200 bg-white">
           <tr>
-            <th className="py-3 px-4 text-gray-700 ">
+            <th className="px-5 py-3 text-base font-bold text-slate-600">
               <div className="flex items-center gap-2">Mã voucher</div>
             </th>
-            <th className="py-3 px-4 text-gray-700 text-center">Loại</th>
+            <th className="px-5 py-3 text-center text-base font-bold text-slate-600">Loại</th>
             <th
-              className="py-3 px-4 text-gray-700 text-center cursor-pointer hover:bg-gray-200 transition"
+              className="cursor-pointer px-5 py-3 text-center text-base font-bold text-slate-600 transition hover:bg-gray-50"
               onClick={() => handleSort("discountValue")}
             >
               <div className="flex items-center justify-center gap-2">
@@ -83,20 +83,20 @@ const VouchersTable = ({ vouchers, onEdit, onDelete, isLoading }) => {
               </div>
             </th>
             <th
-              className="py-3 px-4 text-gray-700 text-center cursor-pointer hover:bg-gray-200 transition"
+              className="cursor-pointer px-5 py-3 text-center text-base font-bold text-slate-600 transition hover:bg-gray-50"
               onClick={() => handleSort("usageLimit")}
             >
               <div className="flex items-center justify-center gap-2">
                 Giới hạn {getSortIcon("usageLimit")}
               </div>
             </th>
-            <th className="py-3 px-4 text-gray-700 text-center cursor-pointer hover:bg-gray-200 transition">
+            <th className="cursor-pointer px-5 py-3 text-center text-base font-bold text-slate-600 transition hover:bg-gray-50">
               <div className="flex items-center justify-center gap-2">
                 Lượt dùng
               </div>
             </th>
             <th
-              className="py-3 px-4 text-gray-700 text-center cursor-pointer hover:bg-gray-200 transition"
+              className="cursor-pointer px-5 py-3 text-center text-base font-bold text-slate-600 transition hover:bg-gray-50"
               onClick={() => handleSort("startDate")}
             >
               <div className="flex items-center justify-center gap-2">
@@ -104,27 +104,27 @@ const VouchersTable = ({ vouchers, onEdit, onDelete, isLoading }) => {
               </div>
             </th>
             <th
-              className="py-3 px-4 text-gray-700 text-center cursor-pointer hover:bg-gray-200 transition"
+              className="cursor-pointer px-5 py-3 text-center text-base font-bold text-slate-600 transition hover:bg-gray-50"
               onClick={() => handleSort("endDate")}
             >
               <div className="flex items-center justify-center gap-2">
                 Ngày kết thúc {getSortIcon("endDate")}
               </div>
             </th>
-            <th className="py-3 px-4 text-gray-700 text-center">Trạng thái</th>
-            <th className="py-3 px-4 text-gray-700 text-center">Thao tác</th>
+            <th className="px-5 py-3 text-center text-base font-bold text-slate-600">Trạng thái</th>
+            <th className="px-5 py-3 text-center text-base font-bold text-slate-600">Thao tác</th>
           </tr>
         </thead>
         <tbody className="bg-white">
           {sortedVouchers.length > 0 ? (
             sortedVouchers.map((voucher) => {
               return (
-                <tr key={voucher._id} className="border-b hover:bg-gray-50">
-                  <td className="py-3 px-4 font-medium text-gray-800">
+                <tr key={voucher._id} className="border-b border-gray-100 text-base font-medium text-[#444] transition hover:bg-gray-50 last:border-b-0">
+                  <td className="px-5 py-3 font-bold text-gray-800">
                     {voucher.code}
                   </td>
                   {/* chỉ tô màu quanh ô "Loại" */}
-                  <td className="py-3 px-4 text-center">
+                  <td className="px-5 py-3 text-center">
                     {(() => {
                       const t = String(voucher.type || "").toUpperCase();
                       const badgeClass =
@@ -143,7 +143,7 @@ const VouchersTable = ({ vouchers, onEdit, onDelete, isLoading }) => {
                       );
                     })()}
                   </td>
-                  <td className="py-3 px-4 text-center text-gray-700">
+                  <td className="px-5 py-3 text-center text-gray-700">
                     {String(voucher.type || "").toUpperCase() === "FREESHIP"
                       ? (voucher.maxDiscount ??
                           voucher.maxValue ??
@@ -163,23 +163,23 @@ const VouchersTable = ({ vouchers, onEdit, onDelete, isLoading }) => {
                           "vi-VN"
                         )} ₫`}
                   </td>
-                  <td className="py-3 px-4 text-center text-gray-700">
+                  <td className="px-5 py-3 text-center text-gray-700">
                     {voucher.usageLimit ? voucher.usageLimit : "Không giới hạn"}
                   </td>
-                  <td className="py-3 px-4 text-center text-gray-700">
+                  <td className="px-5 py-3 text-center text-gray-700">
                     {voucher.usedCount ? voucher.usedCount : "0"}
                   </td>
-                  <td className="py-3 px-4 text-center text-gray-700">
+                  <td className="px-5 py-3 text-center text-gray-700">
                     {voucher.startDate
                       ? new Date(voucher.startDate).toLocaleDateString("vi-VN")
                       : "-"}
                   </td>
-                  <td className="py-3 px-4 text-center text-gray-700">
+                  <td className="px-5 py-3 text-center text-gray-700">
                     {voucher.endDate
                       ? new Date(voucher.endDate).toLocaleDateString("vi-VN")
                       : "-"}
                   </td>
-                  <td className="py-3 px-4 text-center">
+                  <td className="px-5 py-3 text-center">
                     {/* trạng thái: ưu tiên "Đã hết hạn" nếu endDate < now */}
                     {(() => {
                       const end = voucher.endDate
@@ -206,7 +206,7 @@ const VouchersTable = ({ vouchers, onEdit, onDelete, isLoading }) => {
                       );
                     })()}
                   </td>
-                  <td className="py-3 px-4 text-center">
+                  <td className="px-5 py-3 text-center">
                     <div className="flex justify-center gap-2">
                       <button
                         onClick={() => onEdit && onEdit(voucher)}

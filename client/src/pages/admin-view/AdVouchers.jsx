@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { useDispatch, useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 import VouchersTable from "@/components/admin-view/tables/VoucherTable";
 import VoucherForm from "@/components/admin-view/modals/VoucherModal";
 import useAxiosPrivate from "@/api/useAxiosPrivate";
+import { ChevronRight, Search, Store } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import FilterSelect from "@/components/common/FilterSelect";
+import AdminPagination from "@/components/admin-view/AdminPagination";
 
 const AdminVouchers = () => {
   const { user, isAuthenticated } = useSelector((state) => state.auth);
-  const dispatch = useDispatch();
   const axiosPrivate = useAxiosPrivate();
   // State
   const [vouchers, setVouchers] = useState([]);
@@ -17,13 +20,18 @@ const AdminVouchers = () => {
   // Filters
   const [active, setActive] = useState("all"); // all | true | false
   const [type, setType] = useState("all"); // all | DISCOUNT | FREESHIP
+  const [appliedActive, setAppliedActive] = useState("all");
+  const [appliedType, setAppliedType] = useState("all");
   const [searchCode, setSearchCode] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [appliedStartDate, setAppliedStartDate] = useState("");
+  const [appliedEndDate, setAppliedEndDate] = useState("");
 
   // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalVouchers, setTotalVouchers] = useState(0);
   const [limit] = useState(5);
 
   // Modal + edit
@@ -36,11 +44,11 @@ const AdminVouchers = () => {
       setIsLoading(true);
       const res = await axiosPrivate.get("/api/vouchers", {
         params: {
-          ...(active && active !== "all" ? { active } : {}),
-          ...(type && type !== "all" ? { type } : {}),
+          ...(appliedActive && appliedActive !== "all" ? { active: appliedActive } : {}),
+          ...(appliedType && appliedType !== "all" ? { type: appliedType } : {}),
           ...(searchCode !== "" ? { code: searchCode } : {}),
-          ...(startDate !== "" ? { startDate } : {}),
-          ...(endDate !== "" ? { endDate } : {}),
+          ...(appliedStartDate !== "" ? { startDate: appliedStartDate } : {}),
+          ...(appliedEndDate !== "" ? { endDate: appliedEndDate } : {}),
           page,
           limit,
         },
@@ -49,6 +57,7 @@ const AdminVouchers = () => {
       console.log("Fetched vouchers:", response);
       setVouchers(response.vouchers || []);
       setTotalPages(response.totalPages || 1);
+      setTotalVouchers(response.totalItems || response.vouchers?.length || 0);
 
       console.log("Vouchers saved:", vouchers || []);
     } catch (error) {
@@ -68,11 +77,11 @@ const AdminVouchers = () => {
   }, [
     isAuthenticated,
     user,
-    active,
-    type,
+    appliedActive,
+    appliedType,
     searchCode,
-    startDate,
-    endDate,
+    appliedStartDate,
+    appliedEndDate,
     page,
   ]);
 
@@ -107,101 +116,140 @@ const AdminVouchers = () => {
       toast.error("Xóa voucher thất bại");
     }
   };
+  const hasActiveFilters =
+    active !== "all" ||
+    type !== "all" ||
+    appliedActive !== "all" ||
+    appliedType !== "all" ||
+    Boolean(searchCode.trim()) ||
+    Boolean(startDate) ||
+    Boolean(endDate) ||
+    Boolean(appliedStartDate) ||
+    Boolean(appliedEndDate);
+
+  const applyFilters = () => {
+    setAppliedActive(active);
+    setAppliedType(type);
+    setAppliedStartDate(startDate);
+    setAppliedEndDate(endDate);
+    setPage(1);
+  };
 
   return (
-    <main className="bg-gray-50 min-h-screen">
-      {/* Filters */}
-      <section className="w-full px-4 pt-8">
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap gap-4 items-center justify-between">
-          {/* Active */}
-          <select
-            value={active}
-            onChange={(e) => {
-              setActive(e.target.value);
-              setPage(1);
-            }}
-            className="border rounded-lg px-3 py-2 cursor-pointer"
-          >
-            <option value="all">Tất cả trạng thái</option>
-            <option value="true">Đang hoạt động</option>
-            <option value="false">Bị khóa</option>
-          </select>
+    <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
+      <header className="mb-5 flex items-center gap-2 text-lg font-bold">
+        <div className="flex items-center gap-2 text-gray-900">
+          <Store className="h-5 w-5" strokeWidth={1.8} />
+          Quản trị hệ thống
+        </div>
+        <ChevronRight className="h-5 w-5 text-gray-500" />
+        <div className="text-[#34ad54]">Quản lý voucher</div>
+      </header>
 
-          {/* Type */}
-          <select
-            value={type}
-            onChange={(e) => {
-              setType(e.target.value);
-              setPage(1);
-            }}
-            className="border rounded-lg px-3 py-2 cursor-pointer"
-          >
-            <option value="all">Tất cả phân loại</option>
-            <option value="DISCOUNT">Giảm giá</option>
-            <option value="FREESHIP">Freeship</option>
-          </select>
-
-          {/* Code */}
-          <input
-            type="text"
-            placeholder="Tìm theo mã voucher..."
-            value={searchCode}
-            onChange={(e) => {
-              setSearchCode(e.target.value);
-              setPage(1);
-            }}
-            className="border rounded-lg px-3 py-2 w-48"
-          />
-
-          {/* Date Range */}
-          <div className="flex items-center gap-2">
+      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:flex-1">
+          <div className="relative w-full lg:w-[260px]">
             <input
-              type="date"
-              value={startDate}
+              type="text"
+              placeholder="Mã voucher"
+              value={searchCode}
               onChange={(e) => {
-                setStartDate(e.target.value);
+                setSearchCode(e.target.value);
                 setPage(1);
               }}
-              className="border rounded-lg px-3 py-2 cursor-pointer"
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
             />
-            <span>–</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                setEndDate(e.target.value);
-                setPage(1);
-              }}
-              disabled={!startDate}
-              className="border rounded-lg px-3 py-2 cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
-            />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
           </div>
 
-          <button
-            onClick={() => {
-              setActive("all");
-              setType("all");
-              setSearchCode("");
-              setStartDate("");
-              setEndDate("");
-              setPage(1); // useEffect tự load
+          <div className="text-base font-bold text-gray-500">Lọc bởi:</div>
+
+          <FilterSelect
+            label="Trạng thái"
+            value={active}
+            onChange={(value) => {
+              setActive(value);
             }}
-            className="flex items-center gap-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition cursor-pointer"
-          >
-            Xóa bộ lọc
-          </button>
+            options={[
+              { value: "all", label: "Tất cả trạng thái" },
+              { value: "true", label: "Đang hoạt động" },
+              { value: "false", label: "Bị khóa" },
+            ]}
+            className="lg:w-[210px]"
+          />
 
-          <button
-            onClick={handleAddVoucher}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition cursor-pointer"
+          <FilterSelect
+            label="Phân loại"
+            value={type}
+            onChange={(value) => {
+              setType(value);
+            }}
+            options={[
+              { value: "all", label: "Tất cả phân loại" },
+              { value: "DISCOUNT", label: "Giảm giá" },
+              { value: "FREESHIP", label: "Freeship" },
+            ]}
+            className="lg:w-[210px]"
+          />
+
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+            }}
+            className="h-12 rounded-lg border border-gray-200 bg-white px-4 text-base font-bold text-gray-800 outline-none focus:border-[#34ad54]"
+          />
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+            }}
+            disabled={!startDate}
+            className="h-12 rounded-lg border border-gray-200 bg-white px-4 text-base font-bold text-gray-800 outline-none focus:border-[#34ad54] disabled:cursor-not-allowed disabled:bg-gray-100"
+          />
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setActive("all");
+                setType("all");
+                setSearchCode("");
+                setStartDate("");
+                setEndDate("");
+                setAppliedActive("all");
+                setAppliedType("all");
+                setAppliedStartDate("");
+                setAppliedEndDate("");
+                setPage(1);
+              }}
+              className="whitespace-nowrap text-base font-bold text-[#34ad54] underline underline-offset-4 hover:text-[#2f9b45]"
+            >
+              Chọn mặc định
+            </button>
+          )}
+
+          <Button
+            type="button"
+            onClick={applyFilters}
+            className="h-12 min-w-[110px] rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45] lg:ml-auto"
           >
-            + Thêm Voucher
-          </button>
+            Áp dụng
+          </Button>
         </div>
-      </section>
 
-      {/* Vouchers Table */}
-      <section className="pb-16 w-full px-4">
+        <Button
+          type="button"
+          onClick={handleAddVoucher}
+          className="h-12 rounded-lg bg-[#34ad54] px-5 text-base font-bold text-white hover:bg-[#2f9b45]"
+        >
+          + Thêm Voucher
+        </Button>
+      </div>
+
+      <section className="pb-16 w-full">
         <VouchersTable
           vouchers={vouchers}
           isLoading={initialLoading}
@@ -210,47 +258,14 @@ const AdminVouchers = () => {
           onDelete={handleDeleteVoucher}
         />
 
-            {totalPages > 1 && (
-              <div className="flex justify-center mt-4 gap-2">
-                <button
-                  disabled={page === 1}
-                  onClick={() => setPage(page - 1)}
-                  className={`px-3 py-1 rounded ${
-                    page === 1
-                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                      : "bg-green-600 text-white cursor-pointer"
-                  }`}
-                >
-                  {"<"}
-                </button>
-
-                {[...Array(totalPages)].map((_, idx) => (
-                  <button
-                    key={idx + 1}
-                    onClick={() => setPage(idx + 1)}
-                    className={`px-3 py-1 rounded ${
-                      page === idx + 1
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-200 cursor-pointer"
-                    }`}
-                  >
-                    {idx + 1}
-                  </button>
-                ))}
-
-                <button
-                  disabled={page === totalPages}
-                  onClick={() => setPage(page + 1)}
-                  className={`px-3 py-1 rounded ${
-                    page === totalPages
-                      ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                      : "bg-green-600 text-white cursor-pointer"
-                  }`}
-                >
-                  {">"}
-                </button>
-              </div>
-            )}
+        <AdminPagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalVouchers}
+          pageSize={limit}
+          itemLabel="voucher"
+          onPageChange={setPage}
+        />
       </section>
 
       {/* Add/Edit Modal */}
@@ -280,7 +295,7 @@ const AdminVouchers = () => {
           }}
         />
       )}
-    </main>
+    </section>
   );
 };
 

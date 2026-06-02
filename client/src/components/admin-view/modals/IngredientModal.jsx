@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
 import uploadApi from "@/api/uploadApi";
 import { useSelector } from "react-redux";
+import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const IngredientModal = ({
   open,
@@ -187,51 +189,52 @@ const IngredientModal = ({
 
   return (
     <div 
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 px-4 animate-fade-in"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">
+      <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white px-6 py-6 shadow-xl animate-modal-pop">
+        <button
+          type="button"
+          onClick={handleClose}
+          className="absolute right-4 top-4 rounded-md p-1 text-gray-500 hover:bg-gray-100"
+          title="Đóng"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="mb-5">
+          <h3 className="text-center text-lg font-bold text-black">
             {initialData ? "Sửa nguyên liệu" : "Thêm nguyên liệu"}
           </h3>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 cursor-pointer"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
+        <div className="space-y-4">
           <label className="flex flex-col">
-            <span className="text-sm text-gray-600">
+            <span className="mb-2 text-sm font-bold text-black">
               Tên <span className="text-red-500">*</span>
             </span>
             <input
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="border rounded px-3 py-2"
+              className="h-11 rounded-lg border border-gray-200 px-4 text-sm font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
             />
           </label>
 
           <label className="flex flex-col">
-            <span className="text-sm text-gray-600">Xuất xứ</span>
+            <span className="mb-2 text-sm font-bold text-black">Xuất xứ</span>
             <input
               value={form.origin}
               onChange={(e) => setForm({ ...form, origin: e.target.value })}
-              className="border rounded px-3 py-2"
+              className="h-11 rounded-lg border border-gray-200 px-4 text-sm font-medium text-black outline-none placeholder:text-gray-400 focus:border-green-500"
             />
           </label>
 
           <label className="flex flex-col">
-            <span className="text-sm text-gray-600">Loại</span>
+            <span className="mb-2 text-sm font-bold text-black">Loại</span>
             <select
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value })}
-              className="border rounded px-3 py-2 cursor-pointer"
+              className="h-11 cursor-pointer rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-green-500"
             >
               <option value="tinh_bot">Tinh bột</option>
               <option value="protein_dong_vat">Protein động vật</option>
@@ -245,40 +248,40 @@ const IngredientModal = ({
 
           <div className="grid grid-cols-3 gap-3">
             <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Protein/100g</span>
+              <span className="mb-2 text-sm font-bold text-black">Protein/100g</span>
               <input
                 type="number"
                 value={form.protein}
                 onChange={(e) =>
                   setForm({ ...form, protein: Number(e.target.value) })
                 }
-                className="border rounded px-3 py-2"
+                className="h-11 rounded-lg border border-gray-200 px-4 text-sm font-medium text-black outline-none focus:border-green-500"
                 min={0}
               />
             </label>
 
             <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Fat/100g</span>
+              <span className="mb-2 text-sm font-bold text-black">Fat/100g</span>
               <input
                 type="number"
                 value={form.fat}
                 onChange={(e) =>
                   setForm({ ...form, fat: Number(e.target.value) })
                 }
-                className="border rounded px-3 py-2"
+                className="h-11 rounded-lg border border-gray-200 px-4 text-sm font-medium text-black outline-none focus:border-green-500"
                 min={0}
               />
             </label>
 
             <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Carbs/100g</span>
+              <span className="mb-2 text-sm font-bold text-black">Carbs/100g</span>
               <input
                 type="number"
                 value={form.carbs}
                 onChange={(e) =>
                   setForm({ ...form, carbs: Number(e.target.value) })
                 }
-                className="border rounded px-3 py-2"
+                className="h-11 rounded-lg border border-gray-200 px-4 text-sm font-medium text-black outline-none focus:border-green-500"
                 min={0}
               />
             </label>
@@ -298,7 +301,7 @@ const IngredientModal = ({
             </div>
 
             <div className="flex-1">
-              <label className="text-sm text-gray-600 block mb-2">Hình</label>
+              <label className="mb-2 block text-sm font-bold text-black">Hình</label>
               <div className="flex gap-2">
                 <input
                   type="file"
@@ -342,11 +345,11 @@ const IngredientModal = ({
           </div>
 
           <label className="flex flex-col">
-            <span className="text-sm text-gray-600">Trạng thái</span>
+            <span className="mb-2 text-sm font-bold text-black">Trạng thái</span>
             <select
               value={form.status}
               onChange={(e) => setForm({ ...form, status: e.target.value })}
-              className="border rounded px-3 py-2 cursor-pointer"
+              className="h-11 cursor-pointer rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none focus:border-green-500"
             >
               <option value="available">Có sẵn</option>
               <option value="discontinued">Ngừng bán</option>
@@ -435,25 +438,28 @@ const IngredientModal = ({
             </div>
           )}
 
-          <div className="mt-2 flex justify-end gap-3">
-            <button
+          <div className="mt-2 grid grid-cols-2 gap-3">
+            <Button
+              type="button"
+              variant="outline"
               onClick={handleClose}
               disabled={uploading || saving || deleting}
-              className="px-4 py-2 bg-gray-100 rounded cursor-pointer"
+              className="h-10 rounded-lg border-green-500 text-sm font-bold text-green-600 hover:bg-green-50 hover:text-green-700"
             >
-              Hủy
-            </button>
-            <button
+              Quay lại
+            </Button>
+            <Button
+              type="button"
               onClick={handleSave}
               disabled={!isDirty || saving || uploading || deleting}
-              className={`px-4 py-2 rounded transition ${
+              className={`h-10 rounded-lg text-sm font-bold ${
                 !isDirty || saving || uploading || deleting
-                  ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                  : "bg-green-600 text-white hover:bg-green-700 cursor-pointer"
+                  ? "cursor-not-allowed bg-[#bbf7d0] text-white hover:bg-[#bbf7d0]"
+                  : "bg-[#34ad54] text-white hover:bg-[#2f9b45]"
               }`}
             >
               {saving ? "Đang lưu..." : "Lưu"}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
