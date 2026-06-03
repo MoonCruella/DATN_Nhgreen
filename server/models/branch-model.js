@@ -10,7 +10,7 @@ const branchSchema = new mongoose.Schema(
     address: {
       street: { type: String, default: "" },
       ward: {
-        code: { type: Number },
+        code: { type: String },
         name: { type: String },
       },
       district: {

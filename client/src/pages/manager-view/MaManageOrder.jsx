@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Eye,
   Search,
-  SlidersHorizontal,
   Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -344,7 +343,7 @@ const MaManageOrder = () => {
       </div>
 
       <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
-        <div className="grid grid-cols-[64px_0.95fr_1.2fr_1.25fr_1.1fr_0.9fr_1.05fr_56px] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
+        <div className="grid grid-cols-[64px_0.9fr_1.15fr_1.2fr_1.05fr_0.85fr_minmax(230px,1.45fr)] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
           <div>STT</div>
           <div>Mã đơn</div>
           <div>Thời gian</div>
@@ -352,9 +351,6 @@ const MaManageOrder = () => {
           <div>Trạng thái</div>
           <div>Tổng tiền</div>
           <div>Hành động</div>
-          <div className="flex justify-end">
-            <SlidersHorizontal className="h-5 w-5" />
-          </div>
         </div>
 
         {loading ? (
@@ -369,11 +365,19 @@ const MaManageOrder = () => {
           paginatedOrders.map((order, index) => {
             const config = statusConfig[order.status] || statusConfig.pending;
             const nextAction = getNextAction(order.status);
+            const hasGhnTracking =
+              order.shipping_order_code || order.tracking_number;
+            const canSyncGhn =
+              hasGhnTracking &&
+              !["delivered", "completed", "cancelled"].includes(order.status) &&
+              !["delivered", "cancel", "returned"].includes(
+                order.shipping_status,
+              );
 
             return (
               <div
                 key={order._id}
-                className="grid min-h-14 grid-cols-[64px_0.95fr_1.2fr_1.25fr_1.1fr_0.9fr_1.05fr_56px] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
+                className="grid min-h-14 grid-cols-[64px_0.9fr_1.15fr_1.2fr_1.05fr_0.85fr_minmax(230px,1.45fr)] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
               >
                 <div>{startIndex + index + 1}</div>
                 <div>{compactOrderCode(order.order_number)}</div>
@@ -393,7 +397,7 @@ const MaManageOrder = () => {
                     <span className={`h-2 w-2 rounded-full ${config.dot}`} />
                     {config.label}
                   </span>
-                  {(order.shipping_order_code || order.tracking_number) && (
+                  {hasGhnTracking && (
                     <div className="mt-1 text-xs font-bold text-gray-500">
                       GHN: {order.shipping_order_code || order.tracking_number}
                       {order.shipping_status && (
@@ -405,11 +409,11 @@ const MaManageOrder = () => {
                   )}
                 </div>
                 <div>{formatCurrency(order.total_amount)} VND</div>
-                <div className="flex items-center gap-4 text-gray-400">
+                <div className="flex min-w-0 items-center justify-start gap-2 text-gray-400">
                   <button
                     type="button"
                     onClick={() => navigate(`/manager/orders/${order._id}`)}
-                    className="transition hover:text-[#34ad54]"
+                    className="transition hover:text-[#34ad54] cursor-pointer"
                     title="Xem chi tiết"
                   >
                     <Eye className="h-5 w-5" strokeWidth={2.2} />
@@ -419,25 +423,24 @@ const MaManageOrder = () => {
                       type="button"
                       onClick={() => updateStatus(order, nextAction.status)}
                       disabled={updatingOrderId === order._id}
-                      className="rounded-md bg-[#34ad54] px-3 py-1.5 text-sm font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="whitespace-nowrap rounded-md bg-[#34ad54] px-3 py-1.5 text-sm font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                     >
                       {updatingOrderId === order._id
                         ? "..."
                         : nextAction.label}
                     </button>
                   )}
-                  {(order.shipping_order_code || order.tracking_number) && (
+                  {canSyncGhn && (
                     <button
                       type="button"
                       onClick={() => syncGhnStatus(order)}
                       disabled={updatingOrderId === order._id}
-                      className="rounded-md border border-[#34ad54] px-3 py-1.5 text-sm font-bold text-[#34ad54] hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="whitespace-nowrap rounded-md border border-[#34ad54] px-3 py-1.5 text-sm font-bold text-[#34ad54] hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                     >
                       {updatingOrderId === order._id ? "..." : "Đồng bộ GHN"}
                     </button>
                   )}
                 </div>
-                <div />
               </div>
             );
           })

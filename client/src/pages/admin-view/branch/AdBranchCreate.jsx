@@ -13,6 +13,8 @@ const AdminBranchCreate = () => {
   const accessToken = useSelector((state) => state.auth.accessToken);
 
   const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
   const [saving, setSaving] = useState(false);
   const [loadingCoords, setLoadingCoords] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState([]);
@@ -43,16 +45,6 @@ const AdminBranchCreate = () => {
     },
   });
 
-  // Derived lists
-  const selectedProvince = provinces.find(
-    (p) => p.code === Number(formData.provinceCode)
-  );
-  const districts = selectedProvince ? selectedProvince.districts || [] : [];
-  const selectedDistrict = districts.find(
-    (d) => d.code === Number(formData.districtCode)
-  );
-  const wards = selectedDistrict ? selectedDistrict.wards || [] : [];
-
   useEffect(() => {
     const fetchProvinces = async () => {
       try {
@@ -65,6 +57,42 @@ const AdminBranchCreate = () => {
     fetchProvinces();
   }, []);
 
+  useEffect(() => {
+    const loadDistricts = async () => {
+      if (!formData.provinceCode) {
+        setDistricts([]);
+        setWards([]);
+        return;
+      }
+
+      const province = await locationApi.getProvinceByCode(formData.provinceCode);
+      setDistricts(province?.districts || []);
+    };
+
+    loadDistricts().catch((error) => {
+      console.error("Error fetching GHN districts:", error);
+      setDistricts([]);
+      setWards([]);
+    });
+  }, [formData.provinceCode]);
+
+  useEffect(() => {
+    const loadWards = async () => {
+      if (!formData.districtCode) {
+        setWards([]);
+        return;
+      }
+
+      const district = await locationApi.getDistrictByCode(formData.districtCode);
+      setWards(district?.wards || []);
+    };
+
+    loadWards().catch((error) => {
+      console.error("Error fetching GHN wards:", error);
+      setWards([]);
+    });
+  }, [formData.districtCode]);
+
   // Debounced address search
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -74,11 +102,11 @@ const AdminBranchCreate = () => {
           const prov = provinces.find(
             (p) => p.code === Number(formData.provinceCode)
           );
-          const dist = prov?.districts?.find(
+          const dist = districts.find(
             (d) => d.code === Number(formData.districtCode)
           );
-          const ward = dist?.wards?.find(
-            (w) => w.code === Number(formData.wardCode)
+          const ward = wards.find(
+            (w) => String(w.code) === String(formData.wardCode)
           );
 
           const results = await locationApi.searchAddress(formData.street, {
@@ -104,6 +132,8 @@ const AdminBranchCreate = () => {
     formData.districtCode,
     formData.wardCode,
     provinces,
+    districts,
+    wards,
   ]);
 
   const handleFetchCoordinates = async () => {
@@ -122,11 +152,11 @@ const AdminBranchCreate = () => {
       const prov = provinces.find(
         (p) => p.code === Number(formData.provinceCode)
       );
-      const dist = prov?.districts?.find(
+      const dist = districts.find(
         (d) => d.code === Number(formData.districtCode)
       );
-      const ward = dist?.wards?.find(
-        (w) => w.code === Number(formData.wardCode)
+      const ward = wards.find(
+        (w) => String(w.code) === String(formData.wardCode)
       );
 
       if (!prov || !dist || !ward) return;
@@ -214,10 +244,12 @@ const AdminBranchCreate = () => {
     const prov = provinces.find(
       (p) => p.code === Number(formData.provinceCode)
     );
-    const dist = prov?.districts?.find(
+    const dist = districts.find(
       (d) => d.code === Number(formData.districtCode)
     );
-    const ward = dist?.wards?.find((w) => w.code === Number(formData.wardCode));
+    const ward = wards.find(
+      (w) => String(w.code) === String(formData.wardCode)
+    );
 
     const payload = {
       name: formData.name,
@@ -233,7 +265,7 @@ const AdminBranchCreate = () => {
           name: dist?.name || "",
         },
         ward: {
-          code: Number(formData.wardCode),
+          code: String(formData.wardCode),
           name: ward?.name || "",
         },
         coordinates: {

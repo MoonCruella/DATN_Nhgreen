@@ -101,13 +101,21 @@ const getMomoRefundMissingFields = (order) => {
   return missing;
 };
 
-const getAddressRegion = (value) => {
+const getAddressRegion = (value, codeType = "number") => {
   if (!value) return {};
   if (typeof value === "object") {
-    const codeNumber =
-      value.code !== "" && value.code != null ? Number(value.code) : undefined;
+    const hasCode = value.code !== "" && value.code != null;
+    const code =
+      codeType === "string"
+        ? hasCode
+          ? String(value.code)
+          : undefined
+        : hasCode
+        ? Number(value.code)
+        : undefined;
     return {
-      code: Number.isFinite(codeNumber) ? codeNumber : undefined,
+      code:
+        codeType === "string" || Number.isFinite(code) ? code : undefined,
       name: value.name || "",
     };
   }
@@ -115,7 +123,7 @@ const getAddressRegion = (value) => {
 };
 
 const normalizeShippingInfo = (shippingInfo = {}) => {
-  const ward = getAddressRegion(shippingInfo.ward);
+  const ward = getAddressRegion(shippingInfo.ward, "string");
   const district = getAddressRegion(shippingInfo.district);
   const province = getAddressRegion(shippingInfo.province);
   const fullAddress =
@@ -136,12 +144,6 @@ const normalizeShippingInfo = (shippingInfo = {}) => {
     district,
     province,
     coordinates: shippingInfo.coordinates || {},
-    district_id:
-      shippingInfo.district_id ||
-      (district.code != null ? district.code : undefined),
-    ward_code:
-      shippingInfo.ward_code ||
-      (ward.code != null ? String(ward.code) : undefined),
   };
 };
 
@@ -188,6 +190,18 @@ const emitOrderStatusUpdated = (order) => {
 
     if (order.branch_id) {
       io.to(`branch:${order.branch_id}`).emit("order_status_updated", payload);
+      if (order.status === "cancelled" && order.shipping_provider === "ghn") {
+        io.to(`branch:${order.branch_id}`).emit("ghn_order_cancelled", {
+          order_id: order._id,
+          order_number: order.order_number,
+          branch_id: order.branch_id,
+          tracking_number: order.tracking_number,
+          shipping_order_code: order.shipping_order_code,
+          shipping_status: order.shipping_status,
+          cancel_reason: order.cancel_reason,
+          cancelled_at: order.cancelled_at,
+        });
+      }
     }
     if (order.user_id) {
       const userId = order.user_id._id || order.user_id;
@@ -225,7 +239,11 @@ const applyGhnStatusToOrder = async (order, ghnPayload = {}) => {
     order.status = nextStatus;
     if (nextStatus === "shipped" && !order.shipped_at) order.shipped_at = now;
     if (nextStatus === "delivered" && !order.delivered_at) order.delivered_at = now;
-    if (nextStatus === "cancelled" && !order.cancelled_at) order.cancelled_at = now;
+    if (nextStatus === "cancelled") {
+      if (!order.cancelled_at) order.cancelled_at = now;
+      order.cancel_reason =
+        order.cancel_reason || description || "GHN hủy vận đơn";
+    }
 
     order.history = order.history || [];
     order.history.push({
@@ -240,6 +258,9 @@ const applyGhnStatusToOrder = async (order, ghnPayload = {}) => {
   if (nextStatus !== previousStatus) {
     try {
       await notificationService.notifyOrderStatusUpdate(order, previousStatus);
+      if (nextStatus === "cancelled") {
+        await notificationService.notifyOrderCancelledManagers(order);
+      }
     } catch (notifyError) {
       console.error("Không thể gửi thông báo cập nhật GHN:", notifyError);
     }
@@ -2155,6 +2176,13 @@ export const updateShippingInfo = async (req, res) => {
       if (shipping_status === "processing") order.processing_at = new Date();
       if (shipping_status === "shipped") order.shipped_at = new Date();
       if (shipping_status === "delivered") order.delivered_at = new Date();
+      if (
+        shipping_status === "delivered" &&
+        order.shipping_provider === "ghn" &&
+        order.shipping_order_code
+      ) {
+        order.shipping_status = "delivered";
+      }
       // Chỉ tăng soldCount khi completed
       if (shipping_status === "completed") {
         try {
@@ -2243,6 +2271,8 @@ export const updateShippingInfo = async (req, res) => {
               delivered_at: order.delivered_at,
               carrier: order.carrier,
               tracking_number: order.tracking_number,
+              shipping_order_code: order.shipping_order_code,
+              shipping_status: order.shipping_status,
             },
           });
         }
@@ -2585,6 +2615,37 @@ export const syncGhnShippingStatus = async (req, res) => {
       error.message,
     );
   }
+};
+
+export const syncPendingGhnOrders = async () => {
+  const orders = await Order.find({
+    shipping_provider: "ghn",
+    shipping_order_code: { $exists: true, $ne: "" },
+    status: { $nin: ["delivered", "completed", "cancelled"] },
+  })
+    .sort({ updated_at: 1 })
+    .limit(Number(process.env.GHN_AUTO_SYNC_LIMIT || 50));
+
+  if (orders.length === 0) return { checked: 0, updated: 0 };
+
+  let updated = 0;
+  for (const order of orders) {
+    try {
+      const orderCode = order.shipping_order_code || order.tracking_number;
+      if (!orderCode) continue;
+
+      const ghnDetail = await getGhnShippingOrderDetail(orderCode);
+      const result = await applyGhnStatusToOrder(order, ghnDetail);
+      if (result.statusChanged) updated += 1;
+    } catch (error) {
+      console.error(
+        `Không thể tự đồng bộ GHN cho đơn ${order.order_number}:`,
+        error.message,
+      );
+    }
+  }
+
+  return { checked: orders.length, updated };
 };
 
 // Manager: Get orders by branch

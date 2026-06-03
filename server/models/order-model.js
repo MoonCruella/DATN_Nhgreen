@@ -249,7 +249,7 @@ const orderSchema = new mongoose.Schema(
       street: String,
       full_address: String,
       ward: {
-        code: Number,
+        code: String,
         name: String,
       },
       district: {
@@ -264,8 +264,6 @@ const orderSchema = new mongoose.Schema(
         latitude: { type: Number, default: null },
         longitude: { type: Number, default: null },
       },
-      district_id: Number,
-      ward_code: String,
     },
     notes: String,
     tracking_number: String,

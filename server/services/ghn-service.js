@@ -52,18 +52,8 @@ const buildCreateOrderPayload = (order) => {
       .filter(Boolean)
       .join(", ");
   const toDistrictId =
-    Number(
-      shippingInfo.district_id ||
-        shippingInfo.district?.code ||
-        process.env.GHN_TEST_TO_DISTRICT_ID,
-    ) || undefined;
-  const toWardCode =
-    String(
-      shippingInfo.ward_code ||
-        shippingInfo.ward?.code ||
-        process.env.GHN_TEST_TO_WARD_CODE ||
-        "",
-    ).trim();
+    Number(shippingInfo.district?.code) || undefined;
+  const toWardCode = String(shippingInfo.ward?.code || "").trim();
 
   if (!toName || !shippingInfo.phone || !toAddress) {
     throw new Error("Thông tin người nhận chưa đầy đủ để tạo đơn GHN");
@@ -71,7 +61,7 @@ const buildCreateOrderPayload = (order) => {
 
   if (!toDistrictId || !toWardCode) {
     throw new Error(
-      "Thiếu district_id hoặc ward_code của người nhận để tạo đơn GHN",
+      "Thiếu mã quận/huyện hoặc phường/xã GHN của người nhận để tạo đơn GHN",
     );
   }
 

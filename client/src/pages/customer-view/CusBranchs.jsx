@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import branchApi from "@/api/branchApi";
-import { getAllProvinces } from "@/api/locationApi";
+import { getAllProvinces, getProvinceByCode } from "@/api/locationApi";
 import { assets } from "@/assets/assets";
 import BranchListPanel from "@/components/customer-view/branch/BranchListPanel";
 import BranchMapPanel from "@/components/customer-view/branch/BranchMapPanel";
@@ -53,12 +53,7 @@ const CustomerBranches = () => {
     (async () => {
       try {
         const all = await getAllProvinces();
-        const provs = (all || []).map((p) => ({
-          code: p.code,
-          name: p.name,
-          districts: p.districts || [],
-        }));
-        setProvinces(provs);
+        setProvinces(all || []);
       } catch (e) {
         // ignore
       }
@@ -74,15 +69,21 @@ const CustomerBranches = () => {
       setPendingDistrict(null);
       return;
     }
-    const p = provinces.find(
-      (x) => String(x.code) === String(pendingProvince.code)
-    );
-    const ds = (p?.districts || []).map((d) => ({
-      code: d.code,
-      name: d.name,
-    }));
-    setDistricts(ds);
-    setPendingDistrict(null);
+    (async () => {
+      try {
+        const province = await getProvinceByCode(pendingProvince.code);
+        const ds = (province?.districts || []).map((d) => ({
+          code: d.code,
+          name: d.name,
+        }));
+        setDistricts(ds);
+        setPendingDistrict(null);
+      } catch (error) {
+        console.error("Error fetching GHN districts:", error);
+        setDistricts([]);
+        setPendingDistrict(null);
+      }
+    })();
   }, [pendingProvince, provinces]);
 
   // Filter branches by applied province/district (only changes after clicking search)

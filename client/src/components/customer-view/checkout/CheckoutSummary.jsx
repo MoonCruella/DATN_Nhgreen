@@ -568,11 +568,6 @@ const CheckoutSummary = ({
           district: selectedAddress.district || {},
           province: selectedAddress.province || {},
           coordinates: selectedAddress.coordinates || {}, // Truyền coordinates để backend lưu
-          district_id: selectedAddress.district?.code,
-          ward_code:
-            selectedAddress.ward?.code != null
-              ? String(selectedAddress.ward.code)
-              : undefined,
         },
         payment_method: paymentMethod,
         notes: note || "",
