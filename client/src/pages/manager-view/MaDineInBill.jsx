@@ -38,6 +38,21 @@ const getOrderTime = (order) => {
   }).format(date);
 };
 
+const getOrderDateTime = (order) => {
+  const date = order?.completed_at || order?.payment_date || order?.created_at
+    ? new Date(order.completed_at || order.payment_date || order.created_at)
+    : new Date();
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+};
+
 const getPaymentMethodLabel = (method) => {
   if (method === "momo") return "MoMo";
   if (method === "zalopay") return "ZaloPay";
@@ -150,12 +165,10 @@ const MaDineInBill = () => {
           <div className="mt-6 grid grid-cols-2 gap-y-3 text-xs font-bold">
             <span>Mã hóa đơn:</span>
             <span className="text-right">{getOrderCode(order)}</span>
-            <span>Ngày:</span>
-            <span className="text-right">{getOrderDate(order)}</span>
             <span>Bàn:</span>
             <span className="text-right">{tableName}</span>
             <span>Thời gian:</span>
-            <span className="text-right">{getOrderTime(order)}</span>
+            <span className="text-right">{getOrderDateTime(order)}</span>
             <span>Thanh toán:</span>
             <span className="text-right">
               {getPaymentMethodLabel(order.payment_method)}

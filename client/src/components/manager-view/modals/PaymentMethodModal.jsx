@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Banknote,
+  Clock3,
   Copy,
   CreditCard,
   QrCode,
@@ -43,6 +44,19 @@ const getOrderTime = (order) => {
   const date = order?.created_at ? new Date(order.created_at) : new Date();
 
   return new Intl.DateTimeFormat("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+};
+
+const getOrderDateTime = (order) => {
+  const date = order?.created_at ? new Date(order.created_at) : new Date();
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -380,8 +394,9 @@ const PaymentMethodModal = ({
               </div>
               <div className="flex items-center justify-between gap-5">
                 <span>Thời gian tạo đơn:</span>
-                <span className="rounded-full border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm text-sky-500">
-                  {getOrderTime(order)}
+                <span className="inline-flex items-center justify-center rounded-full border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-500">
+                  <Clock3 className="mr-2 h-4 w-4" />
+                  {getOrderDateTime(order)}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-5">
@@ -482,12 +497,10 @@ const PaymentMethodModal = ({
             <div className="mt-6 grid grid-cols-2 gap-y-3 text-xs font-bold">
               <span>Mã hóa đơn:</span>
               <span className="text-right">{orderCode}</span>
-              <span>Ngày:</span>
-              <span className="text-right">{getOrderDate(order)}</span>
               <span>Bàn:</span>
               <span className="text-right">{tableName}</span>
               <span>Thời gian:</span>
-              <span className="text-right">{getOrderTime(order)}</span>
+              <span className="text-right">{getOrderDateTime(order)}</span>
               <span>Trạng thái hóa đơn:</span>
               <span className="text-right">Chưa thanh toán</span>
             </div>
