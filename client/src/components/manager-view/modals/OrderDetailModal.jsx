@@ -32,6 +32,22 @@ const OrderDetailModal = ({
   onClose,
   onAddMore,
   onPrimaryAction,
+  momoPaymentUrl = "",
+  momoQrUrl = "",
+  momoQrCreatedAt = null,
+  momoLoading = false,
+  momoError = "",
+  onRequestMomoPayment,
+  zalopayPaymentUrl = "",
+  zalopayQrUrl = "",
+  zalopayQrCreatedAt = null,
+  zalopayLoading = false,
+  zalopayError = "",
+  onRequestZalopayPayment,
+  vnpayPaymentUrl = "",
+  vnpayLoading = false,
+  vnpayError = "",
+  onRequestVnpayPayment,
 }) => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -487,6 +503,22 @@ const OrderDetailModal = ({
         totalAmount={totalAmount}
         onBack={handlePaymentBack}
         onConfirm={handleConfirmPayment}
+        momoPaymentUrl={momoPaymentUrl}
+        momoQrUrl={momoQrUrl}
+        momoQrCreatedAt={momoQrCreatedAt}
+        momoLoading={momoLoading}
+        momoError={momoError}
+        onRequestMomoPayment={onRequestMomoPayment}
+        zalopayPaymentUrl={zalopayPaymentUrl}
+        zalopayQrUrl={zalopayQrUrl}
+        zalopayQrCreatedAt={zalopayQrCreatedAt}
+        zalopayLoading={zalopayLoading}
+        zalopayError={zalopayError}
+        onRequestZalopayPayment={onRequestZalopayPayment}
+        vnpayPaymentUrl={vnpayPaymentUrl}
+        vnpayLoading={vnpayLoading}
+        vnpayError={vnpayError}
+        onRequestVnpayPayment={onRequestVnpayPayment}
       />
     </>
   );

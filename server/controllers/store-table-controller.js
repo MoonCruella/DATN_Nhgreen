@@ -11,7 +11,12 @@ const getQrUrl = (req, qrToken) => {
     process.env.QR_CLIENT_BASE_URL ||
     process.env.CLIENT_URL;
 
-  return `${baseUrl.replace(/\/$/, "")}/${qrToken}`;
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+  const dineInBaseUrl = normalizedBaseUrl.endsWith("/dine-in")
+    ? normalizedBaseUrl
+    : `${normalizedBaseUrl}/dine-in`;
+
+  return `${dineInBaseUrl}/${qrToken}`;
 };
 
 const generateQrCodeDataUrl = async (value) => {

@@ -1,6 +1,10 @@
 import crypto from "crypto";
 import fetch from "node-fetch";
+import QRCode from "qrcode";
 import momoConfig from "../config/momo.js";
+import Order from "../models/order-model.js";
+import Dish from "../models/dish-model.js";
+import { getIO } from "../config/socket.js";
 
 function signHmacSha256(data, secret) {
   return crypto.createHmac("sha256", secret).update(data).digest("hex");
@@ -51,6 +55,114 @@ function buildRefundSignature(payload) {
   ].join("&");
 }
 
+const isObjectId = (value = "") => /^[0-9a-fA-F]{24}$/.test(String(value));
+
+const buildMomoTxnId = (orderId) =>
+  `${String(orderId)}_${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+
+const getOrderIdFromMomoTxnId = (value = "") => {
+  const [orderId] = String(value).split("_");
+  return isObjectId(orderId) ? orderId : value;
+};
+
+const buildManagerRedirectUrl = ({
+  success,
+  message,
+  orderId,
+  resultCode = "",
+  transId = "",
+  requestId = "",
+  amount = "",
+}) => {
+  const redirectBase =
+    process.env.MOMO_MANAGER_REDIRECT_URL ||
+    process.env.VNP_MANAGER_REDIRECT_URL ||
+    process.env.CLIENT_URL;
+
+  if (!redirectBase) {
+    throw new Error("MOMO_MANAGER_REDIRECT_URL chua duoc cau hinh");
+  }
+
+  return `${redirectBase}?success=${success}&message=${encodeURIComponent(
+    message
+  )}&orderId=${encodeURIComponent(orderId)}&payment_method=momo&context=dine_in&resultCode=${encodeURIComponent(
+    resultCode
+  )}&transId=${encodeURIComponent(transId)}&requestId=${encodeURIComponent(
+    requestId
+  )}&amount=${encodeURIComponent(amount)}`;
+};
+
+const completeDineInOrderByMomo = async ({
+  order,
+  requestId,
+  momoOrderId,
+  transId,
+  amount,
+  raw,
+}) => {
+  const now = new Date();
+
+  if (order.status !== "completed") {
+    try {
+      for (const item of order.items || []) {
+        await Dish.findByIdAndUpdate(
+          item.dish_id,
+          { $inc: { sold_quantity: item.quantity } },
+          { new: true }
+        );
+      }
+    } catch (updateError) {
+      console.error("Update dine-in sold quantity by MoMo error:", updateError);
+    }
+  }
+
+  order.status = "completed";
+  order.completed_at = order.completed_at || now;
+  order.payment_method = "momo";
+  order.payment_status = "paid";
+  order.payment_date = order.payment_date || now;
+  order.momo_request_id = requestId || order.momo_request_id;
+  order.momo_trans_id = transId || order.momo_trans_id;
+  order.momo_amount = Number(amount || order.momo_amount || order.total_amount);
+  order.payment_gateway_ref = {
+    gateway: "momo",
+    transaction_id: transId,
+    app_trans_id: momoOrderId,
+    response_code: "0",
+    raw,
+  };
+  order.history = order.history || [];
+  order.history.push({
+    status: "completed",
+    date: now,
+    note: "Don an tai quan da thanh toan MoMo",
+  });
+
+  await order.save();
+
+  try {
+    const io = getIO();
+    io.to(`branch:${order.branch_id}`).emit("order_status_updated", {
+      order_id: order._id,
+      order_number: order.order_number,
+      branch_id: order.branch_id,
+      status: "completed",
+      updates: {
+        completed_at: order.completed_at,
+        payment_method: order.payment_method,
+        payment_status: order.payment_status,
+        payment_date: order.payment_date,
+      },
+    });
+  } catch (socketError) {
+    console.error("MoMo dine-in socket notification error:", socketError);
+  }
+
+  return order;
+};
+
 export const createPayment = async (req, res) => {
   try {
     const { orderId, amount, orderInfo } = req.body;
@@ -60,15 +172,32 @@ export const createPayment = async (req, res) => {
         .json({ success: false, message: "orderId and amount are required" });
     }
 
-    const requestId = String(orderId);
+    const existingOrder = isObjectId(orderId)
+      ? await Order.findById(orderId)
+      : null;
+    const isDineInOrder = existingOrder?.order_type === "dine_in";
+    const paymentAmount = isDineInOrder ? existingOrder.total_amount : amount;
+
+    if (
+      isDineInOrder &&
+      ["completed", "cancelled"].includes(existingOrder.status)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Don tai quan da hoan thanh hoac da huy",
+      });
+    }
+
+    const momoOrderId = buildMomoTxnId(orderId);
+    const requestId = momoOrderId;
     const payload = {
       partnerCode: momoConfig.partnerCode,
       partnerName: momoConfig.partnerName || "Test",
       storeId: momoConfig.storeId || "MomoTestStore",
       accessKey: momoConfig.accessKey,
       requestId,
-      amount: String(amount),
-      orderId: String(orderId),
+      amount: String(paymentAmount),
+      orderId: momoOrderId,
       orderInfo: orderInfo || `Thanh toan don hang ${orderId}`,
       redirectUrl: momoConfig.redirectUrl,
       ipnUrl: momoConfig.ipnUrl,
@@ -88,6 +217,14 @@ export const createPayment = async (req, res) => {
       body: JSON.stringify({ ...payload, signature }),
     });
     const data = await response.json();
+    console.log("MoMo create payment response:", {
+      resultCode: data.resultCode,
+      message: data.message,
+      requestType: payload.requestType,
+      hasQrCodeUrl: Boolean(data.qrCodeUrl),
+      hasDeeplink: Boolean(data.deeplink),
+      hasPayUrl: Boolean(data.payUrl),
+    });
 
     if (!response.ok || data.resultCode !== 0) {
       return res.status(400).json({
@@ -97,12 +234,46 @@ export const createPayment = async (req, res) => {
       });
     }
 
+    const qrSource = data.qrCodeUrl || data.deeplink || data.payUrl || "";
+    const qrDataUrl = qrSource
+      ? await QRCode.toDataURL(qrSource, {
+          errorCorrectionLevel: "M",
+          margin: 2,
+          width: 280,
+          color: {
+            dark: "#000000",
+            light: "#ffffff",
+          },
+        })
+      : "";
+
+    if (isDineInOrder) {
+      existingOrder.payment_method = "momo";
+      existingOrder.payment_status = "pending";
+      existingOrder.momo_request_id = payload.requestId;
+      existingOrder.momo_amount = Number(paymentAmount);
+      existingOrder.payment_gateway_ref = {
+        gateway: "momo",
+        app_trans_id: momoOrderId,
+        raw: {
+          momo_order_id: momoOrderId,
+          order_id: String(orderId),
+        },
+      };
+      await existingOrder.save();
+    }
+
     return res.status(201).json({
       success: true,
       data: {
-        orderId: payload.orderId,
+        orderId: String(orderId),
+        momoOrderId: payload.orderId,
         amount: payload.amount,
         paymentUrl: data.payUrl || data.deeplink || data.qrCodeUrl,
+        payUrl: data.payUrl,
+        deeplink: data.deeplink,
+        qrCodeUrl: data.qrCodeUrl,
+        qrDataUrl,
         requestId: payload.requestId,
       },
     });
@@ -125,7 +296,20 @@ export const ipn = async (req, res) => {
     }
 
     const success = payload.resultCode === 0;
-    // TODO: update order status based on payload.orderId and success
+    const appOrderId = getOrderIdFromMomoTxnId(payload.orderId);
+    if (success && isObjectId(appOrderId)) {
+      const order = await Order.findById(appOrderId);
+      if (order?.order_type === "dine_in") {
+        await completeDineInOrderByMomo({
+          order,
+          requestId: payload.requestId,
+          momoOrderId: payload.orderId,
+          transId: payload.transId,
+          amount: payload.amount,
+          raw: payload,
+        });
+      }
+    }
 
     return res.json({ resultCode: 0, message: "OK" });
   } catch (err) {
@@ -134,7 +318,7 @@ export const ipn = async (req, res) => {
   }
 };
 
-export const momoReturn = (req, res) => {
+export const momoReturn = async (req, res) => {
   try {
     const payload = { ...req.query };
     const expectedSignature = signHmacSha256(
@@ -146,11 +330,39 @@ export const momoReturn = (req, res) => {
       payload.signature === expectedSignature &&
       String(payload.resultCode) === "0";
     const message = payload.message || (success ? "Payment success" : "Payment failed");
-    const orderId = payload.orderId || "";
+    const momoOrderId = payload.orderId || "";
+    const orderId = getOrderIdFromMomoTxnId(momoOrderId);
     const resultCode = payload.resultCode || "";
     const transId = payload.transId || "";
     const requestId = payload.requestId || "";
     const amount = payload.amount || "";
+    const dineInOrder = isObjectId(orderId) ? await Order.findById(orderId) : null;
+    const isDineInOrder = dineInOrder?.order_type === "dine_in";
+
+    if (success && isDineInOrder) {
+      await completeDineInOrderByMomo({
+        order: dineInOrder,
+        requestId,
+        momoOrderId,
+        transId,
+        amount,
+        raw: payload,
+      });
+    }
+
+    if (isDineInOrder) {
+      return res.redirect(
+        buildManagerRedirectUrl({
+          success,
+          message,
+          orderId,
+          resultCode,
+          transId,
+          requestId,
+          amount,
+        })
+      );
+    }
 
     return res.redirect(
       `${momoConfig.frontendRedirectUrl}?success=${success}&message=${encodeURIComponent(

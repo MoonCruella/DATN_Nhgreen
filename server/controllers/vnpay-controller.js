@@ -1,6 +1,9 @@
 import dotenv from "dotenv";
 import crypto from "crypto";
 import axios from "axios";
+import Order from "../models/order-model.js";
+import Dish from "../models/dish-model.js";
+import { getIO } from "../config/socket.js";
 
 dotenv.config();
 
@@ -43,6 +46,9 @@ export const createPaymentUrl = async (req, res) => {
         .json({ success: false, message: "orderId và amount là bắt buộc" });
     }
 
+    const existingOrder = await Order.findById(orderId).catch(() => null);
+    const isDineInOrder = existingOrder?.order_type === "dine_in";
+    const txnRef = isDineInOrder ? `${orderId}_${Date.now()}` : orderId;
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(now.getDate() + 1);
@@ -63,7 +69,7 @@ export const createPaymentUrl = async (req, res) => {
       vnp_TmnCode: process.env.VNP_TMN_CODE,
       vnp_Amount: amount * 100, // VNPay yêu cầu nhân 100
       vnp_CurrCode: "VND",
-      vnp_TxnRef: orderId,
+      vnp_TxnRef: txnRef,
       vnp_OrderInfo: `Thanh toan don hang ${orderId}`,
       vnp_OrderType: "other",
       vnp_Locale: language || "vn",
@@ -91,11 +97,30 @@ export const createPaymentUrl = async (req, res) => {
     // URL thanh toán
     const paymentUrl = `${process.env.VNP_URL}?${signData}&vnp_SecureHash=${signed}`;
 
+    try {
+      const order = existingOrder || (await Order.findById(orderId));
+      if (order) {
+        order.payment_method = "vnpay";
+        order.payment_status = "pending";
+        order.vnpay_txn_ref = txnRef;
+        order.vnpay_create_date = vnpCreateDate;
+        order.vnpay_amount = amount * 100;
+        order.payment_gateway_ref = {
+          gateway: "vnpay",
+          transaction_id: txnRef,
+          response_code: "pending",
+        };
+        await order.save();
+      }
+    } catch (orderUpdateError) {
+      console.error("VNPay pending order update error:", orderUpdateError);
+    }
+
     return res
       .status(201)
       .json({
         success: true,
-        data: { orderId, amount, paymentUrl, vnpCreateDate },
+        data: { orderId, amount, paymentUrl, vnpCreateDate, vnpTxnRef: txnRef },
       });
   } catch (err) {
     console.error("VNPay createPaymentUrl error:", err);
@@ -106,7 +131,7 @@ export const createPaymentUrl = async (req, res) => {
 // =======================
 // API Callback VNPay
 // =======================
-export const vnpayReturn = (req, res) => {
+export const vnpayReturn = async (req, res) => {
   try {
     let vnpData = { ...req.query };
     const secureHash = vnpData.vnp_SecureHash;
@@ -142,6 +167,68 @@ export const vnpayReturn = (req, res) => {
     const vnpTransactionNo = vnpData.vnp_TransactionNo || "";
     const vnpPayDate = vnpData.vnp_PayDate || "";
     const vnpAmount = vnpData.vnp_Amount || "";
+
+    if (success && orderId) {
+      try {
+        const fallbackOrderId = String(orderId).split("_")[0];
+        const order =
+          (await Order.findOne({ vnpay_txn_ref: orderId })) ||
+          (await Order.findById(fallbackOrderId).catch(() => null));
+        if (order && order.payment_status !== "paid") {
+          const now = new Date();
+          order.payment_method = "vnpay";
+          order.payment_status = "paid";
+          order.payment_date = now;
+          order.vnpay_txn_ref = orderId;
+          order.vnpay_transaction_no = vnpTransactionNo;
+          order.vnpay_pay_date = vnpPayDate;
+          order.vnpay_amount = Number(vnpAmount || order.total_amount * 100);
+          order.payment_gateway_ref = {
+            gateway: "vnpay",
+            transaction_id: vnpTransactionNo,
+            response_code: vnpData.vnp_ResponseCode,
+            raw: req.query,
+          };
+
+          if (order.order_type === "dine_in") {
+            order.status = "completed";
+            order.completed_at = now;
+            order.history = order.history || [];
+            order.history.push({
+              status: "completed",
+              date: now,
+              note: "Thanh toán VNPay thành công",
+            });
+
+            for (const item of order.items || []) {
+              await Dish.findByIdAndUpdate(item.dish_id, {
+                $inc: { sold_quantity: item.quantity },
+              });
+            }
+          }
+
+          await order.save();
+
+          try {
+            const io = getIO();
+            io.to(`branch:${order.branch_id}`).emit("dine_in_order_paid", {
+              order_id: order._id,
+              order_number: order.order_number,
+              branch_id: order.branch_id,
+              table_id: order.table_id,
+              payment_method: order.payment_method,
+              payment_status: order.payment_status,
+              status: order.status,
+            });
+          } catch (socketError) {
+            console.error("VNPay socket emit error:", socketError);
+          }
+        }
+      } catch (orderUpdateError) {
+        console.error("VNPay paid order update error:", orderUpdateError);
+      }
+    }
+
     // 🔹 Redirect về checkout trên frontend
     const redirectBase = process.env.VNP_FE_REDIRECT_URL;
     if (!redirectBase) {
