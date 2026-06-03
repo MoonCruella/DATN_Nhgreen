@@ -63,6 +63,15 @@ const ManagerRating = () => {
   });
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppliedSearch(searchTerm.trim());
+      setCurrentPage(1);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
     const fetchRatings = async () => {
       if (!accessToken) return;
 
@@ -112,7 +121,6 @@ const ManagerRating = () => {
   };
 
   const applyFilters = () => {
-    setAppliedSearch(searchTerm.trim());
     setAppliedRating(filterRating);
     setCurrentPage(1);
   };
@@ -143,9 +151,6 @@ const ManagerRating = () => {
               type="text"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") applyFilters();
-              }}
               placeholder="Người đánh giá, món ăn"
               className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
             />

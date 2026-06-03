@@ -5,6 +5,10 @@ import OrdersTable from "@/components/admin-view/tables/OrdersTable";
 import OrderModal from "@/components/admin-view/modals/OrderModal";
 import orderApi from "@/api/orderApi";
 import branchApi from "@/api/branchApi";
+import { ChevronRight, Search, Store } from "lucide-react";
+import FilterSelect from "@/components/common/FilterSelect";
+import AdminPagination from "@/components/admin-view/AdminPagination";
+import { Button } from "@/components/ui/button";
 
 const AdminOrders = () => {
   const { user, isAuthenticated, accessToken } = useSelector((s) => s.auth);
@@ -18,6 +22,8 @@ const AdminOrders = () => {
   const [debouncedQSearch, setDebouncedQSearch] = useState("");
   const [qStatus, setQStatus] = useState("all");
   const [qBranch, setQBranch] = useState("all");
+  const [appliedStatus, setAppliedStatus] = useState("all");
+  const [appliedBranch, setAppliedBranch] = useState("all");
 
   // pagination
   const [page, setPage] = useState(1);
@@ -48,8 +54,8 @@ const AdminOrders = () => {
       const params = {
         page,
         limit,
-        status: qStatus !== "all" ? qStatus : undefined,
-        branch_id: qBranch !== "all" ? qBranch : undefined,
+        status: appliedStatus !== "all" ? appliedStatus : undefined,
+        branch_id: appliedBranch !== "all" ? appliedBranch : undefined,
         sort: "created_at",
         order: "desc",
       };
@@ -89,7 +95,7 @@ const AdminOrders = () => {
   // reload when auth, paging or filters change
   useEffect(() => {
     if (isAuthenticated && user?.role === "admin") loadOrders();
-  }, [isAuthenticated, user, page, debouncedQSearch, qStatus, qBranch]);
+  }, [isAuthenticated, user, page, debouncedQSearch, appliedStatus, appliedBranch]);
 
   const handleRowClick = (order) => {
     setSelectedOrder(order);
@@ -100,171 +106,122 @@ const AdminOrders = () => {
     setQSearch("");
     setQStatus("all");
     setQBranch("all");
+    setAppliedStatus("all");
+    setAppliedBranch("all");
     setPage(1);
   };
+  const applyFilters = () => {
+    setAppliedStatus(qStatus);
+    setAppliedBranch(qBranch);
+    setPage(1);
+  };
+  const hasActiveFilters =
+    Boolean(qSearch.trim()) ||
+    qStatus !== "all" ||
+    qBranch !== "all" ||
+    appliedStatus !== "all" ||
+    appliedBranch !== "all";
 
   return (
-    <main className="bg-gray-50 min-h-screen">
-      <section className="w-full px-4 pt-8">
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between">
-          <div className="text-lg font-medium">Quản lý đơn hàng</div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-4">
-              <input
-                type="text"
-                placeholder="Tìm theo mã đơn, tên, SĐT..."
-                value={qSearch}
-                onChange={(e) => {
-                  setQSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition w-64"
-              />
-
-              <select
-                value={qBranch}
-                onChange={(e) => {
-                  setQBranch(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition cursor-pointer"
-              >
-                <option value="all">Tất cả chi nhánh</option>
-                {branches.map((branch) => (
-                  <option key={branch._id} value={branch._id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={qStatus}
-                onChange={(e) => {
-                  setQStatus(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition cursor-pointer"
-              >
-                <option value="all">Tất cả</option>
-                <option value="pending">Chờ xác nhận</option>
-                <option value="confirmed">Đã xác nhận</option>
-                <option value="processing">Đang xử lý</option>
-                <option value="shipped">Đang giao</option>
-                <option value="delivered">Đã giao</option>
-                <option value="completed">Hoàn thành</option>
-                <option value="cancel_request">Yêu cầu hủy</option>
-                <option value="cancelled">Đã hủy</option>
-              </select>
-
-              <button
-                onClick={handleResetFilters}
-                className="px-3 py-2 bg-gray-100 rounded-lg transition hover:bg-gray-200 cursor-pointer"
-              >
-                Đặt lại
-              </button>
-            </div>
-          </div>
+    <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
+      <header className="mb-5 flex items-center gap-2 text-lg font-bold">
+        <div className="flex items-center gap-2 text-gray-900">
+          <Store className="h-5 w-5" strokeWidth={1.8} />
+          Quản trị hệ thống
         </div>
-      </section>
+        <ChevronRight className="h-5 w-5 text-gray-500" />
+        <div className="text-[#34ad54]">Quản lý đơn hàng</div>
+      </header>
 
-      <section className="pb-16 w-full px-4">
+      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:flex-1">
+          <div className="relative w-full lg:w-[300px]">
+            <input
+              type="text"
+              placeholder="Mã đơn, tên, SĐT"
+              value={qSearch}
+              onChange={(e) => {
+                setQSearch(e.target.value);
+                setPage(1);
+              }}
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
+            />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          </div>
+
+          <div className="text-base font-bold text-gray-500">Lọc bởi:</div>
+
+          <FilterSelect
+            label="Chi nhánh"
+            value={qBranch}
+            onChange={(value) => {
+              setQBranch(value);
+            }}
+            options={[
+              { value: "all", label: "Tất cả chi nhánh" },
+              ...branches.map((branch) => ({
+                value: branch._id,
+                label: branch.name,
+              })),
+            ]}
+            className="lg:w-[220px]"
+          />
+
+          <FilterSelect
+            label="Trạng thái"
+            value={qStatus}
+            onChange={(value) => {
+              setQStatus(value);
+            }}
+            options={[
+              { value: "all", label: "Tất cả trạng thái" },
+              { value: "pending", label: "Chờ xác nhận" },
+              { value: "confirmed", label: "Đã xác nhận" },
+              { value: "processing", label: "Đang xử lý" },
+              { value: "shipped", label: "Đang giao" },
+              { value: "delivered", label: "Đã giao" },
+              { value: "completed", label: "Hoàn thành" },
+              { value: "cancel_request", label: "Yêu cầu hủy" },
+              { value: "cancelled", label: "Đã hủy" },
+            ]}
+            className="lg:w-[220px]"
+          />
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="whitespace-nowrap text-base font-bold text-[#34ad54] underline underline-offset-4 hover:text-[#2f9b45]"
+            >
+              Chọn mặc định
+            </button>
+          )}
+
+          <Button
+            type="button"
+            onClick={applyFilters}
+            className="h-12 min-w-[110px] rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45] lg:ml-auto"
+          >
+            Áp dụng
+          </Button>
+        </div>
+      </div>
+
+      <section className="pb-16 w-full">
         <OrdersTable
           orders={orders}
           isLoading={isLoading}
           onRowClick={handleRowClick}
         />
 
-        {/* Footer showing counts */}
-        <div className="mt-3 text-xs text-gray-600 flex items-center justify-between">
-          <div>
-            Hiển thị {orders.length} / {totalOrders} đơn hàng
-          </div>
-          <div>
-            Trang {page} / {totalPages}
-          </div>
-        </div>
-
-        {totalPages > 1 && (
-          <div className="flex justify-center mt-4 gap-2">
-            <button
-              disabled={page === 1}
-              onClick={() => setPage(page - 1)}
-              className={`px-3 py-1 rounded ${
-                page === 1
-                  ? "bg-gray-200 text-gray-400"
-                  : "bg-green-600 text-white cursor-pointer"
-              }`}
-            >
-              {"<"}
-            </button>
-
-            {(() => {
-              const pages = [];
-              const showEllipsis = totalPages > 5;
-
-              if (!showEllipsis) {
-                // Show all pages if 5 or fewer
-                for (let i = 1; i <= totalPages; i++) {
-                  pages.push(i);
-                }
-              } else {
-                // Always show first page
-                pages.push(1);
-
-                if (page <= 2) {
-                  // Near start: show 1,2,3,...,last
-                  pages.push(2, 3, "...", totalPages);
-                } else if (page >= totalPages - 1) {
-                  // Near end: show 1,...,last-2,last-1,last
-                  pages.push(
-                    "...",
-                    totalPages - 2,
-                    totalPages - 1,
-                    totalPages
-                  );
-                } else {
-                  // Middle: show 1,...,current-1,current,current+1,...,last
-                  pages.push("...", page - 1, page, page + 1, "...", totalPages);
-                }
-              }
-
-              return pages.map((p, idx) => {
-                if (p === "...") {
-                  return (
-                    <span key={`ellipsis-${idx}`} className="px-2 text-gray-400">
-                      ...
-                    </span>
-                  );
-                }
-                return (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    className={`px-3 py-1 rounded ${
-                      page === p
-                        ? "bg-green-600 text-white"
-                        : "bg-gray-200 cursor-pointer hover:bg-gray-300"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                );
-              });
-            })()}
-
-            <button
-              disabled={page === totalPages}
-              onClick={() => setPage(page + 1)}
-              className={`px-3 py-1 rounded ${
-                page === totalPages
-                  ? "bg-gray-200 text-gray-400"
-                  : "bg-green-600 text-white cursor-pointer"
-              }`}
-            >
-              {">"}
-            </button>
-          </div>
-        )}
+        <AdminPagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalOrders}
+          pageSize={limit}
+          itemLabel="đơn hàng"
+          onPageChange={setPage}
+        />
       </section>
 
       <OrderModal
@@ -272,7 +229,7 @@ const AdminOrders = () => {
         onClose={() => setIsOpen(false)}
         order={selectedOrder}
       />
-    </main>
+    </section>
   );
 };
 

@@ -16,6 +16,7 @@ const AdBranchDishes = () => {
   const [dishes, setDishes] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all"); // all, available, unavailable
+  const [appliedStatus, setAppliedStatus] = useState("all");
   const [filteredDishes, setFilteredDishes] = useState([]);
   const [filterLoading, setFilterLoading] = useState(false);
 
@@ -62,9 +63,9 @@ const AdBranchDishes = () => {
         }
 
         // Filter by status
-        if (filterStatus === "available") {
+        if (appliedStatus === "available") {
           result = result.filter((dish) => dish.isAvailableAtBranch);
-        } else if (filterStatus === "unavailable") {
+        } else if (appliedStatus === "unavailable") {
           result = result.filter((dish) => !dish.isAvailableAtBranch);
         }
 
@@ -74,7 +75,11 @@ const AdBranchDishes = () => {
     };
 
     applyFilters();
-  }, [searchTerm, filterStatus, dishes]);
+  }, [searchTerm, appliedStatus, dishes]);
+
+  const applyFilters = () => {
+    setAppliedStatus(filterStatus);
+  };
 
   // Toggle dish status
   const handleToggleStatus = async (dishId, currentStatus) => {
@@ -135,7 +140,7 @@ const AdBranchDishes = () => {
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
           {/* Search */}
           <div>
             <label className="block text-sm font-medium mb-2">
@@ -165,6 +170,14 @@ const AdBranchDishes = () => {
               <option value="unavailable">Hết hàng</option>
             </select>
           </div>
+
+          <Button
+            type="button"
+            onClick={applyFilters}
+            className="h-10 rounded-lg bg-[#34ad54] px-5 font-bold text-white hover:bg-[#2f9b45]"
+          >
+            Áp dụng
+          </Button>
         </div>
 
         {/* Summary */}
