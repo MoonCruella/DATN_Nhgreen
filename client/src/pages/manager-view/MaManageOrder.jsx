@@ -210,11 +210,24 @@ const MaManageOrder = () => {
   const updateStatus = async (order, nextStatus) => {
     try {
       setUpdatingOrderId(order._id);
-      await orderApi.updateOrderStatus(accessToken, order._id, nextStatus);
-      toast.success("Cập nhật trạng thái thành công");
+      const result = await orderApi.updateOrderStatus(
+        accessToken,
+        order._id,
+        nextStatus,
+      );
+      const updatedOrder = result?.data?.shipping || null;
+      const ghnOrderCode =
+        updatedOrder?.shipping_order_code || updatedOrder?.tracking_number || "";
+      toast.success(
+        ghnOrderCode
+          ? `Đã tạo vận đơn GHN ${ghnOrderCode}`
+          : "Cập nhật trạng thái thành công",
+      );
       setOrders((prev) =>
         prev.map((item) =>
-          item._id === order._id ? { ...item, status: nextStatus } : item,
+          item._id === order._id
+            ? { ...item, ...(updatedOrder || {}), status: nextStatus }
+            : item,
         ),
       );
     } catch (error) {
@@ -222,6 +235,48 @@ const MaManageOrder = () => {
     } finally {
       setUpdatingOrderId(null);
     }
+  };
+
+  const syncGhnStatus = async (order) => {
+    try {
+      setUpdatingOrderId(order._id);
+      const result = await orderApi.syncGhnShippingStatus(accessToken, order._id);
+      const updatedOrder = result?.data?.order || null;
+      toast.success(
+        updatedOrder?.status === "delivered"
+          ? "GHN đã giao hàng thành công"
+          : "Đã đồng bộ trạng thái GHN",
+      );
+      if (updatedOrder) {
+        setOrders((prev) =>
+          prev.map((item) => (item._id === updatedOrder._id ? updatedOrder : item)),
+        );
+      }
+    } catch (error) {
+      console.error("Sync GHN status error:", error);
+      toast.error(error.message || "Không thể đồng bộ trạng thái GHN");
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
+  const getGhnStatusLabel = (status) => {
+    const statusMap = {
+      ready_to_pick: "Chờ GHN lấy hàng",
+      picking: "GHN đang lấy hàng",
+      picked: "GHN đã lấy hàng",
+      storing: "Đang lưu kho",
+      transporting: "Đang vận chuyển",
+      sorting: "Đang phân loại",
+      delivering: "Đang giao",
+      delivered: "Đã giao",
+      delivery_fail: "Giao thất bại",
+      waiting_to_return: "Chờ hoàn hàng",
+      return: "Đang hoàn hàng",
+      returned: "Đã hoàn hàng",
+      cancel: "Đã hủy",
+    };
+    return statusMap[status] || status;
   };
 
   return (
@@ -338,6 +393,16 @@ const MaManageOrder = () => {
                     <span className={`h-2 w-2 rounded-full ${config.dot}`} />
                     {config.label}
                   </span>
+                  {(order.shipping_order_code || order.tracking_number) && (
+                    <div className="mt-1 text-xs font-bold text-gray-500">
+                      GHN: {order.shipping_order_code || order.tracking_number}
+                      {order.shipping_status && (
+                        <span className="ml-2 text-[#34ad54]">
+                          {getGhnStatusLabel(order.shipping_status)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>{formatCurrency(order.total_amount)} VND</div>
                 <div className="flex items-center gap-4 text-gray-400">
@@ -359,6 +424,16 @@ const MaManageOrder = () => {
                       {updatingOrderId === order._id
                         ? "..."
                         : nextAction.label}
+                    </button>
+                  )}
+                  {(order.shipping_order_code || order.tracking_number) && (
+                    <button
+                      type="button"
+                      onClick={() => syncGhnStatus(order)}
+                      disabled={updatingOrderId === order._id}
+                      className="rounded-md border border-[#34ad54] px-3 py-1.5 text-sm font-bold text-[#34ad54] hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {updatingOrderId === order._id ? "..." : "Đồng bộ GHN"}
                     </button>
                   )}
                 </div>

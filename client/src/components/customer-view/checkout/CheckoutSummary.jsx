@@ -133,6 +133,17 @@ const CheckoutSummary = ({
 
   const selectedItemsCount = Array.isArray(cartItems) ? cartItems.length : 0;
 
+  const getSelectedAddressText = () =>
+    selectedAddress?.full_address ||
+    [
+      selectedAddress?.street,
+      selectedAddress?.ward?.name,
+      selectedAddress?.district?.name,
+      selectedAddress?.province?.name,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
   // Helper: clear all temporary payment data stored in localStorage
   const clearTempPaymentData = () => {
     localStorage.removeItem("pendingOrderData");
@@ -549,8 +560,19 @@ const CheckoutSummary = ({
         shipping_info: {
           name: selectedAddress.full_name,
           phone: selectedAddress.phone,
-          address: selectedAddress.full_address,
-          coordinates: selectedAddress.coordinates, // Truyền coordinates để backend lưu
+          address: getSelectedAddressText(),
+          full_name: selectedAddress.full_name,
+          street: selectedAddress.street || "",
+          full_address: getSelectedAddressText(),
+          ward: selectedAddress.ward || {},
+          district: selectedAddress.district || {},
+          province: selectedAddress.province || {},
+          coordinates: selectedAddress.coordinates || {}, // Truyền coordinates để backend lưu
+          district_id: selectedAddress.district?.code,
+          ward_code:
+            selectedAddress.ward?.code != null
+              ? String(selectedAddress.ward.code)
+              : undefined,
         },
         payment_method: paymentMethod,
         notes: note || "",

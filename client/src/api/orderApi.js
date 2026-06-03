@@ -312,6 +312,27 @@ const orderApi = {
     }
   },
 
+  syncGhnShippingStatus: async (accessToken, orderId) => {
+    const response = await axiosPrivate.put(
+      `/api/orders/${orderId}/ghn-sync`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || "Đồng bộ GHN thành công",
+      };
+    }
+    throw new Error(response.data.message || "Không thể đồng bộ trạng thái GHN");
+  },
+
   // Customer: Xác nhận đã nhận hàng
   confirmReceived: async (accessToken, orderId) => {
     const response = await axiosPrivate.put(

@@ -47,6 +47,20 @@ const MaOrderDetail = () => {
     });
   };
 
+  const getAddressPart = (value) =>
+    value && typeof value === "object" ? value.name : value;
+
+  const getShippingAddress = (shippingInfo = {}) =>
+    shippingInfo.full_address ||
+    [
+      shippingInfo.address,
+      getAddressPart(shippingInfo.ward),
+      getAddressPart(shippingInfo.district),
+      getAddressPart(shippingInfo.province),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
   // In hóa đơn kiểu bill nhiệt 80mm
   const handlePrintBill = () => {
     if (!printRef.current) return;
@@ -743,12 +757,7 @@ const MaOrderDetail = () => {
               <div>
                 <p className="text-sm text-gray-600">Địa chỉ giao hàng</p>
                 <p className="font-medium">
-                  {order.shipping_info?.address}
-                  {order.shipping_info?.ward && `, ${order.shipping_info.ward}`}
-                  {order.shipping_info?.district &&
-                    `, ${order.shipping_info.district}`}
-                  {order.shipping_info?.province &&
-                    `, ${order.shipping_info.province}`}
+                  {getShippingAddress(order.shipping_info)}
                 </p>
               </div>
             </div>

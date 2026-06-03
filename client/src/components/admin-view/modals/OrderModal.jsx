@@ -62,6 +62,20 @@ const OrderModal = ({ open, onClose, order }) => {
     return methodMap[method] || method;
   };
 
+  const getAddressPart = (value) =>
+    value && typeof value === "object" ? value.name : value;
+
+  const getShippingAddress = (shippingInfo = {}) =>
+    shippingInfo.full_address ||
+    [
+      shippingInfo.address,
+      getAddressPart(shippingInfo.ward),
+      getAddressPart(shippingInfo.district),
+      getAddressPart(shippingInfo.province),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
       onClose();
@@ -253,7 +267,7 @@ const OrderModal = ({ open, onClose, order }) => {
                     </p>
                     <p className="text-gray-700">
                       <span className="text-gray-700 text-sm font-bold">Địa chỉ: </span>
-                      {order.shipping_info.address}
+                      {getShippingAddress(order.shipping_info)}
                     </p>
                   </>
                 )}

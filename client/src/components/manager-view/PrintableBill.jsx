@@ -2,6 +2,19 @@ import React from "react";
 
 const PrintableBill = React.forwardRef(
   ({ order, formatCurrency, formatDateTime }, ref) => {
+    const getAddressPart = (value) =>
+      value && typeof value === "object" ? value.name : value;
+    const shippingAddress =
+      order.shipping_info?.full_address ||
+      [
+        order.shipping_info?.address,
+        getAddressPart(order.shipping_info?.ward),
+        getAddressPart(order.shipping_info?.district),
+        getAddressPart(order.shipping_info?.province),
+      ]
+        .filter(Boolean)
+        .join(", ");
+
     return (
       <div ref={ref} className="hidden">
         <div className="header">
@@ -39,14 +52,7 @@ const PrintableBill = React.forwardRef(
           <div style={{ fontWeight: "bold", marginBottom: "3px" }}>
             ĐỊA CHỈ GIAO HÀNG:
           </div>
-          <div>
-            {order.shipping_info?.address}
-            {order.shipping_info?.ward && `, ${order.shipping_info.ward}`}
-            {order.shipping_info?.district &&
-              `, ${order.shipping_info.district}`}
-            {order.shipping_info?.province &&
-              `, ${order.shipping_info.province}`}
-          </div>
+          <div>{shippingAddress}</div>
         </div>
 
         <div className="divider"></div>

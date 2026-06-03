@@ -17,6 +17,10 @@ import { requestVnpayRefund } from "./vnpay-controller.js";
 import { requestZalopayRefund } from "./zalopay-controller.js";
 import { requestMomoRefund } from "./momo-controller.js";
 import {
+  createGhnShippingOrder,
+  getGhnShippingOrderDetail,
+} from "../services/ghn-service.js";
+import {
   createFuzzyMongoQuery,
   sortByRelevance,
   removeVietnameseTones,
@@ -95,6 +99,154 @@ const getMomoRefundMissingFields = (order) => {
   const amountValue = Number(order.momo_amount || order.total_amount || 0);
   if (amountValue <= 0) missing.push("amount");
   return missing;
+};
+
+const getAddressRegion = (value) => {
+  if (!value) return {};
+  if (typeof value === "object") {
+    const codeNumber =
+      value.code !== "" && value.code != null ? Number(value.code) : undefined;
+    return {
+      code: Number.isFinite(codeNumber) ? codeNumber : undefined,
+      name: value.name || "",
+    };
+  }
+  return { name: String(value) };
+};
+
+const normalizeShippingInfo = (shippingInfo = {}) => {
+  const ward = getAddressRegion(shippingInfo.ward);
+  const district = getAddressRegion(shippingInfo.district);
+  const province = getAddressRegion(shippingInfo.province);
+  const fullAddress =
+    shippingInfo.full_address ||
+    shippingInfo.address ||
+    [shippingInfo.street, ward.name, district.name, province.name]
+      .filter(Boolean)
+      .join(", ");
+
+  return {
+    name: shippingInfo.name || shippingInfo.full_name || "",
+    phone: shippingInfo.phone || "",
+    address: fullAddress,
+    full_name: shippingInfo.full_name || shippingInfo.name || "",
+    street: shippingInfo.street || "",
+    full_address: fullAddress,
+    ward,
+    district,
+    province,
+    coordinates: shippingInfo.coordinates || {},
+    district_id:
+      shippingInfo.district_id ||
+      (district.code != null ? district.code : undefined),
+    ward_code:
+      shippingInfo.ward_code ||
+      (ward.code != null ? String(ward.code) : undefined),
+  };
+};
+
+const GHN_TO_ORDER_STATUS = {
+  delivered: "delivered",
+  cancel: "cancelled",
+};
+
+const getOrderStatusFromGhnStatus = (ghnStatus, currentStatus) => {
+  if (!ghnStatus) return currentStatus;
+  if (GHN_TO_ORDER_STATUS[ghnStatus]) return GHN_TO_ORDER_STATUS[ghnStatus];
+  if (["pending", "confirmed", "processing"].includes(currentStatus)) {
+    return "shipped";
+  }
+  return currentStatus;
+};
+
+const getGhnWebhookValue = (payload, ...keys) => {
+  for (const key of keys) {
+    if (payload?.[key] != null && payload[key] !== "") return payload[key];
+  }
+  return undefined;
+};
+
+const emitOrderStatusUpdated = (order) => {
+  try {
+    const io = getIO();
+    if (!io) return;
+
+    const payload = {
+      order_id: order._id,
+      order_number: order.order_number,
+      status: order.status,
+      branch_id: order.branch_id,
+      updates: {
+        shipped_at: order.shipped_at,
+        delivered_at: order.delivered_at,
+        cancelled_at: order.cancelled_at,
+        tracking_number: order.tracking_number,
+        shipping_order_code: order.shipping_order_code,
+        shipping_status: order.shipping_status,
+      },
+    };
+
+    if (order.branch_id) {
+      io.to(`branch:${order.branch_id}`).emit("order_status_updated", payload);
+    }
+    if (order.user_id) {
+      const userId = order.user_id._id || order.user_id;
+      io.to(`user:${userId.toString()}`).emit("order_status_updated", payload);
+    }
+  } catch (socketError) {
+    console.error("Socket GHN status update error:", socketError);
+  }
+};
+
+const applyGhnStatusToOrder = async (order, ghnPayload = {}) => {
+  const rawStatus = getGhnWebhookValue(
+    ghnPayload,
+    "Status",
+    "status",
+    "status_id",
+    "OrderStatus",
+    "order_status",
+  );
+  const ghnStatus = rawStatus ? String(rawStatus).trim() : "";
+  if (!ghnStatus) return { order, statusChanged: false };
+
+  const previousStatus = order.status;
+  const nextStatus = getOrderStatusFromGhnStatus(ghnStatus, order.status);
+  const now = new Date();
+  const description =
+    getGhnWebhookValue(ghnPayload, "Description", "description") ||
+    `GHN cập nhật trạng thái ${ghnStatus}`;
+
+  order.shipping_provider = "ghn";
+  order.shipping_status = ghnStatus;
+  order.shipping_raw_response = ghnPayload;
+
+  if (nextStatus !== order.status) {
+    order.status = nextStatus;
+    if (nextStatus === "shipped" && !order.shipped_at) order.shipped_at = now;
+    if (nextStatus === "delivered" && !order.delivered_at) order.delivered_at = now;
+    if (nextStatus === "cancelled" && !order.cancelled_at) order.cancelled_at = now;
+
+    order.history = order.history || [];
+    order.history.push({
+      status: nextStatus,
+      date: now,
+      note: description,
+    });
+  }
+
+  await order.save();
+
+  if (nextStatus !== previousStatus) {
+    try {
+      await notificationService.notifyOrderStatusUpdate(order, previousStatus);
+    } catch (notifyError) {
+      console.error("Không thể gửi thông báo cập nhật GHN:", notifyError);
+    }
+    emitOrderStatusUpdated(order);
+  }
+
+  return { order, statusChanged: nextStatus !== previousStatus };
 };
 
 //Get user orders with filter and pagination
@@ -1022,6 +1174,9 @@ export const createOrder = async (req, res) => {
         : "online";
     const isDineInQr = order_channel === "dine_in_qr";
     const isDineIn = normalizedOrderType === "dine_in";
+    const normalizedShippingInfo = isDineIn
+      ? undefined
+      : normalizeShippingInfo(shipping_info);
 
     // Validate required fields
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -1042,10 +1197,10 @@ export const createOrder = async (req, res) => {
 
     if (
       !isDineIn &&
-      (!shipping_info ||
-        !shipping_info.name ||
-        !shipping_info.phone ||
-        !shipping_info.address)
+      (!normalizedShippingInfo ||
+        !normalizedShippingInfo.name ||
+        !normalizedShippingInfo.phone ||
+        !normalizedShippingInfo.address)
     ) {
       return response.sendError(res, "Thông tin giao hàng không đầy đủ", 400);
     }
@@ -1458,7 +1613,7 @@ export const createOrder = async (req, res) => {
         payment_method === "zalopay" ? zalopay_zp_trans_id : undefined,
       zalopay_amount:
         payment_method === "zalopay" ? zalopay_amount : undefined,
-      shipping_info: isDineIn ? undefined : shipping_info,
+      shipping_info: normalizedShippingInfo,
       notes,
       status: initialStatus,
       processing_at: isDineIn ? now : undefined,
@@ -1964,6 +2119,34 @@ export const updateShippingInfo = async (req, res) => {
       shipping_status &&
       (nextIndex === currentIndex + 1 || shipping_status === order.status)
     ) {
+      let ghnResult = null;
+      if (
+        shipping_status === "shipped" &&
+        order.status !== "shipped" &&
+        order.order_type !== "dine_in" &&
+        !order.shipping_order_code
+      ) {
+        const orderForGhn = await Order.findById(order._id).populate(
+          "branch_id",
+          "name phone address"
+        );
+        ghnResult = await createGhnShippingOrder(orderForGhn);
+        order.carrier = "GHN";
+        order.shipping_provider = "ghn";
+        order.shipping_order_code = ghnResult.orderCode;
+        order.tracking_number = ghnResult.orderCode;
+        order.shipping_status = "ready_to_pick";
+        order.shipping_raw_response = ghnResult.raw;
+        if (ghnResult.fee) {
+          order.shipping_fee = ghnResult.fee;
+        }
+        if (ghnResult.expectedDeliveryTime) {
+          order.shipping_expected_delivery_time = new Date(
+            ghnResult.expectedDeliveryTime
+          );
+        }
+      }
+
       statusChanged = shipping_status !== order.status;
       order.status = shipping_status;
 
@@ -1994,7 +2177,11 @@ export const updateShippingInfo = async (req, res) => {
       order.history.push({
         status: shipping_status,
         date: new Date(),
-        note,
+        note:
+          note ||
+          (ghnResult?.orderCode
+            ? `Đã tạo vận đơn GHN ${ghnResult.orderCode}`
+            : ""),
       });
     } else if (shipping_status && nextIndex > currentIndex + 1) {
       return response.sendError(
@@ -2283,6 +2470,119 @@ export const getAllOrders = async (req, res) => {
       "Có lỗi xảy ra khi lấy danh sách đơn hàng",
       500,
       error.message
+    );
+  }
+};
+
+export const ghnWebhook = async (req, res) => {
+  try {
+    const webhookSecret = process.env.GHN_WEBHOOK_SECRET || "";
+    if (webhookSecret) {
+      const receivedSecret =
+        req.headers["x-ghn-webhook-secret"] ||
+        req.headers["x-webhook-secret"] ||
+        req.query?.secret;
+      if (String(receivedSecret || "") !== webhookSecret) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+      }
+    }
+
+    const payload = req.body || {};
+    const orderCode = getGhnWebhookValue(
+      payload,
+      "OrderCode",
+      "order_code",
+      "orderCode",
+      "TrackingCode",
+      "tracking_code",
+    );
+    const clientOrderCode = getGhnWebhookValue(
+      payload,
+      "ClientOrderCode",
+      "client_order_code",
+      "clientOrderCode",
+    );
+
+    if (!orderCode && !clientOrderCode) {
+      return res.status(200).json({
+        success: true,
+        message: "Missing GHN order code, ignored",
+      });
+    }
+
+    const order = await Order.findOne({
+      $or: [
+        ...(orderCode
+          ? [
+              { shipping_order_code: orderCode },
+              { tracking_number: orderCode },
+            ]
+          : []),
+        ...(clientOrderCode ? [{ order_number: clientOrderCode }] : []),
+      ],
+    });
+
+    if (!order) {
+      return res.status(200).json({
+        success: true,
+        message: "Order not found, ignored",
+      });
+    }
+
+    if (orderCode) {
+      order.shipping_order_code = order.shipping_order_code || orderCode;
+      order.tracking_number = order.tracking_number || orderCode;
+    }
+
+    await applyGhnStatusToOrder(order, payload);
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("GHN webhook error:", error);
+    return res.status(200).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const syncGhnShippingStatus = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return response.sendError(res, "Không tìm thấy đơn hàng", 404);
+    }
+
+    const orderCode = order.shipping_order_code || order.tracking_number;
+    if (!orderCode) {
+      return response.sendError(res, "Đơn hàng chưa có mã vận đơn GHN", 400);
+    }
+
+    const ghnDetail = await getGhnShippingOrderDetail(orderCode);
+    const result = await applyGhnStatusToOrder(order, ghnDetail);
+
+    return response.sendSuccess(
+      res,
+      {
+        order: result.order,
+        ghn: ghnDetail,
+      },
+      "Đồng bộ trạng thái GHN thành công",
+      200,
+    );
+  } catch (error) {
+    console.error("Sync GHN shipping status error:", error);
+    return response.sendError(
+      res,
+      "Có lỗi xảy ra khi đồng bộ trạng thái GHN",
+      500,
+      error.message,
     );
   }
 };

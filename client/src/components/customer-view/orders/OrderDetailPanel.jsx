@@ -22,6 +22,20 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
   const [socket, setSocket] = useState(null);
   const [creatingChat, setCreatingChat] = useState(false);
 
+  const getAddressPart = (value) =>
+    value && typeof value === "object" ? value.name : value;
+
+  const getShippingAddress = (shippingInfo = {}) =>
+    shippingInfo.full_address ||
+    [
+      shippingInfo.address,
+      getAddressPart(shippingInfo.ward),
+      getAddressPart(shippingInfo.district),
+      getAddressPart(shippingInfo.province),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
   const handleChatWithBranch = async () => {
     if (!order?.branch_info?.manager_id) {
       toast.error("Không tìm thấy quản lý chi nhánh");
@@ -361,7 +375,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
                 Địa chỉ:
               </div>
               <div className="flex-1 font-semibold text-gray-800">
-                {order.shipping_info?.address}
+                {getShippingAddress(order.shipping_info)}
               </div>
             </div>
             {order.note && (

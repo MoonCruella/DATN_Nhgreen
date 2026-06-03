@@ -14,6 +14,8 @@ import {
   confirmReceived,
   reportNotReceived,
   completeDineInOrder,
+  ghnWebhook,
+  syncGhnShippingStatus,
 } from "../controllers/order-controller.js";
 import { authMiddleware, checkAuthOptional } from "../middleware/auth-middleware.js";
 
@@ -21,6 +23,7 @@ const router = express.Router();
 
 // Tất cả routes đều cần authentication
 router.post("/", checkAuthOptional, createOrder);
+router.post("/ghn/webhook", ghnWebhook);
 
 router.use(authMiddleware);
 
@@ -63,5 +66,8 @@ router.post("/:orderId/reorder", reorder);
 
 // PUT /api/orders/:orderId/shipping - Cập nhật thông tin vận chuyển (Admin)
 router.put("/:orderId/shipping", updateShippingInfo);
+
+// PUT /api/orders/:orderId/ghn-sync - Đồng bộ trạng thái vận đơn GHN
+router.put("/:orderId/ghn-sync", syncGhnShippingStatus);
 
 export default router;
