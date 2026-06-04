@@ -55,6 +55,7 @@ const orderSchema = new mongoose.Schema(
     branch_info: {
       name: String,
       phone: String,
+      shop_id: Number,
       address: {
         full_address: String,
         street: String,

@@ -28,6 +28,9 @@ const CheckoutSummary = ({
   const [loading, setLoading] = useState(false);
   const [useCoin, setUseCoin] = useState(false);
   const [note, setNote] = useState("");
+  const [ghnShippingFee, setGhnShippingFee] = useState(0);
+  const [shippingFeeLoading, setShippingFeeLoading] = useState(false);
+  const [shippingFeeError, setShippingFeeError] = useState("");
   const { removeMultipleItems, removeFromCart } = useCartContext();
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,68 +51,7 @@ const CheckoutSummary = ({
   const [voucherPreviewDiscount, setVoucherPreviewDiscount] = useState(null);
   const [applyingVoucher, setApplyingVoucher] = useState(false);
 
-  // Calculate distance between two coordinates using Haversine formula (returns km)
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * (Math.PI / 180)) *
-        Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  // Calculate shipping fee based on distance
-  // Under 3km: 20,000 VND flat rate
-  // From 3km onwards: 500 VND per 100m
-  const calculateShippingFee = (distanceKm) => {
-    const baseRate = 20000; // 20k for under 3km
-    const baseDistance = 3; // 3km
-    const additionalRatePer100m = 500; // 500 VND per 100m
-
-    if (distanceKm <= baseDistance) {
-      return baseRate;
-    }
-
-    // Distance beyond 3km in meters
-    const extraDistanceMeters = (distanceKm - baseDistance) * 1000;
-    // Calculate additional fee (500 VND per 100m)
-    const additionalFee =
-      Math.ceil(extraDistanceMeters / 100) * additionalRatePer100m;
-
-    return baseRate + additionalFee;
-  };
-
-  // Calculate base shipping fee based on distance
-  const defaultShippingFee = (() => {
-    // Check if both branch and delivery address have coordinates
-    if (
-      selectedBranch?.address?.coordinates?.latitude &&
-      selectedBranch?.address?.coordinates?.longitude &&
-      selectedAddress?.coordinates?.latitude &&
-      selectedAddress?.coordinates?.longitude
-    ) {
-      const distance = calculateDistance(
-        selectedBranch.address.coordinates.latitude,
-        selectedBranch.address.coordinates.longitude,
-        selectedAddress.coordinates.latitude,
-        selectedAddress.coordinates.longitude
-      );
-      const fee = calculateShippingFee(distance);
-      console.log(
-        `📍 Khoảng cách: ${distance.toFixed(
-          2
-        )}km, Phí ship: ${fee.toLocaleString("vi-VN")}₫`
-      );
-      return fee;
-    }
-    // Default fallback if no coordinates
-    return 30000;
-  })();
+  const defaultShippingFee = ghnShippingFee;
 
   const shippingFee = (() => {
     if (!selectedFreeship) return defaultShippingFee;
@@ -132,6 +74,87 @@ const CheckoutSummary = ({
   const total = Math.max(0, beforeCoinTotal - coinDiscount);
 
   const selectedItemsCount = Array.isArray(cartItems) ? cartItems.length : 0;
+  const shippingFeeReady =
+    Boolean(selectedBranch?._id) &&
+    Boolean(selectedAddress?.district?.code) &&
+    Boolean(selectedAddress?.ward?.code) &&
+    !shippingFeeLoading &&
+    !shippingFeeError &&
+    defaultShippingFee > 0;
+
+  useEffect(() => {
+    let ignore = false;
+
+    const calculateGhnFee = async () => {
+      if (
+        !selectedBranch?._id ||
+        !selectedAddress?.district?.code ||
+        !selectedAddress?.ward?.code ||
+        selectedItemsCount === 0
+      ) {
+        setGhnShippingFee(0);
+        setShippingFeeError("");
+        return;
+      }
+
+      try {
+        setShippingFeeLoading(true);
+        setShippingFeeError("");
+
+        const items = cartItems.map((item) => {
+          const dish = item.dish_id || item.product_id || {};
+          return {
+            name: dish.name || item.name || item.dish_name || "Sản phẩm",
+            quantity: item.quantity || 1,
+            weight: dish.weight || item.weight,
+          };
+        });
+
+        const res = await branchApi.calculateShippingFee(selectedBranch._id, {
+          shipping_info: {
+            district: selectedAddress.district,
+            ward: selectedAddress.ward,
+          },
+          items,
+          insurance_value: subtotal,
+        });
+
+        if (ignore) return;
+
+        const fee = Number(res?.data?.total || 0);
+        if (!res?.success || fee <= 0) {
+          throw new Error(res?.message || "Không thể tính phí GHN");
+        }
+
+        setGhnShippingFee(fee);
+      } catch (error) {
+        if (ignore) return;
+        console.error("Calculate GHN shipping fee error:", error);
+        setGhnShippingFee(0);
+        setShippingFeeError(
+          error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            error?.message ||
+            "Không thể tính phí giao hàng GHN"
+        );
+      } finally {
+        if (!ignore) setShippingFeeLoading(false);
+      }
+    };
+
+    calculateGhnFee();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    selectedBranch?._id,
+    selectedAddress?.district?.code,
+    selectedAddress?.ward?.code,
+    cartItems,
+    selectedItemsCount,
+    subtotal,
+  ]);
 
   const getSelectedAddressText = () =>
     selectedAddress?.full_address ||
@@ -488,6 +511,13 @@ const CheckoutSummary = ({
         toast.error("Vui lòng chọn chi nhánh gần bạn trước khi thanh toán");
         return;
       }
+      if (!shippingFeeReady) {
+        toast.error(
+          shippingFeeError ||
+            "Đang tính phí giao hàng GHN. Vui lòng thử lại sau giây lát"
+        );
+        return;
+      }
 
       // Kiểm tra lại availability trước khi thanh toán
       const dishIds = cartItems
@@ -726,9 +756,16 @@ const CheckoutSummary = ({
           <div className="flex justify-between">
             <span className="text-gray-600">Phí vận chuyển</span>
             <span className="font-medium">
-              {defaultShippingFee.toLocaleString("vi-VN")}₫
+              {shippingFeeLoading
+                ? "Đang tính..."
+                : `${defaultShippingFee.toLocaleString("vi-VN")}₫`}
             </span>
           </div>
+          {shippingFeeError && (
+            <p className="text-xs font-medium text-red-600">
+              {shippingFeeError}
+            </p>
+          )}
 
           {freeshipAmount > 0 && (
             <div className="flex justify-between">
@@ -837,9 +874,14 @@ const CheckoutSummary = ({
         <button
           type="submit"
           onClick={handlePayNow}
-          disabled={!termsAccepted || loading || selectedItemsCount === 0}
+          disabled={
+            !termsAccepted ||
+            loading ||
+            selectedItemsCount === 0 ||
+            !shippingFeeReady
+          }
           className={`w-3/4 font-bold text-white py-3 rounded-xl transition ${
-            termsAccepted && selectedItemsCount > 0
+            termsAccepted && selectedItemsCount > 0 && shippingFeeReady
               ? "bg-green-600 hover:bg-green-700 active:scale-95"
               : "bg-gray-400 cursor-not-allowed"
           }`}

@@ -5,7 +5,7 @@ const BranchTable = ({ branches = [], onRowClick, isLoading }) => {
   if (isLoading) {
     return (
       <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
-        <TableSkeleton rows={5} columns={5} />
+        <TableSkeleton rows={5} columns={6} />
       </div>
     );
   }
@@ -16,6 +16,7 @@ const BranchTable = ({ branches = [], onRowClick, isLoading }) => {
         <thead className="border-b border-gray-200 bg-white">
           <tr>
             <th className="px-5 py-3 text-base font-bold text-slate-600">Mã chi nhánh</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Shop ID GHN</th>
             <th className="px-5 py-3 text-base font-bold text-slate-600">Tên</th>
             <th className="px-5 py-3 text-base font-bold text-slate-600">Địa chỉ</th>
             <th className="px-5 py-3 text-base font-bold text-slate-600">Số điện thoại</th>
@@ -32,6 +33,9 @@ const BranchTable = ({ branches = [], onRowClick, isLoading }) => {
               >
                 <td className="px-5 py-3 font-bold text-gray-800">
                   {b.code || b.branchId || b._id}
+                </td>
+                <td className="px-5 py-3 font-mono text-gray-700">
+                  {b.shop_id || "-"}
                 </td>
                 <td className="px-5 py-3 text-gray-700">{b.name}</td>
                 <td className="px-5 py-3 text-gray-700">
@@ -56,7 +60,7 @@ const BranchTable = ({ branches = [], onRowClick, isLoading }) => {
           ) : (
             <tr>
               <td
-                colSpan={5}
+                colSpan={6}
                 className="py-12 text-center text-gray-500 bg-white"
               >
                 <div className="flex flex-col items-center gap-4">

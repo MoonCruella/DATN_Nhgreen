@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { io } from "socket.io-client";
 import { toast } from "sonner";
 import {
   ChevronDown,
@@ -13,6 +14,9 @@ import {
 import { Button } from "@/components/ui/button";
 import orderApi from "@/api/orderApi";
 import FilterSelect from "@/components/common/FilterSelect";
+
+const getEntityId = (value) =>
+  value && typeof value === "object" ? value._id || value.id : value;
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
@@ -61,7 +65,7 @@ const statusConfig = {
     dot: "bg-green-600",
   },
   shipped: {
-    label: "Đang giao",
+    label: "Delivering",
     className: "bg-orange-100 text-orange-800",
     dot: "bg-orange-500",
   },
@@ -90,9 +94,8 @@ const statusConfig = {
 const statusOptions = [
   { value: "all", label: "Tất cả" },
   { value: "pending", label: "Chờ xác nhận" },
-  { value: "confirmed", label: "Đã xác nhận" },
   { value: "processing", label: "Đang chuẩn bị" },
-  { value: "shipped", label: "Đang giao" },
+  { value: "shipped", label: "Delivering" },
   { value: "delivered", label: "Đã giao" },
   { value: "completed", label: "Hoàn thành" },
   { value: "cancelled", label: "Đã hủy" },
@@ -110,13 +113,11 @@ const dateOptions = [
 const getNextAction = (status) => {
   switch (status) {
     case "pending":
-      return { label: "Xác nhận", status: "confirmed" };
+      return { label: "Xác nhận", status: "processing" };
     case "confirmed":
-      return { label: "Chuẩn bị", status: "processing" };
+      return { label: "Xác nhận", status: "processing" };
     case "processing":
-      return { label: "Giao hàng", status: "shipped" };
-    case "shipped":
-      return { label: "Đã giao", status: "delivered" };
+      return { label: "Sẵn sàng giao", status: "shipped" };
     default:
       return null;
   }
@@ -126,7 +127,7 @@ const MaManageOrder = () => {
   const navigate = useNavigate();
   const accessToken = useSelector((state) => state.auth.accessToken);
   const user = useSelector((state) => state.auth.user);
-  const branchId = user?.branch_id;
+  const branchId = getEntityId(user?.branch_id);
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -166,6 +167,43 @@ const MaManageOrder = () => {
   useEffect(() => {
     fetchOrders();
   }, [accessToken, branchId, appliedStatus, appliedDate]);
+
+  useEffect(() => {
+    if (!accessToken || !branchId) return;
+
+    const socket = io(import.meta.env.VITE_API_BASE_URL, {
+      auth: { token: accessToken },
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("connect", () => {
+      socket.emit("join_branch_room", branchId);
+    });
+
+    const handleOrderStatusUpdated = (data) => {
+      if (String(data.branch_id) !== String(branchId)) return;
+
+      setOrders((prev) =>
+        prev.map((order) =>
+          String(order._id) === String(data.order_id)
+            ? { ...order, status: data.status, ...(data.updates || {}) }
+            : order,
+        ),
+      );
+
+      if (data.status === "delivered") {
+        toast.success(`Đơn ${data.order_number} đã được GHN giao thành công`);
+      }
+    };
+
+    socket.on("order_status_updated", handleOrderStatusUpdated);
+
+    return () => {
+      socket.off("order_status_updated", handleOrderStatusUpdated);
+      socket.emit("leave_branch_room", branchId);
+      socket.disconnect();
+    };
+  }, [accessToken, branchId]);
 
   const filteredOrders = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();

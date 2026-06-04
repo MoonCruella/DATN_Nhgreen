@@ -450,6 +450,9 @@ const AdminBranchDetail = () => {
               <span className="text-sm text-gray-500">
                 Mã: {branch.code || branch.branchId || branch._id}
               </span>
+              <span className="text-sm text-gray-500">
+                Shop ID GHN: {branch.shop_id || "-"}
+              </span>
             </div>
           </div>
           <div className="flex gap-3">
@@ -543,6 +546,17 @@ const AdminBranchDetail = () => {
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-100"
                 />
               </div>
+
+              {!isEditing && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Shop ID GHN
+                  </label>
+                  <div className="w-full px-3 py-2 border rounded-lg bg-gray-100 font-mono text-gray-700">
+                    {branch.shop_id || "-"}
+                  </div>
+                </div>
+              )}
 
               <div className="pt-4 border-t">
                 <h3 className="text-base font-medium mb-3">Địa chỉ</h3>

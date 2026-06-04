@@ -5,6 +5,10 @@ import User from "../models/user-model.js";
 import bcrypt from "bcryptjs";
 import sendMail from "../config/nodemailer.js";
 import { createVietnameseSearchQuery } from "../utils/fuzzySearch.js";
+import {
+  calculateGhnShippingFee,
+  createGhnStore,
+} from "../services/ghn-service.js";
 
 // Tạo mới branch
 export const createBranch = async (req, res) => {
@@ -19,10 +23,13 @@ export const createBranch = async (req, res) => {
         ? status
         : true;
 
+    const ghnStore = await createGhnStore({ name, phone, address });
+
     const branch = new Branch({
       name,
       address,
       phone,
+      shop_id: ghnStore.shopId,
       active: isActive,
     });
 
@@ -471,6 +478,47 @@ export const checkDishesAvailability = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error checking dishes availability",
+      error: error.message,
+    });
+  }
+};
+
+export const calculateBranchShippingFee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { shipping_info, items = [], insurance_value = 0 } = req.body;
+
+    const branch = await Branch.findById(id).lean();
+    if (!branch) {
+      return res.status(404).json({
+        success: false,
+        message: "Chi nhánh không tồn tại",
+      });
+    }
+
+    if (!branch.shop_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Chi nhánh chưa có shop_id GHN",
+      });
+    }
+
+    const ghnFee = await calculateGhnShippingFee({
+      branch,
+      shippingInfo: shipping_info,
+      items,
+      insuranceValue: insurance_value,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Tính phí giao hàng GHN thành công",
+      data: ghnFee,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Không thể tính phí giao hàng GHN",
       error: error.message,
     });
   }

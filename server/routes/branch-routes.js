@@ -8,6 +8,7 @@ import {
   getBranchDishes,
   updateBranchDishStatus,
   checkDishesAvailability,
+  calculateBranchShippingFee,
   createBranchManager,
   getBranchManagers,
 } from "../controllers/branch-controller.js";
@@ -35,6 +36,9 @@ router.get("/:id/dishes", getBranchDishes);
 
 // Kiểm tra tính khả dụng của các món trong giỏ hàng
 router.post("/:id/dishes/check-availability", checkDishesAvailability);
+
+// Tính phí giao hàng GHN theo chi nhánh và địa chỉ nhận
+router.post("/:id/shipping-fee", calculateBranchShippingFee);
 
 // Tạo tài khoản manager cho chi nhánh
 router.post(

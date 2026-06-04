@@ -64,6 +64,14 @@ const branchApi = {
     return response.data;
   },
 
+  calculateShippingFee: async (branchId, payload) => {
+    const response = await axiosPublic.post(
+      `/api/branches/${branchId}/shipping-fee`,
+      payload
+    );
+    return response.data;
+  },
+
   // Create manager account for branch
   createManager: async (accessToken, branchId, payload) => {
     const headers = accessToken

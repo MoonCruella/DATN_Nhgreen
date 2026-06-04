@@ -31,6 +31,11 @@ const branchSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    shop_id: {
+      type: Number,
+      default: null,
+      index: true,
+    },
     // short code for branch (e.g. 6 chars)
     code: {
       type: String,

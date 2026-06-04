@@ -168,16 +168,23 @@ const getGhnWebhookValue = (payload, ...keys) => {
   return undefined;
 };
 
+const getOrderGhnShopId = (order) =>
+  order?.branch_info?.shop_id || order?.branch_id?.shop_id;
+
+const getEntityId = (value) => value?._id || value;
+
 const emitOrderStatusUpdated = (order) => {
   try {
     const io = getIO();
     if (!io) return;
+    const branchId = getEntityId(order.branch_id);
+    const userId = getEntityId(order.user_id);
 
     const payload = {
       order_id: order._id,
       order_number: order.order_number,
       status: order.status,
-      branch_id: order.branch_id,
+      branch_id: branchId,
       updates: {
         shipped_at: order.shipped_at,
         delivered_at: order.delivered_at,
@@ -188,13 +195,13 @@ const emitOrderStatusUpdated = (order) => {
       },
     };
 
-    if (order.branch_id) {
-      io.to(`branch:${order.branch_id}`).emit("order_status_updated", payload);
+    if (branchId) {
+      io.to(`branch:${branchId}`).emit("order_status_updated", payload);
       if (order.status === "cancelled" && order.shipping_provider === "ghn") {
-        io.to(`branch:${order.branch_id}`).emit("ghn_order_cancelled", {
+        io.to(`branch:${branchId}`).emit("ghn_order_cancelled", {
           order_id: order._id,
           order_number: order.order_number,
-          branch_id: order.branch_id,
+          branch_id: branchId,
           tracking_number: order.tracking_number,
           shipping_order_code: order.shipping_order_code,
           shipping_status: order.shipping_status,
@@ -203,8 +210,7 @@ const emitOrderStatusUpdated = (order) => {
         });
       }
     }
-    if (order.user_id) {
-      const userId = order.user_id._id || order.user_id;
+    if (userId) {
       io.to(`user:${userId.toString()}`).emit("order_status_updated", payload);
     }
   } catch (socketError) {
@@ -1593,6 +1599,7 @@ export const createOrder = async (req, res) => {
       branch_info: {
         name: branch.name,
         phone: branch.phone,
+        shop_id: branch.shop_id,
         address: {
           full_address: branch.address?.full_address || "",
           street: branch.address?.street || "",
@@ -2114,31 +2121,33 @@ export const updateShippingInfo = async (req, res) => {
       );
     }
 
-    // Quy định thứ tự trạng thái
-    const statusOrder = [
-      "pending",
-      "confirmed",
-      "processing",
-      "shipped",
-      "delivered",
-      "completed",
-      "cancelled",
-      "cancel_request",
-    ];
-    const currentIndex = statusOrder.indexOf(order.status);
-    const nextIndex = statusOrder.indexOf(shipping_status);
+    const allowedStatusTransitions = {
+      pending: ["processing"],
+      confirmed: ["processing"], // Legacy orders created before the new manager flow
+      processing: ["shipped"],
+      shipped: [],
+      delivered: [],
+      completed: [],
+      cancelled: [],
+      cancel_request: [],
+    };
+    const validStatuses = Object.keys(allowedStatusTransitions);
 
-    if (shipping_status && !statusOrder.includes(shipping_status)) {
+    if (shipping_status && !validStatuses.includes(shipping_status)) {
       return response.sendError(res, "Trạng thái không hợp lệ", 400);
     }
 
     // Biến để theo dõi xem trạng thái có thay đổi không
     let statusChanged = false;
 
-    // Chỉ cho phép chuyển sang trạng thái tiếp theo
+    const isAllowedTransition =
+      shipping_status === order.status ||
+      allowedStatusTransitions[order.status]?.includes(shipping_status);
+
+    // Chỉ cho phép chuyển sang trạng thái tiếp theo trong luồng nghiệp vụ
     if (
       shipping_status &&
-      (nextIndex === currentIndex + 1 || shipping_status === order.status)
+      isAllowedTransition
     ) {
       let ghnResult = null;
       if (
@@ -2149,7 +2158,7 @@ export const updateShippingInfo = async (req, res) => {
       ) {
         const orderForGhn = await Order.findById(order._id).populate(
           "branch_id",
-          "name phone address"
+          "name phone address shop_id"
         );
         ghnResult = await createGhnShippingOrder(orderForGhn);
         order.carrier = "GHN";
@@ -2211,16 +2220,10 @@ export const updateShippingInfo = async (req, res) => {
             ? `Đã tạo vận đơn GHN ${ghnResult.orderCode}`
             : ""),
       });
-    } else if (shipping_status && nextIndex > currentIndex + 1) {
+    } else if (shipping_status) {
       return response.sendError(
         res,
-        "Không thể bỏ qua các bước trạng thái",
-        400
-      );
-    } else if (shipping_status && nextIndex < currentIndex) {
-      return response.sendError(
-        res,
-        "Không thể quay lại trạng thái trước",
+        "Không thể chuyển trạng thái theo luồng hiện tại",
         400
       );
     }
@@ -2584,7 +2587,10 @@ export const syncGhnShippingStatus = async (req, res) => {
       return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
     }
 
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(orderId).populate(
+      "branch_id",
+      "shop_id"
+    );
     if (!order) {
       return response.sendError(res, "Không tìm thấy đơn hàng", 404);
     }
@@ -2594,7 +2600,8 @@ export const syncGhnShippingStatus = async (req, res) => {
       return response.sendError(res, "Đơn hàng chưa có mã vận đơn GHN", 400);
     }
 
-    const ghnDetail = await getGhnShippingOrderDetail(orderCode);
+    const ghnShopId = getOrderGhnShopId(order);
+    const ghnDetail = await getGhnShippingOrderDetail(orderCode, ghnShopId);
     const result = await applyGhnStatusToOrder(order, ghnDetail);
 
     return response.sendSuccess(
@@ -2623,6 +2630,7 @@ export const syncPendingGhnOrders = async () => {
     shipping_order_code: { $exists: true, $ne: "" },
     status: { $nin: ["delivered", "completed", "cancelled"] },
   })
+    .populate("branch_id", "shop_id")
     .sort({ updated_at: 1 })
     .limit(Number(process.env.GHN_AUTO_SYNC_LIMIT || 50));
 
@@ -2634,7 +2642,8 @@ export const syncPendingGhnOrders = async () => {
       const orderCode = order.shipping_order_code || order.tracking_number;
       if (!orderCode) continue;
 
-      const ghnDetail = await getGhnShippingOrderDetail(orderCode);
+      const ghnShopId = getOrderGhnShopId(order);
+      const ghnDetail = await getGhnShippingOrderDetail(orderCode, ghnShopId);
       const result = await applyGhnStatusToOrder(order, ghnDetail);
       if (result.statusChanged) updated += 1;
     } catch (error) {

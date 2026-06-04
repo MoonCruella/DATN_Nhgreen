@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
+import { io } from "socket.io-client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,13 +15,16 @@ import {
 } from "lucide-react";
 import PrintableBill from "@/components/manager-view/PrintableBill";
 
+const getEntityId = (value) =>
+  value && typeof value === "object" ? value._id || value.id : value;
+
 const MaOrderDetail = () => {
   const navigate = useNavigate();
   const { orderId } = useParams();
   const accessToken = useSelector((state) => state.auth.accessToken);
   const user = useSelector((state) => state.auth.user);
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
-  const branchId = user?.branch_id;
+  const branchId = getEntityId(user?.branch_id);
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -259,6 +263,49 @@ const MaOrderDetail = () => {
     fetchOrderDetail();
   }, [accessToken, orderId, navigate]);
 
+  useEffect(() => {
+    const socketBranchId = getEntityId(order?.branch_id) || branchId;
+    if (!accessToken || !socketBranchId || !orderId) return;
+
+    const socket = io(import.meta.env.VITE_API_BASE_URL, {
+      auth: { token: accessToken },
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("connect", () => {
+      socket.emit("join_branch_room", socketBranchId);
+    });
+
+    const handleOrderStatusUpdated = async (data) => {
+      if (String(data.order_id) !== String(orderId)) return;
+
+      try {
+        const response = await orderApi.getOrderById(accessToken, orderId);
+        if (response.success) {
+          setOrder(response.data.order);
+        }
+      } catch (error) {
+        setOrder((prev) =>
+          prev
+            ? { ...prev, status: data.status, ...(data.updates || {}) }
+            : prev,
+        );
+      }
+
+      if (data.status === "delivered") {
+        toast.success(`Đơn ${data.order_number} đã được GHN giao thành công`);
+      }
+    };
+
+    socket.on("order_status_updated", handleOrderStatusUpdated);
+
+    return () => {
+      socket.off("order_status_updated", handleOrderStatusUpdated);
+      socket.emit("leave_branch_room", socketBranchId);
+      socket.disconnect();
+    };
+  }, [accessToken, branchId, order?.branch_id, orderId]);
+
   // Update order status
   const handleUpdateStatus = async (newStatus) => {
     try {
@@ -310,7 +357,7 @@ const MaOrderDetail = () => {
         className: "bg-green-100 text-green-800",
       },
       shipped: {
-        label: "Đang giao",
+        label: "Delivering",
         className: "bg-orange-100 text-orange-800",
       },
       delivered: {
@@ -342,12 +389,12 @@ const MaOrderDetail = () => {
     switch (status) {
       case "pending":
         return [
-          { label: "Xác nhận đơn", status: "confirmed", variant: "default" },
+          { label: "Xác nhận đơn", status: "processing", variant: "default" },
         ];
       case "confirmed":
         return [
           {
-            label: "Bắt đầu chuẩn bị",
+            label: "Xác nhận đơn",
             status: "processing",
             variant: "default",
           },
@@ -355,10 +402,6 @@ const MaOrderDetail = () => {
       case "processing":
         return [
           { label: "Sẵn sàng giao", status: "shipped", variant: "default" },
-        ];
-      case "shipped":
-        return [
-          { label: "Đã giao hàng", status: "delivered", variant: "default" },
         ];
       default:
         return [];
