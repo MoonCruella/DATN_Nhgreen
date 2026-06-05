@@ -36,14 +36,34 @@ const formatDateTime = (value) => {
 const compactOrderCode = (orderNumber = "") =>
   orderNumber.replace(/^[A-Z]+/i, "").slice(0, 6) || orderNumber;
 
-const getCustomerName = (order) =>
-  order.shipping_info?.recipient_name ||
-  order.shipping_info?.name ||
-  order.guest_info?.name ||
-  "--";
+const getTextValue = (value) =>
+  typeof value === "string" ? value.trim() : value;
 
-const getCustomerPhone = (order) =>
-  order.shipping_info?.phone || order.guest_info?.phone || "--";
+const getDineInCustomer = (order) => {
+  const customer = order?.customer_id;
+  return customer && typeof customer === "object" ? customer : null;
+};
+
+const getCustomerName = (order) => {
+  const dineInCustomer = getDineInCustomer(order);
+
+  return (
+    getTextValue(order.shipping_info?.recipient_name) ||
+    getTextValue(order.shipping_info?.name) ||
+    getTextValue(dineInCustomer?.name) ||
+    "--"
+  );
+};
+
+const getCustomerPhone = (order) => {
+  const dineInCustomer = getDineInCustomer(order);
+
+  return (
+    getTextValue(order.shipping_info?.phone) ||
+    getTextValue(dineInCustomer?.phone) ||
+    "--"
+  );
+};
 
 const getItemCount = (order) =>
   order.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;

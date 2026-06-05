@@ -30,11 +30,22 @@ const getPaymentMethodText = (method) => {
   return methods[method] || "Tiền mặt";
 };
 
-const getCustomerName = (order) =>
-  order?.guest_info?.name ||
-  order?.shipping_info?.name ||
-  order?.user_id?.name ||
-  "Khách vãng lai";
+const getTextValue = (value) =>
+  typeof value === "string" ? value.trim() : value;
+
+const getDineInCustomer = (order) => {
+  const customer = order?.customer_id;
+  return customer && typeof customer === "object" ? customer : null;
+};
+
+const getCustomerName = (order) => {
+  const customer = getDineInCustomer(order);
+
+  return (
+    getTextValue(customer?.name) ||
+    "Khách vãng lai"
+  );
+};
 
 const getTableName = (order) =>
   order?.table_info?.name || order?.table_id?.name || "Bàn";

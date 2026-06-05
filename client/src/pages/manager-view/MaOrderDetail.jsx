@@ -65,7 +65,7 @@ const MaOrderDetail = () => {
       .filter(Boolean)
       .join(", ");
 
-  // In hóa đơn kiểu bill nhiệt 80mm
+  // In hóa đơn theo mẫu bill thanh toán tại bàn
   const handlePrintBill = () => {
     if (!printRef.current) return;
 
@@ -79,8 +79,8 @@ const MaOrderDetail = () => {
           <style>
             @media print {
               @page {
-                size: 80mm auto;
-                margin: 0;
+                size: auto;
+                margin: 12mm;
               }
               body {
                 margin: 0;
@@ -89,116 +89,152 @@ const MaOrderDetail = () => {
             }
             
             body {
-              font-family: 'Courier New', monospace;
-              font-size: 11px;
-              line-height: 1.4;
-              color: #000;
-              background: #fff;
-              width: 80mm;
+              font-family: Arial, sans-serif;
+              color: #0f172a;
+              background: #f8fafc;
               margin: 0 auto;
-              padding: 5mm;
+              padding: 24px;
             }
-            
-            .header {
+
+            .hidden {
+              display: block !important;
+            }
+
+            .bill-card {
+              box-sizing: border-box;
+              width: 440px;
+              max-width: 100%;
+              margin: 0 auto;
+              border-radius: 16px;
+              background: #fff;
+              padding: 24px;
+              box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+            }
+
+            .bill-brand {
+              margin: 0;
               text-align: center;
-              margin-bottom: 10px;
-              border-bottom: 1px dashed #000;
-              padding-bottom: 10px;
+              font-size: 18px;
+              font-weight: 900;
             }
-            
-            .header h2 {
-              margin: 0 0 5px 0;
-              font-size: 16px;
-              font-weight: bold;
-              text-transform: uppercase;
+
+            .bill-company {
+              margin: 16px 0 0;
+              font-size: 12px;
+              line-height: 1.5;
+              font-weight: 500;
             }
-            
-            .header p {
-              margin: 2px 0;
-              font-size: 10px;
+
+            .bill-title {
+              margin: 28px 0 0;
+              text-align: center;
+              font-size: 20px;
+              font-weight: 900;
             }
-            
-            .info {
-              margin: 10px 0;
-              font-size: 10px;
+
+            .bill-info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 12px 16px;
+              margin-top: 24px;
+              font-size: 12px;
+              font-weight: 700;
             }
-            
-            .info-row {
-              display: flex;
-              justify-content: space-between;
-              margin: 3px 0;
+
+            .bill-address {
+              margin-top: 18px;
+              border-top: 1px dashed #d1d5db;
+              padding-top: 14px;
+              font-size: 12px;
+              font-weight: 700;
             }
-            
-            .divider {
-              border-top: 1px dashed #000;
-              margin: 10px 0;
+
+            .bill-address p {
+              margin: 6px 0 0;
+              font-weight: 500;
+              line-height: 1.45;
             }
-            
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin: 10px 0;
+
+            .bill-items-header,
+            .bill-item-row {
+              display: grid;
+              grid-template-columns: 36px 1.2fr 52px 72px 82px;
+              column-gap: 0;
+              align-items: start;
+              font-size: 12px;
             }
-            
-            th {
-              text-align: left;
-              font-weight: bold;
-              border-bottom: 1px solid #000;
-              padding: 5px 0;
-              font-size: 10px;
+
+            .bill-items-header {
+              margin-top: 24px;
+              border-bottom: 1px solid #9ca3af;
+              padding-bottom: 12px;
+              font-weight: 900;
             }
-            
-            td {
-              padding: 5px 0;
-              font-size: 10px;
-              vertical-align: top;
+
+            .bill-item-row {
+              padding: 14px 0;
+              font-weight: 500;
             }
-            
-            .item-name {
-              width: 50%;
+
+            .bill-item-name {
+              font-weight: 800;
+              line-height: 1.35;
             }
-            
-            .item-qty {
-              width: 15%;
+
+            .bill-center {
               text-align: center;
             }
-            
-            .item-price {
-              width: 35%;
+
+            .bill-right {
               text-align: right;
             }
-            
-            .summary {
-              margin-top: 10px;
-              border-top: 1px solid #000;
-              padding-top: 10px;
+
+            .bill-subtotal {
+              margin-top: 12px;
+              border-top: 1px dashed #d1d5db;
+              padding-top: 18px;
             }
-            
-            .summary-row {
+
+            .bill-summary-row {
               display: flex;
               justify-content: space-between;
-              margin: 5px 0;
-              font-size: 10px;
-            }
-            
-            .summary-row.total {
-              font-weight: bold;
-              font-size: 12px;
-              border-top: 1px solid #000;
-              padding-top: 8px;
+              gap: 16px;
               margin-top: 8px;
+              font-size: 14px;
+              font-weight: 700;
             }
-            
-            .footer {
+
+            .bill-total {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+              margin-top: 24px;
+              border-top: 1px dashed #d1d5db;
+              padding-top: 24px;
+              font-size: 20px;
+              font-weight: 900;
+            }
+
+            .bill-note {
+              margin-top: 20px;
+              border-top: 1px dashed #d1d5db;
+              padding-top: 14px;
+              font-size: 12px;
+              font-style: italic;
+              line-height: 1.45;
+            }
+
+            .bill-note span {
+              font-weight: 900;
+            }
+
+            .bill-thanks {
+              margin: 28px 0 0;
               text-align: center;
-              margin-top: 15px;
-              padding-top: 10px;
-              border-top: 1px dashed #000;
-              font-size: 10px;
-            }
-            
-            .footer p {
-              margin: 3px 0;
+              font-size: 14px;
+              font-weight: 700;
+              font-style: italic;
             }
           </style>
         </head>

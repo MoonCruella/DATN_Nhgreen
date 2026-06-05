@@ -65,6 +65,14 @@ const getItemPrice = (item) => item?.sale_price || item?.price || 0;
 
 const getItemName = (item) => item?.dish_name || item?.name || "Sản phẩm";
 
+const getTextValue = (value) =>
+  typeof value === "string" ? value.trim() : value;
+
+const getDineInCustomer = (order) => {
+  const customer = order?.customer_id;
+  return customer && typeof customer === "object" ? customer : null;
+};
+
 const MaDineInBill = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
@@ -94,6 +102,12 @@ const MaDineInBill = () => {
 
   const totalAmount = order?.total_amount || 0;
   const tableName = order?.table_info?.name || "Bàn";
+  const dineInCustomer = getDineInCustomer(order);
+  const customerName =
+    getTextValue(dineInCustomer?.name) ||
+    "Khách vãng lai";
+  const customerPhone =
+    getTextValue(dineInCustomer?.phone) || "";
   const items = useMemo(() => order?.items || [], [order?.items]);
 
   const handlePrint = () => {
@@ -167,6 +181,14 @@ const MaDineInBill = () => {
             <span className="text-right">{getOrderCode(order)}</span>
             <span>Bàn:</span>
             <span className="text-right">{tableName}</span>
+            <span>Khách hàng:</span>
+            <span className="text-right">{customerName}</span>
+            {customerPhone && (
+              <>
+                <span>SĐT:</span>
+                <span className="text-right">{customerPhone}</span>
+              </>
+            )}
             <span>Thời gian:</span>
             <span className="text-right">{getOrderDateTime(order)}</span>
             <span>Thanh toán:</span>

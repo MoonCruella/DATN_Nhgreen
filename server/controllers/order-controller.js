@@ -6,6 +6,7 @@ import Voucher from "../models/voucher-model.js";
 import FlashSale from "../models/flashsale-model.js";
 import StoreTable from "../models/store-table-model.js";
 import DineInSession from "../models/dinein-session-model.js";
+import DineInCustomer from "../models/dinein-customer-model.js";
 import mongoose from "mongoose";
 import response from "../helpers/response.js";
 import * as notificationService from "../services/notification-service.js";
@@ -555,6 +556,10 @@ export const getOrderById = async (req, res) => {
       .populate({
         path: "user_id",
         select: "name email phone",
+      })
+      .populate({
+        path: "customer_id",
+        select: "name phone address linked_user_id",
       })
       .populate({
         path: "branch_id",
@@ -1173,9 +1178,9 @@ export const createOrder = async (req, res) => {
       order_channel = "delivery",
       order_type,
       table_id,
+      customer_id,
       dine_in_session_id,
       dine_in_session_token,
-      guest_info = {},
       vnpay_txn_ref,
       vnpay_transaction_no,
       vnpay_create_date,
@@ -1243,6 +1248,7 @@ export const createOrder = async (req, res) => {
     let selectedBranchId = branch_id;
     let selectedTable = null;
     let dineInSession = null;
+    let dineInCustomer = null;
 
     if (isDineInQr) {
       if (
@@ -1309,6 +1315,29 @@ export const createOrder = async (req, res) => {
       }
 
       selectedBranchId = selectedTable.branch_id;
+    }
+
+    if (isDineIn) {
+      const dineInCustomerId = customer_id;
+
+      if (dineInCustomerId) {
+        if (!mongoose.Types.ObjectId.isValid(dineInCustomerId)) {
+          return response.sendError(res, "Khách hàng tại quán không hợp lệ", 400);
+        }
+
+        dineInCustomer = await DineInCustomer.findOne({
+          _id: dineInCustomerId,
+          active: true,
+        }).lean();
+
+        if (!dineInCustomer) {
+          return response.sendError(
+            res,
+            "Không tìm thấy khách hàng tại quán",
+            404
+          );
+        }
+      }
     }
 
     // Validate branch selection
@@ -1588,12 +1617,7 @@ export const createOrder = async (req, res) => {
             code: selectedTable.code,
           }
         : undefined,
-      guest_info: isDineIn
-        ? {
-            name: guest_info.name || dineInSession?.guest_info?.name || "",
-            phone: guest_info.phone || dineInSession?.guest_info?.phone || "",
-          }
-        : undefined,
+      customer_id: isDineIn ? dineInCustomer?._id || null : null,
       dine_in_session_id: isDineInQr ? dineInSession._id : null,
       branch_id: branch._id,
       branch_info: {
@@ -1676,7 +1700,6 @@ export const createOrder = async (req, res) => {
       await DineInSession.findByIdAndUpdate(dineInSession._id, {
         last_order_id: newOrder._id,
         cart_items: [],
-        guest_info: newOrder.guest_info,
       });
     }
 
@@ -1703,6 +1726,7 @@ export const createOrder = async (req, res) => {
     // Không populate nữa, dùng hardcoded data
     const createdOrder = await Order.findById(newOrder._id)
       .populate("user_id", "name email phone")
+      .populate("customer_id", "name phone address linked_user_id")
       .populate("branch_id", "name phone address code")
       .lean();
 
@@ -2411,6 +2435,257 @@ export const completeDineInOrder = async (req, res) => {
   }
 };
 
+export const updateDineInOrderCustomer = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { customer_id } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
+    }
+
+    if (!customer_id || !mongoose.Types.ObjectId.isValid(customer_id)) {
+      return response.sendError(res, "Khách hàng tại quán không hợp lệ", 400);
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return response.sendError(res, "Không tìm thấy đơn hàng", 404);
+    }
+
+    if (order.order_type !== "dine_in") {
+      return response.sendError(res, "Chỉ áp dụng cho đơn ăn tại quán", 400);
+    }
+
+    const userRole = req.user?.role;
+    if (userRole === "manager") {
+      const tokenBranchId = req.user.branch_id?.toString();
+      if (tokenBranchId && tokenBranchId !== order.branch_id.toString()) {
+        return response.sendError(
+          res,
+          "Bạn không có quyền cập nhật đơn hàng của chi nhánh này",
+          403
+        );
+      }
+    }
+
+    const dineInCustomer = await DineInCustomer.findOne({
+      _id: customer_id,
+      active: true,
+    }).lean();
+
+    if (!dineInCustomer) {
+      return response.sendError(res, "Không tìm thấy khách hàng tại quán", 404);
+    }
+
+    order.customer_id = dineInCustomer._id;
+    await order.save();
+
+    const updatedOrder = await Order.findById(order._id)
+      .populate("user_id", "name email phone")
+      .populate("customer_id", "name phone address linked_user_id")
+      .populate("branch_id", "name phone address code")
+      .lean();
+
+    return response.sendSuccess(
+      res,
+      { order: updatedOrder },
+      "Cập nhật khách hàng cho đơn tại quán thành công",
+      200
+    );
+  } catch (error) {
+    console.error("Update dine-in order customer error:", error);
+    return response.sendError(
+      res,
+      "Có lỗi xảy ra khi cập nhật khách hàng cho đơn tại quán",
+      500,
+      error.message
+    );
+  }
+};
+
+export const updateDineInOrderItems = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { items } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return response.sendError(res, "Danh sách món không hợp lệ", 400);
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return response.sendError(res, "Không tìm thấy đơn hàng", 404);
+    }
+
+    if (order.order_type !== "dine_in") {
+      return response.sendError(res, "Chỉ áp dụng cho đơn ăn tại quán", 400);
+    }
+
+    if (["completed", "cancelled"].includes(order.status)) {
+      return response.sendError(
+        res,
+        "Đơn hàng đã hoàn thành hoặc đã hủy",
+        400
+      );
+    }
+
+    const userRole = req.user?.role;
+    if (userRole === "manager") {
+      const tokenBranchId = req.user.branch_id?.toString();
+      if (tokenBranchId && tokenBranchId !== order.branch_id.toString()) {
+        return response.sendError(
+          res,
+          "Bạn không có quyền cập nhật đơn hàng của chi nhánh này",
+          403
+        );
+      }
+    }
+
+    const currentQuantityByDish = (order.items || []).reduce((result, item) => {
+      const dishId = item.dish_id?.toString();
+      if (dishId) result[dishId] = (result[dishId] || 0) + item.quantity;
+      return result;
+    }, {});
+
+    let subtotal = 0;
+    const orderItems = [];
+
+    for (const item of items) {
+      if (!mongoose.Types.ObjectId.isValid(item.dish_id)) {
+        return response.sendError(
+          res,
+          `ID sản phẩm ${item.dish_id} không hợp lệ`,
+          400
+        );
+      }
+
+      const quantity = Number(item.quantity || 0);
+      if (!quantity || quantity < 1) {
+        return response.sendError(res, "Số lượng món ăn không hợp lệ", 400);
+      }
+
+      const dishId = item.dish_id.toString();
+      if (quantity < (currentQuantityByDish[dishId] || 0)) {
+        return response.sendError(
+          res,
+          "Không thể giảm món đã xác nhận trong đơn tại bàn",
+          400
+        );
+      }
+
+      const dish = await Dish.findById(item.dish_id)
+        .populate("category", "name")
+        .lean();
+
+      if (!dish || dish.status !== "active") {
+        return response.sendError(
+          res,
+          `Món ăn với ID ${item.dish_id} không tồn tại hoặc không còn bán`,
+          400
+        );
+      }
+
+      const finalPrice = dish.sale_price || dish.price || 0;
+      const itemTotal = finalPrice * quantity;
+      const discountAmount = Math.max((dish.price || 0) - finalPrice, 0);
+      const discountPercent =
+        discountAmount > 0 && dish.price
+          ? Math.round((discountAmount / dish.price) * 100)
+          : 0;
+      const dishImage =
+        dish.imageUrls?.[dish.defaultImageIndex || 0] ||
+        dish.imageUrls?.[0] ||
+        "";
+
+      subtotal += itemTotal;
+      orderItems.push({
+        dish_id: dish._id,
+        dish_name: dish.name,
+        dish_slug: dish.slug,
+        dish_image: dishImage,
+        dish_description: dish.description || dish.short_description || "",
+        category_name: dish.category?.name || "",
+        category_id: dish.category?._id,
+        quantity,
+        price: dish.price,
+        sale_price: finalPrice,
+        original_price: dish.price,
+        total: itemTotal,
+        sku: dish.sku,
+        weight: dish.weight,
+        unit: dish.unit || "sản phẩm",
+        variant: item.variant || {},
+        discount_percent: discountPercent,
+        discount_amount: discountAmount,
+        was_on_sale: dish.sale_price > 0 && dish.sale_price < dish.price,
+        was_featured: dish.featured || false,
+        hometown_origin: dish.hometown_origin || {},
+        created_at: new Date(),
+      });
+    }
+
+    order.items = orderItems;
+    order.subtotal = subtotal;
+    order.total_amount =
+      subtotal +
+      (order.shipping_fee || 0) -
+      (order.discount_value || 0) -
+      (order.freeship_value || 0) -
+      (order.coin_discount || 0);
+    order.history = order.history || [];
+    order.history.push({
+      status: order.status,
+      date: new Date(),
+      note: "Cập nhật món đã xác nhận cho đơn tại bàn",
+    });
+
+    await order.save();
+
+    const updatedOrder = await Order.findById(order._id)
+      .populate("user_id", "name email phone")
+      .populate("customer_id", "name phone address linked_user_id")
+      .populate("branch_id", "name phone address code")
+      .lean();
+
+    try {
+      const io = getIO();
+      io.to(`branch:${order.branch_id}`).emit("order_status_updated", {
+        order_id: order._id,
+        order_number: order.order_number,
+        branch_id: order.branch_id,
+        status: order.status,
+        updates: {
+          items: order.items,
+          total_amount: order.total_amount,
+          subtotal: order.subtotal,
+        },
+      });
+    } catch (socketError) {
+      console.error("Socket dine-in items update error:", socketError);
+    }
+
+    return response.sendSuccess(
+      res,
+      { order: updatedOrder },
+      "Xác nhận thêm món thành công",
+      200
+    );
+  } catch (error) {
+    console.error("Update dine-in order items error:", error);
+    return response.sendError(
+      res,
+      "Có lỗi xảy ra khi xác nhận thêm món",
+      500,
+      error.message
+    );
+  }
+};
+
 export const getAllOrders = async (req, res) => {
   try {
     const {
@@ -2756,6 +3031,7 @@ export const getOrdersByBranch = async (req, res) => {
 
     const orders = await Order.find(filter)
       .populate("user_id", "name email phone")
+      .populate("customer_id", "name phone address linked_user_id")
       .sort({ created_at: -1 })
       .skip(skip)
       .limit(parseInt(limit))

@@ -26,12 +26,18 @@ const OrderDetailModal = ({
   table,
   order,
   items = [],
+  paymentItems = items,
   totalQuantity = 0,
   totalAmount = 0,
+  paymentTotalQuantity = totalQuantity,
+  paymentTotalAmount = totalAmount,
   primaryActionLabel = "Thanh toán",
+  secondaryActionLabel = "",
   onClose,
   onAddMore,
   onPrimaryAction,
+  onSecondaryAction,
+  onCustomerSelected,
   momoPaymentUrl = "",
   momoQrUrl = "",
   momoQrCreatedAt = null,
@@ -79,6 +85,15 @@ const OrderDetailModal = ({
   }, [open]);
 
   useEffect(() => {
+    if (!open || selectedCustomer) return;
+
+    const orderCustomer = order?.customer_id;
+    if (orderCustomer && typeof orderCustomer === "object") {
+      setSelectedCustomer(orderCustomer);
+    }
+  }, [open, order?.customer_id, selectedCustomer]);
+
+  useEffect(() => {
     const normalizedPhone = customerPhone.replace(/\D/g, "");
 
     setFoundCustomer(null);
@@ -111,6 +126,9 @@ const OrderDetailModal = ({
 
   const tableName = table?.name || order?.table_info?.name || "Bàn";
   const isPaymentAction = normalizeText(primaryActionLabel).includes("thanh toan");
+  const displayItems = isPaymentAction ? paymentItems : items;
+  const displayTotalQuantity = isPaymentAction ? paymentTotalQuantity : totalQuantity;
+  const displayTotalAmount = isPaymentAction ? paymentTotalAmount : totalAmount;
 
   const handlePrimaryAction = () => {
     if (isPaymentAction) {
@@ -118,7 +136,7 @@ const OrderDetailModal = ({
       return;
     }
 
-    onPrimaryAction?.();
+    onPrimaryAction?.(undefined, selectedCustomer);
   };
 
   const handleAddMore = () => {
@@ -127,7 +145,7 @@ const OrderDetailModal = ({
   };
 
   const handleConfirmPayment = (paymentMethod) => {
-    onPrimaryAction?.(paymentMethod);
+    onPrimaryAction?.(paymentMethod, selectedCustomer);
   };
 
   const handlePaymentBack = () => {
@@ -159,13 +177,22 @@ const OrderDetailModal = ({
     setShowCreateCustomerForm(true);
   };
 
-  const handleSelectFoundCustomer = () => {
+  const handleSelectFoundCustomer = async () => {
     if (!foundCustomer) return;
 
-    setSelectedCustomer(foundCustomer);
-    setShowCustomerModal(false);
-    setShowCreateCustomerForm(false);
-    toast.success("Đã chọn khách hàng");
+    try {
+      setSelectedCustomer(foundCustomer);
+      await onCustomerSelected?.(foundCustomer);
+      setShowCustomerModal(false);
+      setShowCreateCustomerForm(false);
+      toast.success("Đã chọn khách hàng");
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Không thể lưu khách hàng vào đơn",
+      );
+    }
   };
 
   const handleCreateCustomerBack = () => {
@@ -191,6 +218,7 @@ const OrderDetailModal = ({
       const newCustomer = res?.data?.customer;
 
       setSelectedCustomer(newCustomer);
+      await onCustomerSelected?.(newCustomer);
       setFoundCustomer(newCustomer);
       setShowCreateCustomerForm(false);
       setShowCustomerModal(false);
@@ -220,12 +248,12 @@ const OrderDetailModal = ({
               <X className="h-7 w-7" />
             </button>
 
-            <h2 className="mb-12 text-center text-2xl font-bold text-black">
-              <span className="text-[#34ad54]">({totalQuantity})</span>{" "}
+            <h2 className="mb-8 text-center text-2xl font-bold text-black">
+              <span className="text-[#34ad54]">({displayTotalQuantity})</span>{" "}
               {tableName}
             </h2>
 
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1">
               <div className="grid grid-cols-[80px_1.5fr_1fr_1fr_1fr_1fr] gap-x-6 px-2 text-lg font-bold text-black">
                 <div>STT</div>
                 <div>Tên sản phẩm</div>
@@ -235,9 +263,9 @@ const OrderDetailModal = ({
                 <div className="text-right">Thành tiền</div>
               </div>
 
-              <div className="mt-7 max-h-[210px] space-y-8 overflow-y-auto pr-2">
-                {items.length > 0 ? (
-                  items.map((item, index) => {
+              <div className="mt-7 max-h-[260px] space-y-8 overflow-y-auto pr-2">
+                {displayItems.length > 0 ? (
+                  displayItems.map((item, index) => {
                     const price = getDishPrice(item);
 
                     return (
@@ -269,12 +297,12 @@ const OrderDetailModal = ({
                 <div className="flex items-center justify-between px-2 text-lg font-bold">
                   <span className="text-gray-500">Thành tiền</span>
                   <span className="text-slate-950">
-                    {formatCurrency(totalAmount)} VND
+                    {formatCurrency(displayTotalAmount)} VND
                   </span>
                 </div>
               </div>
 
-              <div className="mt-12 flex items-center justify-between px-2">
+              <div className="mt-8 flex items-center justify-between px-2">
                 <span className="text-lg font-medium text-gray-500">
                   Khách hàng
                 </span>
@@ -288,13 +316,13 @@ const OrderDetailModal = ({
                 </Button>
               </div>
 
-              <div className="mt-10 border-t border-gray-200 pt-8">
+              <div className="mt-8 border-t border-gray-200 pt-6">
                 <div className="mb-6 flex items-center justify-between">
                   <span className="text-lg font-bold text-black">
                     Tổng thanh toán (đã bao gồm VAT)
                   </span>
                   <span className="text-3xl font-bold text-black">
-                    {formatCurrency(totalAmount)} VND
+                    {formatCurrency(displayTotalAmount)} VND
                   </span>
                 </div>
 
@@ -307,14 +335,28 @@ const OrderDetailModal = ({
                   >
                     Thêm món
                   </Button>
-                  <Button
-                    type="button"
-                    onClick={handlePrimaryAction}
-                    disabled={totalQuantity === 0}
-                    className="h-14 rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0]"
-                  >
-                    {primaryActionLabel}
-                  </Button>
+                  <div className="grid grid-cols-2 gap-3">
+                    {secondaryActionLabel && (
+                      <Button
+                        type="button"
+                        onClick={() => onSecondaryAction?.(selectedCustomer)}
+                        disabled={totalQuantity === 0}
+                        className="h-14 rounded-lg bg-sky-600 text-lg font-bold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-sky-200"
+                      >
+                        {secondaryActionLabel}
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      onClick={handlePrimaryAction}
+                      disabled={isPaymentAction ? paymentTotalQuantity === 0 : totalQuantity === 0}
+                      className={`h-14 rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0] ${
+                        secondaryActionLabel ? "" : "col-span-2"
+                      }`}
+                    >
+                      {primaryActionLabel}
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -498,9 +540,10 @@ const OrderDetailModal = ({
         open={showPaymentModal}
         table={table}
         order={order}
-        items={items}
-        totalQuantity={totalQuantity}
-        totalAmount={totalAmount}
+        selectedCustomer={selectedCustomer}
+        items={paymentItems}
+        totalQuantity={paymentTotalQuantity}
+        totalAmount={paymentTotalAmount}
         onBack={handlePaymentBack}
         onConfirm={handleConfirmPayment}
         momoPaymentUrl={momoPaymentUrl}

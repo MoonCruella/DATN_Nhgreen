@@ -29,9 +29,11 @@ const orderSchema = new mongoose.Schema(
       name: String,
       code: String,
     },
-    guest_info: {
-      name: String,
-      phone: String,
+    customer_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DineInCustomer",
+      default: null,
+      index: true,
     },
     dine_in_session_id: {
       type: mongoose.Schema.Types.ObjectId,

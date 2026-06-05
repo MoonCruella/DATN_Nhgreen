@@ -14,6 +14,8 @@ import {
   confirmReceived,
   reportNotReceived,
   completeDineInOrder,
+  updateDineInOrderCustomer,
+  updateDineInOrderItems,
   ghnWebhook,
   syncGhnShippingStatus,
 } from "../controllers/order-controller.js";
@@ -60,6 +62,8 @@ router.put("/:orderId/confirm-received", confirmReceived);
 router.put("/:orderId/report-not-received", reportNotReceived);
 
 router.put("/:orderId/dine-in/complete", completeDineInOrder);
+router.put("/:orderId/dine-in/customer", updateDineInOrderCustomer);
+router.put("/:orderId/dine-in/items", updateDineInOrderItems);
 
 // POST /api/orders/:orderId/reorder - Đặt lại đơn hàng
 router.post("/:orderId/reorder", reorder);

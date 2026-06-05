@@ -14,6 +14,7 @@ const createNotification = async (data) => {
       reference_id,
       reference_model,
       sender_id,
+      metadata = {},
     } = data;
 
     const notification = await Notification.create({
@@ -24,11 +25,18 @@ const createNotification = async (data) => {
       reference_id,
       reference_model,
       sender_id: sender_id || null,
+      metadata,
     });
 
     const populatedNotification = await Notification.findById(
       notification._id
-    ).populate("sender_id", "name avatar");
+    )
+      .populate("sender_id", "name avatar")
+      .populate({
+        path: "reference_id",
+        select:
+          "order_number order_type order_channel table_id table_info total_amount status payment_status",
+      });
 
     const io = getIO();
     io.to(`user:${recipient_id}`).emit(
@@ -51,7 +59,7 @@ const createNotification = async (data) => {
 // Gửi thông báo cho managers của một chi nhánh
 const notifyBranchManagers = async (branchId, data) => {
   try {
-    const { type, title, message, reference_id, reference_model, sender_id } =
+    const { type, title, message, reference_id, reference_model, sender_id, metadata } =
       data;
 
     // Tìm tất cả managers của chi nhánh này
@@ -81,6 +89,7 @@ const notifyBranchManagers = async (branchId, data) => {
         reference_id,
         reference_model,
         sender_id,
+        metadata,
       });
       notifications.push(notification);
       console.log(`✅ Notification created: ${notification._id}`);
@@ -109,15 +118,24 @@ const notifyNewOrder = async (order) => {
       extracted_branchId: branchId,
     });
 
+    const isDineIn = order.order_type === "dine_in";
+    const tableName = order.table_info?.name || "bàn";
+
     return notifyBranchManagers(branchId, {
       type: "new_order",
-      title: "Đơn hàng mới",
-      message: `Có đơn hàng mới #${
-        order.order_number
-      } với giá trị ${order.total_amount.toLocaleString("vi-VN")}đ`,
+      title: isDineIn ? "Đơn tại bàn mới" : "Đơn online mới",
+      message: isDineIn
+        ? `Có đơn tại ${tableName} #${order.order_number} với giá trị ${order.total_amount.toLocaleString("vi-VN")}đ`
+        : `Có đơn online mới #${order.order_number} với giá trị ${order.total_amount.toLocaleString("vi-VN")}đ`,
       reference_id: order._id,
       reference_model: "Order",
       sender_id: order.user_id,
+      metadata: {
+        order_type: order.order_type || "online",
+        order_channel: order.order_channel || "delivery",
+        table_id: order.table_id || null,
+        table_name: order.table_info?.name || "",
+      },
     });
   } catch (error) {
     console.error("Error in notifyNewOrder:", error);

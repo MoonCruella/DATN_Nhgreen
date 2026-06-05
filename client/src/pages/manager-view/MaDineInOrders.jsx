@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { toast } from "sonner";
 import {
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import orderApi from "@/api/orderApi";
 import DineInOrderDetailModal from "@/components/manager-view/modals/DineInOrderDetailModal";
 import CreateOrderModal from "@/components/manager-view/modals/CreateOrderModal";
+import PrintableBill from "@/components/manager-view/PrintableBill";
 import FilterSelect from "@/components/common/FilterSelect";
 
 const formatCurrency = (value = 0) =>
@@ -32,7 +33,7 @@ const formatDateTime = (value) => {
 };
 
 const compactOrderCode = (orderNumber = "") =>
-  orderNumber.replace(/^[A-Z]+/i, "").slice(0, 6) || orderNumber;
+  orderNumber.slice(-6) || orderNumber;
 
 const statusConfig = {
   processing: {
@@ -69,6 +70,7 @@ const MaDineInOrders = () => {
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [selectedOrderTable, setSelectedOrderTable] = useState(null);
   const [editingOrder, setEditingOrder] = useState(null);
+  const printRef = useRef(null);
 
   const fetchOrders = async () => {
     if (!accessToken || !branchId) return;
@@ -142,6 +144,162 @@ const MaDineInOrders = () => {
       setSelectedOrder(null);
       setCreateOrderOpen(true);
     }
+  };
+
+  const handlePrintBill = () => {
+    if (!selectedOrder || !printRef.current) return;
+
+    const printWindow = window.open("", "_blank", "width=800,height=600");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Hóa đơn #${selectedOrder.order_number}</title>
+          <style>
+            @media print {
+              @page {
+                size: auto;
+                margin: 12mm;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+              }
+            }
+
+            body {
+              font-family: Arial, sans-serif;
+              color: #0f172a;
+              background: #f8fafc;
+              margin: 0 auto;
+              padding: 24px;
+            }
+
+            .hidden {
+              display: block !important;
+            }
+
+            .bill-card {
+              box-sizing: border-box;
+              width: 440px;
+              max-width: 100%;
+              margin: 0 auto;
+              border-radius: 16px;
+              background: #fff;
+              padding: 24px;
+              box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
+            }
+
+            .bill-brand {
+              margin: 0;
+              text-align: center;
+              font-size: 18px;
+              font-weight: 900;
+            }
+
+            .bill-company {
+              margin: 16px 0 0;
+              font-size: 12px;
+              line-height: 1.5;
+              font-weight: 500;
+            }
+
+            .bill-title {
+              margin: 28px 0 0;
+              text-align: center;
+              font-size: 20px;
+              font-weight: 900;
+            }
+
+            .bill-info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 12px 16px;
+              margin-top: 24px;
+              font-size: 12px;
+              font-weight: 700;
+            }
+
+            .bill-items-header,
+            .bill-item-row {
+              display: grid;
+              grid-template-columns: 36px 1.2fr 52px 72px 82px;
+              align-items: start;
+              font-size: 12px;
+            }
+
+            .bill-items-header {
+              margin-top: 24px;
+              border-bottom: 1px solid #9ca3af;
+              padding-bottom: 12px;
+              font-weight: 900;
+            }
+
+            .bill-item-row {
+              padding: 14px 0;
+              font-weight: 500;
+            }
+
+            .bill-item-name {
+              font-weight: 800;
+              line-height: 1.35;
+            }
+
+            .bill-center {
+              text-align: center;
+            }
+
+            .bill-right {
+              text-align: right;
+            }
+
+            .bill-subtotal {
+              margin-top: 12px;
+              border-top: 1px dashed #d1d5db;
+              padding-top: 18px;
+            }
+
+            .bill-summary-row {
+              display: flex;
+              justify-content: space-between;
+              gap: 16px;
+              margin-top: 8px;
+              font-size: 14px;
+              font-weight: 700;
+            }
+
+            .bill-total {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 16px;
+              margin-top: 24px;
+              border-top: 1px dashed #d1d5db;
+              padding-top: 24px;
+              font-size: 20px;
+              font-weight: 900;
+            }
+
+            .bill-thanks {
+              margin: 28px 0 0;
+              text-align: center;
+              font-size: 14px;
+              font-weight: 700;
+              font-style: italic;
+            }
+          </style>
+        </head>
+        <body>
+          ${printRef.current.innerHTML}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    };
   };
 
   return (
@@ -327,9 +485,10 @@ const MaDineInOrders = () => {
         open={Boolean(selectedOrder)}
         order={selectedOrder}
         onClose={() => setSelectedOrder(null)}
-        onPrint={() => window.print()}
+        onPrint={handlePrintBill}
         onPayment={handlePayment}
       />
+      {selectedOrder && <PrintableBill ref={printRef} order={selectedOrder} />}
       <CreateOrderModal
         table={selectedOrderTable}
         branchId={branchId}

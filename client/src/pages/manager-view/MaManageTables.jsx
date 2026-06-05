@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSelector } from "react-redux";
+import { io } from "socket.io-client";
 import { toast } from "sonner";
 import {
   ConciergeBell,
@@ -18,6 +19,8 @@ import { assets } from "@/assets/assets";
 import CreateOrderModal from "@/components/manager-view/modals/CreateOrderModal";
 import TableFormModal from "@/components/manager-view/modals/TableFormModal";
 import TableUpdateModal from "@/components/manager-view/modals/TableUpdateModal";
+
+const SOCKET_URL = import.meta.env.VITE_API_BASE_URL;
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
@@ -260,17 +263,16 @@ const MaManageTables = () => {
   const [editingTable, setEditingTable] = useState(null);
   const [qrTable, setQrTable] = useState(null);
 
-  const fetchTables = async () => {
+  const fetchTables = useCallback(async ({ silent = false } = {}) => {
     if (!accessToken || !branchId) return;
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [branchRes, tableRes] = await Promise.all([
         branchApi.getById(branchId),
         storeTableApi.getAll(accessToken, {
           branch_id: branchId,
           active: status === "all" ? undefined : status,
-          q: search || undefined,
           limit: 100,
         }),
       ]);
@@ -281,13 +283,40 @@ const MaManageTables = () => {
         error?.response?.data?.message || "Không thể tải danh sách bàn",
       );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [accessToken, branchId, status]);
 
   useEffect(() => {
     fetchTables();
-  }, [accessToken, branchId, status]);
+  }, [fetchTables]);
+
+  useEffect(() => {
+    if (!accessToken || !branchId || !SOCKET_URL) return undefined;
+
+    const socket = io(SOCKET_URL, {
+      auth: { token: accessToken },
+      transports: ["websocket", "polling"],
+    });
+
+    const refreshTables = () => {
+      fetchTables({ silent: true });
+    };
+
+    socket.on("connect", () => {
+      socket.emit("join_branch_room", branchId);
+    });
+    socket.on("new_order", refreshTables);
+    socket.on("order_status_updated", refreshTables);
+    socket.on("dine_in_order_paid", refreshTables);
+    socket.on("order_completed", refreshTables);
+    socket.on("order_cancelled", refreshTables);
+
+    return () => {
+      socket.emit("leave_branch_room", branchId);
+      socket.disconnect();
+    };
+  }, [accessToken, branchId, fetchTables]);
 
   const handleCreate = async (payload) => {
     try {

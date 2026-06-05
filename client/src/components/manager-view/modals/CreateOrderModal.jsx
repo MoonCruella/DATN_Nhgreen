@@ -232,6 +232,43 @@ const CreateOrderModal = ({
     (sum, item) => sum + getDishPrice(item) * item.quantity,
     0,
   );
+  const confirmedItems = useMemo(() => {
+    if (!createdOrder?.items?.length) return [];
+
+    return createdOrder.items.map((item) => ({
+      ...item,
+      _id: item._id || item.dish_id,
+      name: item.dish_name || item.name,
+      quantity: item.quantity || 0,
+    }));
+  }, [createdOrder?.items]);
+  const confirmedTotalQuantity = confirmedItems.reduce(
+    (sum, item) => sum + (item.quantity || 0),
+    0,
+  );
+  const confirmedTotalAmount =
+    createdOrder?.total_amount ||
+    confirmedItems.reduce(
+      (sum, item) => sum + getDishPrice(item) * (item.quantity || 0),
+      0,
+    );
+  const hasUnconfirmedChanges =
+    orderStatus === "processing" &&
+    selectedItems.some(
+      (item) => (item.quantity || 0) > (initialQuantities[item._id] || 0),
+    );
+  const payableItems =
+    orderStatus === "processing" && confirmedItems.length > 0
+      ? confirmedItems
+      : selectedItems;
+  const payableTotalQuantity =
+    orderStatus === "processing" && confirmedItems.length > 0
+      ? confirmedTotalQuantity
+      : totalQuantity;
+  const payableTotalAmount =
+    orderStatus === "processing" && confirmedItems.length > 0
+      ? confirmedTotalAmount
+      : totalAmount;
 
   const handleRequestMomoPayment = useCallback(async (force = false) => {
     if (!createdOrder?._id || (!force && momoQrUrl) || momoLoading) return;
@@ -247,7 +284,7 @@ const CreateOrderModal = ({
       const result = await momoApi.createPayment(
         accessToken,
         createdOrder._id,
-        totalAmount,
+        payableTotalAmount,
         `Thanh toan hoa don ${createdOrder.order_number || createdOrder._id}`,
       );
 
@@ -287,7 +324,7 @@ const CreateOrderModal = ({
     createdOrder?.order_number,
     momoLoading,
     momoQrUrl,
-    totalAmount,
+    payableTotalAmount,
   ]);
 
   const handleRequestZalopayPayment = useCallback(async (force = false) => {
@@ -303,7 +340,7 @@ const CreateOrderModal = ({
       const result = await zalopayApi.createPayment(
         accessToken,
         createdOrder._id,
-        totalAmount,
+        payableTotalAmount,
         `Thanh toan hoa don ${createdOrder.order_number || createdOrder._id}`,
       );
 
@@ -338,7 +375,7 @@ const CreateOrderModal = ({
     accessToken,
     createdOrder?._id,
     createdOrder?.order_number,
-    totalAmount,
+    payableTotalAmount,
     zalopayLoading,
     zalopayQrUrl,
   ]);
@@ -356,7 +393,7 @@ const CreateOrderModal = ({
       const result = await vnpayApi.createPayment(
         accessToken,
         createdOrder._id,
-        totalAmount,
+        payableTotalAmount,
       );
 
       if (!result.success || !result.url) {
@@ -377,7 +414,7 @@ const CreateOrderModal = ({
   }, [
     accessToken,
     createdOrder?._id,
-    totalAmount,
+    payableTotalAmount,
     vnpayLoading,
     vnpayPaymentUrl,
   ]);
@@ -425,12 +462,52 @@ const CreateOrderModal = ({
     return true;
   };
 
-  const handleConfirmOrder = async () => {
+  const handleConfirmOrder = async (selectedCustomer = null) => {
     if (!validateSelectedItems() || submitting) return;
 
     // Nếu đã có order, chuyển sang xác nhận (move to processing status)
     if (createdOrder) {
-      setOrderStatus("processing");
+      try {
+        setSubmitting(true);
+        const response = await orderApi.updateDineInOrderItems(
+          accessToken,
+          createdOrder._id,
+          selectedItems.map((item) => ({
+            dish_id: item._id,
+            quantity: item.quantity,
+            variant: item.variant || {},
+          })),
+        );
+        const updatedOrder = response?.data?.order || createdOrder;
+        const nextInitialQuantities = {};
+        updatedOrder.items?.forEach((item) => {
+          const dishId =
+            typeof item.dish_id === "object" ? item.dish_id?._id : item.dish_id;
+          if (dishId) nextInitialQuantities[dishId] = item.quantity;
+        });
+        setCreatedOrder(updatedOrder);
+        setInitialQuantities(nextInitialQuantities);
+        setQuantities(nextInitialQuantities);
+        setOrderStatus("processing");
+        setMomoPaymentUrl("");
+        setMomoQrUrl("");
+        setMomoQrCreatedAt(null);
+        setZalopayPaymentUrl("");
+        setZalopayQrUrl("");
+        setZalopayAppTransId("");
+        setZalopayQrCreatedAt(null);
+        setVnpayPaymentUrl("");
+        toast.success("Đã xác nhận thêm món");
+        onOrderCreated?.(updatedOrder);
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Không thể xác nhận thêm món",
+        );
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
 
@@ -443,6 +520,7 @@ const CreateOrderModal = ({
         order_channel: "dine_in",
         payment_method: "cod",
         shipping_fee: 0,
+        customer_id: selectedCustomer?._id || undefined,
         items: selectedItems.map((item) => ({
           dish_id: item._id,
           quantity: item.quantity,
@@ -452,7 +530,15 @@ const CreateOrderModal = ({
 
       const response = await orderApi.createOrder(accessToken, payload);
       const order = response?.data?.order;
+      const nextInitialQuantities = {};
+      order?.items?.forEach((item) => {
+        const dishId =
+          typeof item.dish_id === "object" ? item.dish_id?._id : item.dish_id;
+        if (dishId) nextInitialQuantities[dishId] = item.quantity;
+      });
       setCreatedOrder(order || null);
+      setInitialQuantities(nextInitialQuantities);
+      setQuantities(nextInitialQuantities);
       setOrderStatus("processing");
       toast.success("Đơn hàng đã được xác nhận và đang xử lý");
       onOrderCreated?.(order);
@@ -468,7 +554,10 @@ const CreateOrderModal = ({
   };
 
   const handlePayment = async (paymentMethod = "cod") => {
-    if (!validateSelectedItems() || submitting) return;
+    if (payableTotalQuantity === 0 || submitting) {
+      toast.error("Chưa có món đã xác nhận để thanh toán");
+      return;
+    }
 
     if (!createdOrder?._id) {
       toast.error("Vui lòng xác nhận đơn hàng trước khi thanh toán");
@@ -514,12 +603,29 @@ const CreateOrderModal = ({
     }
   };
 
+  const handleUpdateOrderCustomer = async (selectedCustomer) => {
+    if (!selectedCustomer?._id || !createdOrder?._id) return;
+
+    const response = await orderApi.updateDineInOrderCustomer(
+      accessToken,
+      createdOrder._id,
+      selectedCustomer._id,
+    );
+    const updatedOrder = response?.data?.order;
+    if (updatedOrder) {
+      setCreatedOrder(updatedOrder);
+      onOrderCreated?.(updatedOrder);
+    }
+  };
+
   const primaryActionLabel =
     orderStatus === "selecting"
       ? "Xác nhận đơn hàng"
       : orderStatus === "processing"
         ? "Thanh toán"
         : "Hoàn thành";
+  const secondaryActionLabel =
+    orderStatus === "processing" && hasUnconfirmedChanges ? "Xác nhận" : "";
 
   const handlePrimaryAction = () => {
     if (orderStatus === "selecting") {
@@ -536,9 +642,9 @@ const CreateOrderModal = ({
     setShowOrderDetail(false);
   };
 
-  const handleOrderDetailPrimaryAction = (paymentMethod) => {
+  const handleOrderDetailPrimaryAction = (paymentMethod, selectedCustomer) => {
     if (orderStatus === "selecting") {
-      handleConfirmOrder();
+      handleConfirmOrder(selectedCustomer);
       return;
     }
 
@@ -548,6 +654,10 @@ const CreateOrderModal = ({
     }
 
     setShowOrderDetail(false);
+  };
+
+  const handleOrderDetailSecondaryAction = (selectedCustomer) => {
+    handleConfirmOrder(selectedCustomer);
   };
 
   return (
@@ -681,14 +791,29 @@ const CreateOrderModal = ({
               </div>
             </button>
 
-            <Button
-              type="button"
-              onClick={handlePrimaryAction}
-              disabled={totalQuantity === 0 || submitting}
-              className="h-14 min-w-56 shrink-0 rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0]"
-            >
-              {submitting ? "Đang xác nhận..." : primaryActionLabel}
-            </Button>
+            <div className="flex shrink-0 items-center gap-3">
+              {secondaryActionLabel && (
+                <Button
+                  type="button"
+                  onClick={() => handleConfirmOrder()}
+                  disabled={submitting}
+                  className="h-14 min-w-40 rounded-lg bg-sky-600 text-lg font-bold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-sky-200"
+                >
+                  {submitting ? "Đang xác nhận..." : secondaryActionLabel}
+                </Button>
+              )}
+              <Button
+                type="button"
+                onClick={handlePrimaryAction}
+                disabled={
+                  (orderStatus === "selecting" ? totalQuantity : payableTotalQuantity) ===
+                    0 || submitting
+                }
+                className="h-14 min-w-56 rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0]"
+              >
+                {submitting ? "Đang xác nhận..." : primaryActionLabel}
+              </Button>
+            </div>
           </div>
         </footer>
       </div>
@@ -697,15 +822,23 @@ const CreateOrderModal = ({
         open={showOrderDetail}
         table={table}
         items={selectedItems}
+        paymentItems={payableItems}
         order={createdOrder}
         totalQuantity={totalQuantity}
         totalAmount={totalAmount}
+        paymentTotalQuantity={payableTotalQuantity}
+        paymentTotalAmount={payableTotalAmount}
         primaryActionLabel={
           submitting ? "Đang xác nhận..." : primaryActionLabel
+        }
+        secondaryActionLabel={
+          submitting ? "Đang xác nhận..." : secondaryActionLabel
         }
         onClose={() => setShowOrderDetail(false)}
         onAddMore={() => setShowOrderDetail(false)}
         onPrimaryAction={handleOrderDetailPrimaryAction}
+        onSecondaryAction={handleOrderDetailSecondaryAction}
+        onCustomerSelected={handleUpdateOrderCustomer}
         momoPaymentUrl={momoPaymentUrl}
         momoQrUrl={momoQrUrl}
         momoQrCreatedAt={momoQrCreatedAt}

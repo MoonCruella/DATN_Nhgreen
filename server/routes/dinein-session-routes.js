@@ -1,6 +1,8 @@
 import express from "express";
 import {
   createDineInSession,
+  getDineInActiveOrder,
+  getDineInOrderStatus,
   getDineInSession,
   scanDineInQr,
   updateDineInSessionCart,
@@ -11,6 +13,8 @@ const router = express.Router();
 router.get("/scan/:qrToken", scanDineInQr);
 router.post("/sessions", createDineInSession);
 router.get("/sessions/:sessionToken", getDineInSession);
+router.get("/sessions/:sessionToken/active-order", getDineInActiveOrder);
+router.get("/sessions/:sessionToken/orders/:orderId/status", getDineInOrderStatus);
 router.put("/sessions/:sessionToken/cart", updateDineInSessionCart);
 
 export default router;

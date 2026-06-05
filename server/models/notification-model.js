@@ -44,6 +44,10 @@ const notificationSchema = new Schema({
     type: String,
     enum: ["Order", "Dish", "Rating"],
   },
+  metadata: {
+    type: Schema.Types.Mixed,
+    default: {},
+  },
   is_read: {
     type: Boolean,
     default: false,
@@ -66,7 +70,12 @@ notificationSchema.statics.getByUser = async function (
     .sort({ created_at: -1 })
     .skip(skip)
     .limit(limit)
-    .populate("sender_id", "name avatar");
+    .populate("sender_id", "name avatar")
+    .populate({
+      path: "reference_id",
+      select:
+        "order_number order_type order_channel table_id table_info total_amount status payment_status",
+    });
 
   const total = await this.countDocuments({ recipient_id: userId });
 

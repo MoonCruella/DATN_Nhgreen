@@ -485,8 +485,9 @@ export const getManagerCustomers = async (req, res) => {
         .lean(),
       Order.find({})
         .select(
-          "user_id shipping_info guest_info total_amount status order_number created_at"
+          "user_id customer_id shipping_info total_amount status order_number created_at"
         )
+        .populate("customer_id", "_id name phone")
         .lean(),
     ]);
 
@@ -556,14 +557,16 @@ export const getManagerCustomers = async (req, res) => {
 
     orders.forEach((order) => {
       const userId = order.user_id ? String(order.user_id) : "";
+      const dineInCustomer = order.customer_id;
       const orderPhone =
         normalizePhone(order.shipping_info?.phone) ||
-        normalizePhone(order.guest_info?.phone);
+        normalizePhone(dineInCustomer?.phone);
       const orderName =
-        order.shipping_info?.name || order.guest_info?.name || "Khách vãng lai";
+        order.shipping_info?.name || dineInCustomer?.name || "Khách vãng lai";
 
       let key = userKeyById.get(userId);
       if (!key && orderPhone) key = userKeyByPhone.get(orderPhone);
+      if (!key && dineInCustomer?._id) key = `dinein:${dineInCustomer._id}`;
       if (!key && orderPhone) key = `phone:${orderPhone}`;
       if (!key) return;
 
@@ -574,7 +577,7 @@ export const getManagerCustomers = async (req, res) => {
           customer_code: makeCustomerCode(orderPhone, customersByKey.size),
           name: orderName,
           email: "",
-          phone: order.shipping_info?.phone || order.guest_info?.phone || "",
+          phone: order.shipping_info?.phone || dineInCustomer?.phone || "",
           normalized_phone: orderPhone,
           total_spent: 0,
           reward_points: 0,
@@ -586,7 +589,7 @@ export const getManagerCustomers = async (req, res) => {
 
       const customer = customersByKey.get(key);
       if (!customer.phone && orderPhone) {
-        customer.phone = order.shipping_info?.phone || order.guest_info?.phone;
+        customer.phone = order.shipping_info?.phone || dineInCustomer?.phone;
         customer.normalized_phone = orderPhone;
       }
       if (customer.name === "Khách hàng" || customer.name === "Khách vãng lai") {

@@ -280,6 +280,43 @@ export const callback = async (req, res) => {
   }
 };
 
+export const syncZalopayOrderStatus = async (appTransId) => {
+  if (!appTransId) {
+    throw new Error("appTransId là bắt buộc");
+  }
+
+  const app_id = Number(zalopayConfig.app_id);
+  const dataToSign = [app_id, appTransId, zalopayConfig.key1].join("|");
+  const mac = hmacSHA256(dataToSign, zalopayConfig.key1);
+
+  const formBody = new URLSearchParams();
+  formBody.append("app_id", String(app_id));
+  formBody.append("app_trans_id", appTransId);
+  formBody.append("mac", mac);
+
+  const response = await fetch(zalopayConfig.queryEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: formBody.toString(),
+  });
+  const data = await response.json();
+
+  if (Number(data.return_code) === 1) {
+    const order = await Order.findOne({ zalopay_app_trans_id: appTransId });
+    if (order?.order_type === "dine_in" && order.payment_status !== "paid") {
+      await completeDineInOrderByZalopay({
+        order,
+        appTransId,
+        zpTransId: data.zp_trans_id,
+        amount: data.amount || order.zalopay_amount,
+        raw: data,
+      });
+    }
+  }
+
+  return data;
+};
+
 export const queryStatus = async (req, res) => {
   try {
     const { appTransId } = req.query;
@@ -289,35 +326,7 @@ export const queryStatus = async (req, res) => {
         .json({ success: false, message: "appTransId là bắt buộc" });
     }
 
-    const app_id = Number(zalopayConfig.app_id);
-    // MAC = HMAC_SHA256(app_id|app_trans_id|key1, key1)
-    const dataToSign = [app_id, appTransId, zalopayConfig.key1].join("|");
-    const mac = hmacSHA256(dataToSign, zalopayConfig.key1);
-
-    const formBody = new URLSearchParams();
-    formBody.append("app_id", String(app_id));
-    formBody.append("app_trans_id", appTransId);
-    formBody.append("mac", mac);
-
-    const response = await fetch(zalopayConfig.queryEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: formBody.toString(),
-    });
-    const data = await response.json();
-
-    if (Number(data.return_code) === 1) {
-      const order = await Order.findOne({ zalopay_app_trans_id: appTransId });
-      if (order?.order_type === "dine_in" && order.payment_status !== "paid") {
-        await completeDineInOrderByZalopay({
-          order,
-          appTransId,
-          zpTransId: data.zp_trans_id,
-          amount: data.amount || order.zalopay_amount,
-          raw: data,
-        });
-      }
-    }
+    const data = await syncZalopayOrderStatus(appTransId);
 
     return res.status(200).json({ success: true, data });
   } catch (err) {

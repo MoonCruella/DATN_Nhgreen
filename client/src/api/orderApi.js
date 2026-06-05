@@ -287,6 +287,48 @@ const orderApi = {
     }
   },
 
+  updateDineInOrderCustomer: async (accessToken, orderId, customerId) => {
+    const response = await axiosPrivate.put(
+      `/api/orders/${orderId}/dine-in/customer`,
+      { customer_id: customerId },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || "Cập nhật khách hàng thành công",
+      };
+    }
+    throw new Error(response.data.message || "Không thể cập nhật khách hàng");
+  },
+
+  updateDineInOrderItems: async (accessToken, orderId, items) => {
+    const response = await axiosPrivate.put(
+      `/api/orders/${orderId}/dine-in/items`,
+      { items },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || "Xác nhận thêm món thành công",
+      };
+    }
+    throw new Error(response.data.message || "Không thể xác nhận thêm món");
+  },
+
   // Manager: Cập nhật trạng thái đơn hàng
   updateOrderStatus: async (accessToken, orderId, status, note = "") => {
     const response = await axiosPrivate.put(
