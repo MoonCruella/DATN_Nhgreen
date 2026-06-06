@@ -8,8 +8,7 @@ import response from "../helpers/response.js";
 
 const getQrUrl = (req, qrToken) => {
   const baseUrl =
-    process.env.QR_CLIENT_BASE_URL ||
-    process.env.CLIENT_URL;
+    process.env.QR_CLIENT_BASE_URL || process.env.CLIENT_DINE_IN_URL;
 
   const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
   const dineInBaseUrl = normalizedBaseUrl.endsWith("/dine-in")
@@ -39,14 +38,17 @@ const canManageBranch = async (req, branchId) => {
   const tokenBranchId = req.user.branch_id?.toString();
   if (tokenBranchId) return tokenBranchId === branchId.toString();
 
-  const manager = await User.findById(req.user.userId).select("branch_id").lean();
+  const manager = await User.findById(req.user.userId)
+    .select("branch_id")
+    .lean();
   return manager?.branch_id?.toString() === branchId.toString();
 };
 
 const parseBooleanFilter = (value) => {
   if (typeof value === "undefined" || value === "") return undefined;
   if (value === true || value === "true" || value === "active") return true;
-  if (value === false || value === "false" || value === "inactive") return false;
+  if (value === false || value === "false" || value === "inactive")
+    return false;
   return undefined;
 };
 
@@ -83,7 +85,11 @@ export const createStoreTable = async (req, res) => {
     const { branch_id, name, code, active = true, sort_order = 0 } = req.body;
 
     if (!branch_id || !mongoose.Types.ObjectId.isValid(branch_id)) {
-      return response.sendError(res, "Chi nhánh không hợp lệ hoặc chưa chọn", 400);
+      return response.sendError(
+        res,
+        "Chi nhánh không hợp lệ hoặc chưa chọn",
+        400,
+      );
     }
 
     if (!name || !name.trim()) {
@@ -91,7 +97,11 @@ export const createStoreTable = async (req, res) => {
     }
 
     if (!(await canManageBranch(req, branch_id))) {
-      return response.sendError(res, "Không có quyền quản lý chi nhánh này", 403);
+      return response.sendError(
+        res,
+        "Không có quyền quản lý chi nhánh này",
+        403,
+      );
     }
 
     const branch = await Branch.findById(branch_id).lean();
@@ -99,7 +109,7 @@ export const createStoreTable = async (req, res) => {
       return response.sendError(
         res,
         "Chi nhánh không tồn tại hoặc không hoạt động",
-        400
+        400,
       );
     }
 
@@ -117,7 +127,7 @@ export const createStoreTable = async (req, res) => {
       res,
       { table: await serializeTable(req, table) },
       "Tạo bàn thành công",
-      201
+      201,
     );
   } catch (error) {
     if (error.code === 11000) {
@@ -128,7 +138,7 @@ export const createStoreTable = async (req, res) => {
       res,
       "Có lỗi xảy ra khi tạo bàn",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -160,13 +170,15 @@ export const getStoreTables = async (req, res) => {
 
       filter.branch_id = selectedBranchId;
     } else if (req.user.role === "manager") {
-      const manager = await User.findById(req.user.userId).select("branch_id").lean();
+      const manager = await User.findById(req.user.userId)
+        .select("branch_id")
+        .lean();
       const managerBranchId = req.user.branch_id || manager?.branch_id;
       if (!managerBranchId) {
         return response.sendError(
           res,
           "Tài khoản manager chưa được gán chi nhánh",
-          403
+          403,
         );
       }
       filter.branch_id = managerBranchId;
@@ -201,7 +213,7 @@ export const getStoreTables = async (req, res) => {
       res,
       {
         tables: await Promise.all(
-          tables.map((table) => serializeTable(req, table))
+          tables.map((table) => serializeTable(req, table)),
         ),
         pagination: {
           totalItems,
@@ -211,14 +223,14 @@ export const getStoreTables = async (req, res) => {
         },
       },
       "Lấy danh sách bàn thành công",
-      200
+      200,
     );
   } catch (error) {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi lấy danh sách bàn",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -233,7 +245,7 @@ export const getStoreTableById = async (req, res) => {
 
     const table = await StoreTable.findById(id).populate(
       "branch_id",
-      "name phone address code active"
+      "name phone address code active",
     );
 
     if (!table) {
@@ -249,14 +261,14 @@ export const getStoreTableById = async (req, res) => {
       res,
       { table: await serializeTable(req, table) },
       "Lấy thông tin bàn thành công",
-      200
+      200,
     );
   } catch (error) {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi lấy thông tin bàn",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -297,7 +309,7 @@ export const updateStoreTable = async (req, res) => {
       res,
       { table: await serializeTable(req, table) },
       "Cập nhật bàn thành công",
-      200
+      200,
     );
   } catch (error) {
     if (error.code === 11000) {
@@ -308,7 +320,7 @@ export const updateStoreTable = async (req, res) => {
       res,
       "Có lỗi xảy ra khi cập nhật bàn",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -336,14 +348,14 @@ export const deleteStoreTable = async (req, res) => {
       res,
       { table_id: table._id },
       "Xóa bàn thành công",
-      200
+      200,
     );
   } catch (error) {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi xóa bàn",
       500,
-      error.message
+      error.message,
     );
   }
 };
