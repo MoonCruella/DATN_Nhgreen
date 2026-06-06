@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
-import Layout from "./components/auth/Layout";
-import Login from "./pages/auth/Login";
+import Layout from "./components/auth/layout";
+import Login from "./pages/auth/login";
 import Register from "./pages/auth/Register";
 import AdminLayout from "./components/admin-view/AdminLayout";
 import AdminDashboard from "./pages/admin-view/AdDashboard";
@@ -63,7 +63,7 @@ import MaDineInBill from "./pages/manager-view/MaDineInBill";
 
 function App() {
   const { user, isAuthenticated, isLoading } = useSelector(
-    (state) => state.auth
+    (state) => state.auth,
   );
   const dispatch = useDispatch();
   // Mount interceptor once for the whole app so axiosPrivate handles auth/refresh
