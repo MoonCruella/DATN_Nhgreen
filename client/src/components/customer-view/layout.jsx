@@ -1,6 +1,6 @@
 import React from "react";
 import { Outlet } from "react-router-dom";
-import CustomerHeader from "./Header";
+import CustomerHeader from "./header";
 import CustomerFooter from "./Footer";
 import ChatWidget from "./chat/SupportChat";
 
