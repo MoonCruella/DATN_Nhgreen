@@ -165,12 +165,17 @@ const completeDineInOrderByMomo = async ({
 
 export const createPayment = async (req, res) => {
   try {
-    const { orderId, amount, orderInfo } = req.body;
+    const { orderId, amount, orderInfo, requestType } = req.body;
     if (!orderId || !amount) {
       return res
         .status(400)
         .json({ success: false, message: "orderId and amount are required" });
     }
+
+    const allowedRequestTypes = ["captureWallet", "payWithMethod"];
+    const resolvedRequestType = allowedRequestTypes.includes(requestType)
+      ? requestType
+      : momoConfig.requestType;
 
     const existingOrder = isObjectId(orderId)
       ? await Order.findById(orderId)
@@ -201,7 +206,7 @@ export const createPayment = async (req, res) => {
       orderInfo: orderInfo || `Thanh toan don hang ${orderId}`,
       redirectUrl: momoConfig.redirectUrl,
       ipnUrl: momoConfig.ipnUrl,
-      requestType: momoConfig.requestType,
+      requestType: resolvedRequestType,
       autoCapture: true,
       orderGroupId: "",
       extraData: "",
