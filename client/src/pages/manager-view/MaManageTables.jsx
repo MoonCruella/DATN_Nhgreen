@@ -155,16 +155,83 @@ const TableCard = ({
 const TableQrModal = ({ table, onClose }) => {
   if (!table) return null;
 
-  const qrValue = table.qr_url || table.qr_token || table._id;
   const qrImage = table.qr_code_data_url;
+  const tableName = table.name || "Bàn";
 
-  const copyQr = async () => {
-    try {
-      await navigator.clipboard.writeText(qrValue);
-      toast.success("Đã sao chép link QR");
-    } catch {
-      toast.error("Không thể sao chép link QR");
+  const handlePrintQr = () => {
+    if (!qrImage) {
+      toast.error("Chưa có mã QR để in");
+      return;
     }
+
+    const printWindow = window.open("", "_blank", "width=520,height=680");
+    if (!printWindow) {
+      toast.error("Trình duyệt đã chặn cửa sổ in");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>In QR ${tableName}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-family: Arial, sans-serif;
+              color: #111827;
+              background: #ffffff;
+            }
+            .sheet {
+              width: 360px;
+              text-align: center;
+              padding: 24px;
+              border: 1px solid #e5e7eb;
+              border-radius: 16px;
+            }
+            h1 {
+              margin: 0 0 8px;
+              font-size: 24px;
+              font-weight: 800;
+            }
+            p {
+              margin: 0 0 20px;
+              font-size: 14px;
+              color: #6b7280;
+              font-weight: 600;
+            }
+            img {
+              width: 280px;
+              height: 280px;
+              object-fit: contain;
+            }
+            @media print {
+              body { min-height: auto; }
+              .sheet { border: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <h1>${tableName}</h1>
+            <p>Quét mã QR để mở E-menu và gọi món tại bàn</p>
+            <img src="${qrImage}" alt="QR ${tableName}" />
+          </div>
+          <script>
+            window.onload = () => {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   return (
@@ -198,29 +265,13 @@ const TableQrModal = ({ table, onClose }) => {
           )}
         </div>
 
-        <div className="mt-5 break-all rounded-lg bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-600">
-          {qrValue}
-        </div>
-
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={copyQr}
-            className="h-11 rounded-lg border-[#34ad54] text-sm font-bold text-[#34ad54]"
-          >
-            Sao chép link
-          </Button>
-          <Button
-            type="button"
-            onClick={() =>
-              window.open(qrValue, "_blank", "noopener,noreferrer")
-            }
-            className="h-11 rounded-lg bg-[#34ad54] text-sm font-bold text-white hover:bg-[#2f9b45]"
-          >
-            Mở E-menu
-          </Button>
-        </div>
+        <Button
+          type="button"
+          onClick={handlePrintQr}
+          className="mt-5 h-11 w-full rounded-lg bg-[#34ad54] text-sm font-bold text-white hover:bg-[#2f9b45]"
+        >
+          In QR
+        </Button>
       </div>
     </div>
   );
@@ -402,7 +453,7 @@ const MaManageTables = () => {
     <section className="min-h-[calc(100vh-92px)] bg-gray-50 px-2 py-2">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Sơ đồ bàn QR</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Sơ đồ bàn</h2>
           <p className="mt-1 text-sm font-medium text-gray-500">
             {branch?.name || "Chi nhánh"} · {filteredTables.length} bàn
           </p>

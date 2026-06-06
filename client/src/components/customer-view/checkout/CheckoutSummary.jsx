@@ -279,7 +279,8 @@ const CheckoutSummary = ({
           accessToken,
           orderData.orderId,
           totalAmount,
-          "Thanh toan don hang qua MoMo"
+          "Thanh toan don hang qua MoMo",
+          { requestType: "payWithMethod" }
         );
         if (success) {
           window.location.href = data.paymentUrl;
@@ -760,6 +761,10 @@ const CheckoutSummary = ({
                 ? "Đang tính..."
                 : `${defaultShippingFee.toLocaleString("vi-VN")}₫`}
             </span>
+          </div>
+          <div className="flex items-center gap-1 text-xs italic text-gray-500">
+            <img src={assets.ghn_icon} alt="GHN" className="w-12 h-4" />
+            <span>Đơn hàng sẽ được giao đến bạn bởi đơn vị vận chuyển GHN.</span>
           </div>
           {shippingFeeError && (
             <p className="text-xs font-medium text-red-600">

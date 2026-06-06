@@ -2,11 +2,11 @@ import { axiosPrivate } from "./axios";
 
 const momoApi = {
   // Tao thanh toan MoMo
-  createPayment: async (accessToken, orderId, amount, orderInfo) => {
+  createPayment: async (accessToken, orderId, amount, orderInfo, options = {}) => {
     try {
       const response = await axiosPrivate.post(
         "/api/momo/payment",
-        { orderId, amount, orderInfo },
+        { orderId, amount, orderInfo, ...options },
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,

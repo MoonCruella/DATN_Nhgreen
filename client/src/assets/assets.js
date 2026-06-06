@@ -36,6 +36,7 @@ import add_icon from "./add_order_icon.png";
 import paid from "./paid.png";
 import momo_icon from "./momo.png";
 import serving_dish from "./serving-dish.png";
+import ghn_icon from "./ghn.webp";
 export const assets = {
   logo,
   xIcon,
@@ -75,6 +76,7 @@ export const assets = {
   add_icon,
   paid,
   serving_dish,
+  ghn_icon,
 };
 export const categoriesColors = [
   {
