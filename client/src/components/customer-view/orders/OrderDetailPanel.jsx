@@ -158,7 +158,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
       hoan_tien: {
         bg: "bg-purple-100",
         text: "text-purple-800",
-        label: "Hoàn tiền",
+        label: "Đã hoàn tiền",
       },
       confirmed: {
         bg: "bg-blue-100",
@@ -233,7 +233,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
           <span className="font-medium cursor-pointer">Quay lại danh sách</span>
         </button>
         <div>
-          <h2 className="text-2xl font-bold mb-2">Chi Tiết Đơn Hàng</h2>
+          <h2 className="text-2xl font-bold mb-2">Chi tiết đơn hàng</h2>
           <p className="text-green-100">
             Mã đơn hàng: #{order.order_number || order._id?.slice(-8)}
           </p>
@@ -292,11 +292,11 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
                 {order.payment_method === "cod"
                   ? "Thanh toán khi nhận hàng (COD)"
                   : order.payment_method === "vnpay"
-                  ? "Thanh toán VNPAY"
+                  ? "VNPay"
                   : order.payment_method === "momo"
-                  ? "Thanh toán MoMo"
+                  ? "MoMo"
                   : order.payment_method === "zalopay"
-                  ? "Thanh toán ZaloPay"
+                  ? "ZaloPay"
                   : "Khác"}
               </p>
             </div>
@@ -351,7 +351,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
 
         <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-4">
-            Thông Tin Giao Hàng
+            Thông tin giao hàng
           </h3>
           <div className="space-y-3">
             <div className="flex items-start gap-3">
@@ -393,7 +393,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
 
         <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-4">
-            Sản Phẩm Đã Đặt ({order.items?.length || 0} món)
+            Sản phẩm đã đặt ({order.items?.length || 0} món)
           </h3>
           {/* Branch info */}
           {order.branch_info && (
@@ -487,7 +487,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
 
         <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 shadow-md border border-green-200">
           <h3 className="text-lg font-bold text-gray-800 mb-4">
-            Tổng Kết Đơn Hàng
+            Tổng kết đơn hàng
           </h3>
           <div className="space-y-3">
             <div className="flex justify-between items-center text-base">

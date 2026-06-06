@@ -208,14 +208,13 @@ const AdminLayout = () => {
     const loadingToast = toast.loading("Đang đăng xuất...");
     try {
       await dispatch(logoutUser()).unwrap();
-      toast.success("Đăng xuất thành công");
+      toast.success("Đăng xuất thành công", { id: loadingToast });
 
       // Chuyển hướng đến trang login
       navigate("/auth/login");
     } catch (error) {
-      toast.error("Có lỗi xảy ra khi đăng xuất");
+      toast.error("Có lỗi xảy ra khi đăng xuất", { id: loadingToast });
     } finally {
-      toast.dismiss(loadingToast);
       setIsLoggingOut(false);
     }
   };

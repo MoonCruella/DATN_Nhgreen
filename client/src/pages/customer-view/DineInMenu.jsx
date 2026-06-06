@@ -393,9 +393,23 @@ const DineInMenu = () => {
     requestGatewayPayment(method);
   };
 
-  const handleRequestPayment = () => {
-    toast.success("Đã gọi thanh toán. Nhân viên sẽ hỗ trợ bạn.");
-    setShowOrderDetail(false);
+  const handleRequestPayment = async () => {
+    if (!session?.session_token || !lastOrder?._id || paymentLoading) return;
+
+    try {
+      setPaymentLoading("cod");
+      await dineInApi.requestCashPayment(session.session_token, lastOrder._id);
+      toast.success("Đã gọi thanh toán. Nhân viên sẽ hỗ trợ bạn.");
+      setShowOrderDetail(false);
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Không thể gọi thanh toán",
+      );
+    } finally {
+      setPaymentLoading("");
+    }
   };
 
   const handleCopyPaymentLink = async (value) => {
@@ -1131,10 +1145,10 @@ const DineInMenu = () => {
                   <Button
                     type="button"
                     onClick={handleRequestPayment}
-                    disabled={orderDetailItems.length === 0}
+                    disabled={orderDetailItems.length === 0 || paymentLoading === "cod"}
                     className="h-14 rounded-lg bg-emerald-600 px-5 text-base font-black text-white hover:bg-emerald-700 disabled:bg-gray-300"
                   >
-                    Gọi thanh toán
+                    {paymentLoading === "cod" ? "Đang gọi..." : "Gọi thanh toán"}
                   </Button>
                 )}
               </div>

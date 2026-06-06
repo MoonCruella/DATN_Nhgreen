@@ -8,6 +8,13 @@ import { Label } from "@/components/ui/label";
 import branchApi from "@/api/branchApi";
 import locationApi from "@/api/locationApi";
 
+const normalizePhone = (value = "") => value.replace(/[\s.-]/g, "");
+
+const isValidPhone = (value = "") => {
+  const phone = normalizePhone(value);
+  return !phone || /^(0\d{9}|\+84\d{9})$/.test(phone);
+};
+
 const AdminBranchCreate = () => {
   const navigate = useNavigate();
   const accessToken = useSelector((state) => state.auth.accessToken);
@@ -24,6 +31,7 @@ const AdminBranchCreate = () => {
   // Error state
   const [errors, setErrors] = useState({
     name: "",
+    phone: "",
     provinceCode: "",
     districtCode: "",
     wardCode: "",
@@ -201,15 +209,21 @@ const AdminBranchCreate = () => {
     // Clear previous errors
     const newErrors = {
       name: "",
+      phone: "",
       provinceCode: "",
       districtCode: "",
       wardCode: "",
       street: "",
     };
+    const normalizedPhone = normalizePhone(formData.phone);
 
     // Validation
     if (!formData.name || !formData.name.trim()) {
       newErrors.name = "Vui lòng nhập tên chi nhánh";
+    }
+
+    if (formData.phone.trim() && !isValidPhone(formData.phone)) {
+      newErrors.phone = "Số điện thoại không đúng định dạng";
     }
 
     if (!formData.provinceCode) {
@@ -231,6 +245,7 @@ const AdminBranchCreate = () => {
     // Check if there are any errors
     if (
       newErrors.name ||
+      newErrors.phone ||
       newErrors.provinceCode ||
       newErrors.districtCode ||
       newErrors.wardCode ||
@@ -253,7 +268,7 @@ const AdminBranchCreate = () => {
 
     const payload = {
       name: formData.name,
-      phone: formData.phone,
+      phone: normalizedPhone,
       address: {
         street: formData.street,
         province: {
@@ -363,12 +378,18 @@ const AdminBranchCreate = () => {
                 <input
                   type="text"
                   value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  onChange={(e) => {
+                    setFormData({ ...formData, phone: e.target.value });
+                    if (errors.phone) setErrors({ ...errors, phone: "" });
+                  }}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 ${
+                    errors.phone ? "border-red-500" : ""
+                  }`}
                   placeholder="Nhập số điện thoại"
                 />
+                {errors.phone && (
+                  <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
+                )}
               </div>
 
               <div className="pt-4 border-t">

@@ -7,6 +7,7 @@ import FlashSale from "../models/flashsale-model.js";
 import StoreTable from "../models/store-table-model.js";
 import DineInSession from "../models/dinein-session-model.js";
 import DineInCustomer from "../models/dinein-customer-model.js";
+import OrderCounter from "../models/order-counter-model.js";
 import mongoose from "mongoose";
 import response from "../helpers/response.js";
 import * as notificationService from "../services/notification-service.js";
@@ -86,9 +87,15 @@ const getVnpayRefundMissingFields = (order) => {
   return missing;
 };
 
+const getZalopayRefundTransId = (order = {}) =>
+  order.zalopay_zp_trans_id ||
+  (order.payment_gateway_ref?.gateway === "zalopay"
+    ? order.payment_gateway_ref?.transaction_id
+    : "");
+
 const getZalopayRefundMissingFields = (order) => {
   const missing = [];
-  if (!order.zalopay_zp_trans_id) missing.push("zalopay_zp_trans_id");
+  if (!getZalopayRefundTransId(order)) missing.push("zalopay_zp_trans_id");
   const amountValue = Number(order.zalopay_amount || order.total_amount || 0);
   if (amountValue <= 0) missing.push("amount");
   return missing;
@@ -100,6 +107,33 @@ const getMomoRefundMissingFields = (order) => {
   const amountValue = Number(order.momo_amount || order.total_amount || 0);
   if (amountValue <= 0) missing.push("amount");
   return missing;
+};
+
+const resolveGatewayPaymentMethod = ({
+  payment_method,
+  vnpay_txn_ref,
+  vnpay_transaction_no,
+  momo_request_id,
+  momo_trans_id,
+  zalopay_app_trans_id,
+  zalopay_zp_trans_id,
+} = {}) => {
+  if (zalopay_zp_trans_id || zalopay_app_trans_id) return "zalopay";
+  if (momo_trans_id || momo_request_id) return "momo";
+  if (vnpay_transaction_no || vnpay_txn_ref) return "vnpay";
+  return payment_method;
+};
+
+const getRefundPaymentMethod = (order = {}) => {
+  if (getZalopayRefundTransId(order) || order.zalopay_app_trans_id) {
+    return "zalopay";
+  }
+  if (order.momo_trans_id || order.momo_request_id) return "momo";
+  if (order.vnpay_transaction_no || order.vnpay_txn_ref) return "vnpay";
+
+  const gateway = order.payment_gateway_ref?.gateway;
+  if (["zalopay", "momo", "vnpay"].includes(gateway)) return gateway;
+  return order.payment_method;
 };
 
 const getAddressRegion = (value, codeType = "number") => {
@@ -146,6 +180,28 @@ const normalizeShippingInfo = (shippingInfo = {}) => {
     province,
     coordinates: shippingInfo.coordinates || {},
   };
+};
+
+const getOrderNumberPrefix = (orderType) =>
+  orderType === "dine_in" ? "IN" : "ON";
+
+const generateOrderNumber = async (orderType) => {
+  const counterKey = orderType === "dine_in" ? "offline" : "online";
+  const prefix = getOrderNumberPrefix(orderType);
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const counter = await OrderCounter.findOneAndUpdate(
+      { key: counterKey },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+    const orderNumber = `${prefix}${counter.seq}`;
+    const existed = await Order.exists({ order_number: orderNumber });
+
+    if (!existed) return orderNumber;
+  }
+
+  throw new Error("Không thể tạo mã đơn hàng");
 };
 
 const GHN_TO_ORDER_STATUS = {
@@ -695,6 +751,7 @@ export const cancelOrder = async (req, res) => {
     }
 
     const now = new Date();
+    const refundPaymentMethod = getRefundPaymentMethod(order);
 
     // Logic:
     // 1. Pending/Confirmed: Cho phép hủy trực tiếp
@@ -702,7 +759,7 @@ export const cancelOrder = async (req, res) => {
     // 3. Các trạng thái khác: không cho phép hủy
 
     if (["pending", "confirmed"].includes(order.status)) {
-      if (order.payment_method === "vnpay" && order.payment_status === "paid") {
+      if (refundPaymentMethod === "vnpay" && order.payment_status === "paid") {
         const missingFields = getVnpayRefundMissingFields(order);
         if (missingFields.length > 0) {
           return response.sendError(
@@ -757,7 +814,7 @@ export const cancelOrder = async (req, res) => {
       }
 
       if (
-        order.payment_method === "momo" &&
+        refundPaymentMethod === "momo" &&
         order.payment_status === "paid"
       ) {
         const missingFields = getMomoRefundMissingFields(order);
@@ -811,7 +868,7 @@ export const cancelOrder = async (req, res) => {
       }
 
       if (
-        order.payment_method === "zalopay" &&
+        refundPaymentMethod === "zalopay" &&
         order.payment_status === "paid"
       ) {
         const missingFields = getZalopayRefundMissingFields(order);
@@ -827,7 +884,7 @@ export const cancelOrder = async (req, res) => {
         }
         try {
           const refundResult = await requestZalopayRefund({
-            zpTransId: order.zalopay_zp_trans_id,
+            zpTransId: getZalopayRefundTransId(order),
             amount: order.zalopay_amount || order.total_amount,
             description: `Hoan tien don hang ${order.order_number}`,
           });
@@ -1206,6 +1263,15 @@ export const createOrder = async (req, res) => {
         : "online";
     const isDineInQr = order_channel === "dine_in_qr";
     const isDineIn = normalizedOrderType === "dine_in";
+    const resolvedPaymentMethod = resolveGatewayPaymentMethod({
+      payment_method,
+      vnpay_txn_ref,
+      vnpay_transaction_no,
+      momo_request_id,
+      momo_trans_id,
+      zalopay_app_trans_id,
+      zalopay_zp_trans_id,
+    });
     const normalizedShippingInfo = isDineIn
       ? undefined
       : normalizeShippingInfo(shipping_info);
@@ -1237,7 +1303,7 @@ export const createOrder = async (req, res) => {
       return response.sendError(res, "Thông tin giao hàng không đầy đủ", 400);
     }
 
-    if (!payment_method) {
+    if (!resolvedPaymentMethod) {
       return response.sendError(
         res,
         "Phương thức thanh toán không được để trống",
@@ -1358,11 +1424,7 @@ export const createOrder = async (req, res) => {
       );
     }
 
-    // Generate order number
-    const orderNumber = `ORD${Date.now()}${Math.random()
-      .toString(36)
-      .substr(2, 4)
-      .toUpperCase()}`;
+    const orderNumber = await generateOrderNumber(normalizedOrderType);
 
     let subtotal = 0; // Tổng tiền sản phẩm
     const orderItems = [];
@@ -1641,30 +1703,30 @@ export const createOrder = async (req, res) => {
       freeship_value: freeship_value || 0,
       discount_value: discount_value || 0,
       coin_discount: coinDiscount,
-      payment_method,
-      payment_status: ["vnpay", "momo", "zalopay"].includes(payment_method)
+      payment_method: resolvedPaymentMethod,
+      payment_status: ["vnpay", "momo", "zalopay"].includes(resolvedPaymentMethod)
         ? "paid"
         : "pending",
-      payment_date: ["vnpay", "momo", "zalopay"].includes(payment_method)
+      payment_date: ["vnpay", "momo", "zalopay"].includes(resolvedPaymentMethod)
         ? now
         : undefined,
-      vnpay_txn_ref: payment_method === "vnpay" ? vnpay_txn_ref : undefined,
+      vnpay_txn_ref: resolvedPaymentMethod === "vnpay" ? vnpay_txn_ref : undefined,
       vnpay_transaction_no:
-        payment_method === "vnpay" ? vnpay_transaction_no : undefined,
+        resolvedPaymentMethod === "vnpay" ? vnpay_transaction_no : undefined,
       vnpay_create_date:
-        payment_method === "vnpay" ? vnpay_create_date : undefined,
-      vnpay_pay_date: payment_method === "vnpay" ? vnpay_pay_date : undefined,
-      vnpay_amount: payment_method === "vnpay" ? vnpay_amount : undefined,
+        resolvedPaymentMethod === "vnpay" ? vnpay_create_date : undefined,
+      vnpay_pay_date: resolvedPaymentMethod === "vnpay" ? vnpay_pay_date : undefined,
+      vnpay_amount: resolvedPaymentMethod === "vnpay" ? vnpay_amount : undefined,
       momo_request_id:
-        payment_method === "momo" ? momo_request_id : undefined,
-      momo_trans_id: payment_method === "momo" ? momo_trans_id : undefined,
-      momo_amount: payment_method === "momo" ? momo_amount : undefined,
+        resolvedPaymentMethod === "momo" ? momo_request_id : undefined,
+      momo_trans_id: resolvedPaymentMethod === "momo" ? momo_trans_id : undefined,
+      momo_amount: resolvedPaymentMethod === "momo" ? momo_amount : undefined,
       zalopay_app_trans_id:
-        payment_method === "zalopay" ? zalopay_app_trans_id : undefined,
+        resolvedPaymentMethod === "zalopay" ? zalopay_app_trans_id : undefined,
       zalopay_zp_trans_id:
-        payment_method === "zalopay" ? zalopay_zp_trans_id : undefined,
+        resolvedPaymentMethod === "zalopay" ? zalopay_zp_trans_id : undefined,
       zalopay_amount:
-        payment_method === "zalopay" ? zalopay_amount : undefined,
+        resolvedPaymentMethod === "zalopay" ? zalopay_amount : undefined,
       shipping_info: normalizedShippingInfo,
       notes,
       status: initialStatus,
@@ -1677,15 +1739,15 @@ export const createOrder = async (req, res) => {
             ? "Đơn ăn tại quán được xác nhận"
             : "Đơn hàng được tạo",
         },
-        ...(["vnpay", "momo", "zalopay"].includes(payment_method)
+        ...(["vnpay", "momo", "zalopay"].includes(resolvedPaymentMethod)
           ? [
               {
                 status: "payment",
                 date: now,
                 note:
-                  payment_method === "vnpay"
+                  resolvedPaymentMethod === "vnpay"
                     ? "Thanh toán VNPay thành công"
-                    : payment_method === "momo"
+                    : resolvedPaymentMethod === "momo"
                     ? "Thanh toán MoMo thành công"
                     : "Thanh toán ZaloPay thành công",
               },
@@ -1852,8 +1914,9 @@ export const updateShippingInfo = async (req, res) => {
       // Manager chấp nhận hủy: cancel_request → cancelled
       if (shipping_status === "cancelled") {
         const now = new Date();
+        const refundPaymentMethod = getRefundPaymentMethod(order);
 
-        if (order.payment_method === "vnpay" && order.payment_status === "paid") {
+        if (refundPaymentMethod === "vnpay" && order.payment_status === "paid") {
           const missingFields = getVnpayRefundMissingFields(order);
           if (missingFields.length > 0) {
             return response.sendError(
@@ -1908,7 +1971,7 @@ export const updateShippingInfo = async (req, res) => {
         }
 
         if (
-          order.payment_method === "momo" &&
+          refundPaymentMethod === "momo" &&
           order.payment_status === "paid"
         ) {
           const missingFields = getMomoRefundMissingFields(order);
@@ -1962,7 +2025,7 @@ export const updateShippingInfo = async (req, res) => {
         }
 
         if (
-          order.payment_method === "zalopay" &&
+          refundPaymentMethod === "zalopay" &&
           order.payment_status === "paid"
         ) {
           const missingFields = getZalopayRefundMissingFields(order);
@@ -1978,7 +2041,7 @@ export const updateShippingInfo = async (req, res) => {
           }
           try {
             const refundResult = await requestZalopayRefund({
-              zpTransId: order.zalopay_zp_trans_id,
+              zpTransId: getZalopayRefundTransId(order),
               amount: order.zalopay_amount || order.total_amount,
               description: `Hoan tien don hang ${order.order_number}`,
             });

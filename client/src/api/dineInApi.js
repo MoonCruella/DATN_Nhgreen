@@ -35,6 +35,13 @@ const dineInApi = {
     return response.data;
   },
 
+  requestCashPayment: async (sessionToken, orderId) => {
+    const response = await axiosPublic.post(
+      `/api/dine-in/sessions/${sessionToken}/orders/${orderId}/request-cash-payment`,
+    );
+    return response.data;
+  },
+
   updateCart: async (sessionToken, cartItems) => {
     const response = await axiosPublic.put(
       `/api/dine-in/sessions/${sessionToken}/cart`,

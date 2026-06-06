@@ -31,6 +31,16 @@ function loadScript(src) {
   });
 }
 
+const normalizeLngLat = (value) => {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const lng = Number(value[0]);
+  const lat = Number(value[1]);
+
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+
+  return [lng, lat];
+};
+
 const GoongMap = ({
   apiKey = import.meta.env.VITE_GOONG_MAP_KEY,
   center = [106.700981, 10.776889], // [lng, lat]
@@ -42,7 +52,6 @@ const GoongMap = ({
   const mapRef = useRef(null);
   const containerRef = useRef(null);
   const [ready, setReady] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -50,54 +59,78 @@ const GoongMap = ({
     ensureCssInjected();
     let mapInstance;
     let timeoutId;
+    let isMounted = true;
+    let didLoad = false;
+    const initialCenter = normalizeLngLat(center) || [106.700981, 10.776889];
+
+    setReady(false);
+    setFailed(false);
+
     loadScript(GOONG_JS)
       .then(() => {
-        if (!window.goongjs) return;
+        if (!isMounted || !window.goongjs || !containerRef.current) return;
         window.goongjs.accessToken = apiKey;
         mapInstance = new window.goongjs.Map({
           container: containerRef.current,
           style: "https://tiles.goong.io/assets/goong_map_web.json",
-          center: center,
+          center: initialCenter,
           zoom: zoom,
         });
-        mapInstance.on("load", () => {
-          setLoaded(true);
+        const handleLoad = () => {
+          if (!isMounted) return;
+          didLoad = true;
+          setFailed(false);
+          mapInstance.resize();
           console.log("[GoongMap] map loaded");
-        });
-        mapInstance.on("error", (e) => {
+        };
+        const handleError = (e) => {
+          if (!isMounted) return;
           setFailed(true);
           console.error("[GoongMap] map error event", e);
-        });
+        };
+
+        mapInstance.on("load", handleLoad);
+        mapInstance.on("error", handleError);
         mapRef.current = mapInstance;
         setReady(true);
         // safety timeout: if map not loaded in 5s, mark failed
         timeoutId = setTimeout(() => {
-          if (!loaded) setFailed(true);
+          if (isMounted && !didLoad) setFailed(true);
         }, 5000);
+
+        mapInstance.__cleanupHandlers = { handleLoad, handleError };
       })
       .catch(() => {
+        if (!isMounted) return;
         console.error("[GoongMap] script load error");
         setFailed(true);
       });
 
     return () => {
+      isMounted = false;
       if (mapInstance) {
         try {
-          mapInstance.off("load", () => {});
-          mapInstance.off("error", () => {});
+          const handlers = mapInstance.__cleanupHandlers;
+          if (handlers) {
+            mapInstance.off("load", handlers.handleLoad);
+            mapInstance.off("error", handlers.handleError);
+          }
           mapInstance.remove();
         } catch {}
       }
+      mapRef.current = null;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [apiKey]);
+  }, [apiKey, zoom]);
 
   // Update center/markers after map ready
   useEffect(() => {
     if (!ready || !mapRef.current) return;
     const map = mapRef.current;
-    if (center && Array.isArray(center) && center.length === 2) {
-      map.setCenter(center);
+    const nextCenter = normalizeLngLat(center);
+    if (nextCenter) {
+      map.setCenter(nextCenter);
+      map.resize();
     }
 
     // Remove old markers by keeping them on the instance
@@ -106,11 +139,14 @@ const GoongMap = ({
     map.__markers = [];
 
     markers.forEach((m) => {
-      if (m && typeof m.lng === "number" && typeof m.lat === "number") {
+      const lng = Number(m?.lng);
+      const lat = Number(m?.lat);
+
+      if (Number.isFinite(lng) && Number.isFinite(lat)) {
         const el = document.createElement("div");
         el.className = "bg-green-600 rounded-full w-3 h-3 ring-2 ring-white";
         const marker = new window.goongjs.Marker(el)
-          .setLngLat([m.lng, m.lat])
+          .setLngLat([lng, lat])
           .addTo(map);
         map.__markers.push(marker);
       }
@@ -118,7 +154,7 @@ const GoongMap = ({
   }, [ready, JSON.stringify(center), JSON.stringify(markers)]);
 
   if (fallback && (!apiKey || failed)) {
-    const [lng, lat] = Array.isArray(center) ? center : [106.700981, 10.776889];
+    const [lng, lat] = normalizeLngLat(center) || [106.700981, 10.776889];
     const iframeUrl = `https://maps.google.com/maps?q=${lat},${lng}&z=${zoom}&output=embed`;
     return (
       <iframe

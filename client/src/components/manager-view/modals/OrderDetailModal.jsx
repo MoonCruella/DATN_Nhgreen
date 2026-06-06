@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CircleUserRound, Info, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PaymentMethodModal from "./PaymentMethodModal";
@@ -56,6 +56,7 @@ const OrderDetailModal = ({
   onRequestVnpayPayment,
 }) => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [openingPaymentModal, setOpeningPaymentModal] = useState(false);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [customerPhone, setCustomerPhone] = useState("");
   const [foundCustomer, setFoundCustomer] = useState(null);
@@ -67,10 +68,12 @@ const OrderDetailModal = ({
   const [newCustomerProvince, setNewCustomerProvince] = useState("");
   const [newCustomerWard, setNewCustomerWard] = useState("");
   const [newCustomerAddress, setNewCustomerAddress] = useState("");
+  const paymentOpenTimerRef = useRef(null);
 
   useEffect(() => {
     if (!open) {
       setShowPaymentModal(false);
+      setOpeningPaymentModal(false);
       setShowCustomerModal(false);
       setCustomerPhone("");
       setFoundCustomer(null);
@@ -82,6 +85,13 @@ const OrderDetailModal = ({
       setNewCustomerWard("");
       setNewCustomerAddress("");
     }
+
+    return () => {
+      if (paymentOpenTimerRef.current) {
+        clearTimeout(paymentOpenTimerRef.current);
+        paymentOpenTimerRef.current = null;
+      }
+    };
   }, [open]);
 
   useEffect(() => {
@@ -132,7 +142,13 @@ const OrderDetailModal = ({
 
   const handlePrimaryAction = () => {
     if (isPaymentAction) {
-      setShowPaymentModal(true);
+      if (openingPaymentModal) return;
+      setOpeningPaymentModal(true);
+      paymentOpenTimerRef.current = setTimeout(() => {
+        setShowPaymentModal(true);
+        setOpeningPaymentModal(false);
+        paymentOpenTimerRef.current = null;
+      }, 350);
       return;
     }
 
@@ -237,8 +253,18 @@ const OrderDetailModal = ({
   return (
     <>
       {!showPaymentModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-6 py-5">
-          <div className="relative flex max-h-full w-full max-w-[1180px] flex-col rounded-[20px] bg-white px-12 py-10 shadow-xl">
+        <div
+          className={`fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-6 py-5 transition-opacity duration-300 ${
+            openingPaymentModal ? "pointer-events-none opacity-0" : "opacity-100"
+          }`}
+        >
+          <div
+            className={`relative flex max-h-full w-full max-w-[1180px] flex-col rounded-[20px] bg-white px-12 py-10 shadow-xl transition-all duration-300 ${
+              openingPaymentModal
+                ? "translate-y-2 scale-[0.98] opacity-0"
+                : "translate-y-0 scale-100 opacity-100"
+            }`}
+          >
             <button
               type="button"
               onClick={onClose}
@@ -349,12 +375,19 @@ const OrderDetailModal = ({
                     <Button
                       type="button"
                       onClick={handlePrimaryAction}
-                      disabled={isPaymentAction ? paymentTotalQuantity === 0 : totalQuantity === 0}
+                      disabled={
+                        openingPaymentModal ||
+                        (isPaymentAction
+                          ? paymentTotalQuantity === 0
+                          : totalQuantity === 0)
+                      }
                       className={`h-14 rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0] ${
                         secondaryActionLabel ? "" : "col-span-2"
                       }`}
                     >
-                      {primaryActionLabel}
+                      {openingPaymentModal
+                        ? "Đang mở thanh toán..."
+                        : primaryActionLabel}
                     </Button>
                   </div>
                 </div>

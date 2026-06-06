@@ -14,6 +14,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import PrintableBill from "@/components/manager-view/PrintableBill";
+import { openPrintableBillWindow } from "@/utils/printBill";
 
 const getEntityId = (value) =>
   value && typeof value === "object" ? value._id || value.id : value;
@@ -67,192 +68,12 @@ const MaOrderDetail = () => {
 
   // In hóa đơn theo mẫu bill thanh toán tại bàn
   const handlePrintBill = () => {
-    if (!printRef.current) return;
+    if (!order || !printRef.current) return;
 
-    // Tạo cửa sổ in mới
-    const printWindow = window.open("", "_blank", "width=800,height=600");
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Hóa đơn #${order.order_number}</title>
-          <style>
-            @media print {
-              @page {
-                size: auto;
-                margin: 12mm;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-              }
-            }
-            
-            body {
-              font-family: Arial, sans-serif;
-              color: #0f172a;
-              background: #f8fafc;
-              margin: 0 auto;
-              padding: 24px;
-            }
-
-            .hidden {
-              display: block !important;
-            }
-
-            .bill-card {
-              box-sizing: border-box;
-              width: 440px;
-              max-width: 100%;
-              margin: 0 auto;
-              border-radius: 16px;
-              background: #fff;
-              padding: 24px;
-              box-shadow: 0 18px 45px rgba(15, 23, 42, 0.16);
-            }
-
-            .bill-brand {
-              margin: 0;
-              text-align: center;
-              font-size: 18px;
-              font-weight: 900;
-            }
-
-            .bill-company {
-              margin: 16px 0 0;
-              font-size: 12px;
-              line-height: 1.5;
-              font-weight: 500;
-            }
-
-            .bill-title {
-              margin: 28px 0 0;
-              text-align: center;
-              font-size: 20px;
-              font-weight: 900;
-            }
-
-            .bill-info-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 12px 16px;
-              margin-top: 24px;
-              font-size: 12px;
-              font-weight: 700;
-            }
-
-            .bill-address {
-              margin-top: 18px;
-              border-top: 1px dashed #d1d5db;
-              padding-top: 14px;
-              font-size: 12px;
-              font-weight: 700;
-            }
-
-            .bill-address p {
-              margin: 6px 0 0;
-              font-weight: 500;
-              line-height: 1.45;
-            }
-
-            .bill-items-header,
-            .bill-item-row {
-              display: grid;
-              grid-template-columns: 36px 1.2fr 52px 72px 82px;
-              column-gap: 0;
-              align-items: start;
-              font-size: 12px;
-            }
-
-            .bill-items-header {
-              margin-top: 24px;
-              border-bottom: 1px solid #9ca3af;
-              padding-bottom: 12px;
-              font-weight: 900;
-            }
-
-            .bill-item-row {
-              padding: 14px 0;
-              font-weight: 500;
-            }
-
-            .bill-item-name {
-              font-weight: 800;
-              line-height: 1.35;
-            }
-
-            .bill-center {
-              text-align: center;
-            }
-
-            .bill-right {
-              text-align: right;
-            }
-
-            .bill-subtotal {
-              margin-top: 12px;
-              border-top: 1px dashed #d1d5db;
-              padding-top: 18px;
-            }
-
-            .bill-summary-row {
-              display: flex;
-              justify-content: space-between;
-              gap: 16px;
-              margin-top: 8px;
-              font-size: 14px;
-              font-weight: 700;
-            }
-
-            .bill-total {
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              gap: 16px;
-              margin-top: 24px;
-              border-top: 1px dashed #d1d5db;
-              padding-top: 24px;
-              font-size: 20px;
-              font-weight: 900;
-            }
-
-            .bill-note {
-              margin-top: 20px;
-              border-top: 1px dashed #d1d5db;
-              padding-top: 14px;
-              font-size: 12px;
-              font-style: italic;
-              line-height: 1.45;
-            }
-
-            .bill-note span {
-              font-weight: 900;
-            }
-
-            .bill-thanks {
-              margin: 28px 0 0;
-              text-align: center;
-              font-size: 14px;
-              font-weight: 700;
-              font-style: italic;
-            }
-          </style>
-        </head>
-        <body>
-          ${printRef.current.innerHTML}
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-
-    // Đợi load xong rồi in
-    printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 250);
-    };
+    openPrintableBillWindow({
+      title: `Hóa đơn #${order.order_number}`,
+      content: printRef.current.innerHTML,
+    });
   };
 
   // Redirect if not authenticated
@@ -327,10 +148,6 @@ const MaOrderDetail = () => {
             : prev,
         );
       }
-
-      if (data.status === "delivered") {
-        toast.success(`Đơn ${data.order_number} đã được GHN giao thành công`);
-      }
     };
 
     socket.on("order_status_updated", handleOrderStatusUpdated);
@@ -381,7 +198,7 @@ const MaOrderDetail = () => {
         className: "bg-green-100 text-green-800",
       },
       hoan_tien: {
-        label: "Hoàn tiền",
+        label: "Đã hoàn tiền",
         className: "bg-purple-100 text-purple-800",
       },
       confirmed: {
@@ -393,7 +210,7 @@ const MaOrderDetail = () => {
         className: "bg-green-100 text-green-800",
       },
       shipped: {
-        label: "Delivering",
+        label: "Đang giao",
         className: "bg-orange-100 text-orange-800",
       },
       delivered: {

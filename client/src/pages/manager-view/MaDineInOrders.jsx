@@ -33,7 +33,7 @@ const formatDateTime = (value) => {
 };
 
 const compactOrderCode = (orderNumber = "") =>
-  orderNumber.slice(-6) || orderNumber;
+  orderNumber || "--";
 
 const statusConfig = {
   processing: {

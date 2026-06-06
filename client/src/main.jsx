@@ -24,7 +24,12 @@ createRoot(document.getElementById("root")).render(
             </SupportChatProvider>
           </SocketProvider>
         </AddressProvider>
-        <Toaster position="bottom-right" richColors />
+        <Toaster
+          position="top-right"
+          richColors
+          offset={{ top: "88px", right: "24px" }}
+          mobileOffset={{ top: "72px", right: "16px", left: "16px" }}
+        />
       </CartProvider>
     </Provider>
   </BrowserRouter>

@@ -34,7 +34,7 @@ const formatDateTime = (value) => {
 };
 
 const compactOrderCode = (orderNumber = "") =>
-  orderNumber.replace(/^[A-Z]+/i, "").slice(0, 6) || orderNumber;
+  orderNumber || "--";
 
 const getTextValue = (value) =>
   typeof value === "string" ? value.trim() : value;
@@ -210,10 +210,6 @@ const MaManageOrder = () => {
             : order,
         ),
       );
-
-      if (data.status === "delivered") {
-        toast.success(`Đơn ${data.order_number} đã được GHN giao thành công`);
-      }
     };
 
     socket.on("order_status_updated", handleOrderStatusUpdated);

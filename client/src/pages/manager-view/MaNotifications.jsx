@@ -75,9 +75,6 @@ const MaNotifications = () => {
 
     newSocket.on("new_notification", (notification) => {
       setNotifications((prev) => [notification, ...prev]);
-      toast.info(notification.title, {
-        description: notification.message,
-      });
     });
 
     setSocket(newSocket);
