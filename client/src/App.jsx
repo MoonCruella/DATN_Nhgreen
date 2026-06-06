@@ -7,7 +7,7 @@ import AdminLayout from "./components/admin-view/AdminLayout";
 import AdminDashboard from "./pages/admin-view/AdDashboard";
 import AdminProducts from "./pages/admin-view/dish/AdDishes";
 import AdminOrders from "./pages/admin-view/AdOrders";
-import CustomerLayout from "./components/customer-view/Layout";
+import CustomerLayout from "./components/customer-view/layout";
 import NotFound from "./pages/not-found/Index";
 import CustomerHome from "./pages/customer-view/CusHome";
 import ManagerLayout from "./components/manager-view/ManagerLayout";
