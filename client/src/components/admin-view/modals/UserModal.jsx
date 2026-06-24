@@ -240,7 +240,7 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
                     ? format(new Date(user.createdAt), "dd/MM/yyyy HH:mm", {
                         locale: vi,
                       })
-                    : "N/A"}
+                    : ""}
                 </span>
               </div>
 
@@ -251,7 +251,7 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
                     ? format(new Date(user.updatedAt), "dd/MM/yyyy HH:mm", {
                         locale: vi,
                       })
-                    : "N/A"}
+                    : ""}
                 </span>
               </div>
 

@@ -420,7 +420,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
                       {selectedBranch.name}
                       <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                         {!selectedBranch.distance
-                          ? "N/A"
+                          ? ""
                           : `${selectedBranch.distance.toFixed(1)} km`}
                       </span>
                     </p>
@@ -504,7 +504,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
                           {branch.name}
                           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                             {!distance || distance === 999
-                              ? "N/A"
+                              ? ""
                               : `${distance.toFixed(1)} km`}
                           </span>
                         </p>

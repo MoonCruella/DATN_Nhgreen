@@ -195,7 +195,7 @@ const AdminDishes = () => {
           .map((d) =>
             JSON.stringify({
               _id: d.category._id || d.category,
-              name: d.category.name || "N/A",
+              name: d.category.name || "",
             })
           )
       )

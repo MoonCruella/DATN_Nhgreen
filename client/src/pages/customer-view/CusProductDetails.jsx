@@ -658,7 +658,7 @@ const ProductDetails = () => {
                           key={item._id || index}
                           className="px-3 py-1 bg-white border border-green-300 rounded-full text-xs text-gray-700"
                         >
-                          {item.ingredient?.name || "N/A"}
+                          {item.ingredient?.name || ""}
                         </span>
                       ))}
                     </div>

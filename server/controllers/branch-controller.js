@@ -299,7 +299,7 @@ export const getBranchDishes = async (req, res) => {
     // Lấy món ăn theo filters và populate category
     const dishes = await Dish.find(dishQuery)
       .select(
-        "_id name description price sale_price unit imageUrls defaultImageIndex category"
+        "_id name description price sale_price unit imageUrls defaultImageIndex category totalEnergyKcal totalProtein totalCarbs totalFat"
       )
       .populate("category", "name");
 
@@ -322,6 +322,10 @@ export const getBranchDishes = async (req, res) => {
         defaultImageIndex: dish.defaultImageIndex,
         imageUrls: dish.imageUrls || [],
         category: dish.category,
+        totalEnergyKcal: dish.totalEnergyKcal || 0,
+        totalProtein: dish.totalProtein || 0,
+        totalCarbs: dish.totalCarbs || 0,
+        totalFat: dish.totalFat || 0,
         isAvailableAtBranch:
           statusMap[dish._id.toString()] !== undefined
             ? statusMap[dish._id.toString()]

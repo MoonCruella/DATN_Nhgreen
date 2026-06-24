@@ -230,16 +230,16 @@ const ManagerRating = () => {
                       />
                       <div className="min-w-0">
                         <p className="truncate font-medium text-slate-800">
-                          {rating.dishName || "N/A"}
+                          {rating.dishName || ""}
                         </p>
                         <p className="truncate text-sm text-slate-400">
-                          #{rating.dish_id?._id?.slice(-6) || "N/A"}
+                          {rating.dish_id?._id ? `#${rating.dish_id._id.slice(-6)}` : ""}
                         </p>
                       </div>
                     </div>
                     <div className="min-w-0">
                       <p className="truncate font-medium text-slate-800">
-                        {rating.userName || "N/A"}
+                        {rating.userName || ""}
                       </p>
                       <p className="truncate text-sm text-slate-400">
                         {rating.userEmail || "-"}

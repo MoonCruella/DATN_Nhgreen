@@ -80,11 +80,11 @@ const UsersTable = ({ users = [], onRowClick, isLoading }) => {
                 onClick={() => onRowClick && onRowClick(user)}
               >
                 <td className="px-5 py-3 font-bold text-gray-800">
-                  {user.name || "N/A"}
+                  {user.name || ""}
                 </td>
                 <td className="px-5 py-3 text-gray-700">{user.email}</td>
                 <td className="px-5 py-3 text-gray-700">
-                  {user.phone || "N/A"}
+                  {user.phone || ""}
                 </td>
                 <td className="px-5 py-3 text-center">
                   {getRoleBadge(user.role)}
@@ -97,7 +97,7 @@ const UsersTable = ({ users = [], onRowClick, isLoading }) => {
                     ? format(new Date(user.createdAt), "dd/MM/yyyy", {
                         locale: vi,
                       })
-                    : "N/A"}
+                    : ""}
                 </td>
               </tr>
             ))
