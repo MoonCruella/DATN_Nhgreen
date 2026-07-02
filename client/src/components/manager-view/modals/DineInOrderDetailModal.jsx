@@ -61,7 +61,8 @@ const DineInOrderDetailModal = ({
 
   const items = order.items || [];
   const totalAmount = order.total_amount || 0;
-  const earnedPoint = Math.floor(totalAmount / 10);
+  const earnedPoint =
+    order.reward_coin_earned || Math.floor(totalAmount / 100);
   const isPaid =
     order.status === "completed" || order.payment_status === "paid";
   const isProcessing = order.status === "processing";

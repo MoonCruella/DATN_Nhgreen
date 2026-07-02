@@ -138,7 +138,8 @@ const OrderModal = ({ open, onClose, order }) => {
       0,
     );
   const totalAmount = order.total_amount || 0;
-  const earnedPoint = Math.floor(totalAmount / 10);
+  const earnedPoint =
+    order.reward_coin_earned || Math.floor(totalAmount / 100);
   const customerName = getCustomerName(order);
   const customerPhone = getCustomerPhone(order);
   const shippingAddress = getShippingAddress(order.shipping_info);

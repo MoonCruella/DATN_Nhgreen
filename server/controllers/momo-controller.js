@@ -5,6 +5,7 @@ import momoConfig from "../config/momo.js";
 import Order from "../models/order-model.js";
 import Dish from "../models/dish-model.js";
 import { getIO } from "../config/socket.js";
+import { awardOrderRewardCoins } from "../services/reward-service.js";
 
 function signHmacSha256(data, secret) {
   return crypto.createHmac("sha256", secret).update(data).digest("hex");
@@ -141,6 +142,8 @@ const completeDineInOrderByMomo = async ({
   });
 
   await order.save();
+
+  await awardOrderRewardCoins(order);
 
   try {
     const io = getIO();

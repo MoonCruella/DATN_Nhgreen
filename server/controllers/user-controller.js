@@ -8,7 +8,13 @@ import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 import { createVietnameseSearchQuery } from "../utils/fuzzySearch.js";
 
-const normalizePhone = (phone = "") => String(phone).replace(/\D/g, "");
+const normalizePhone = (phone = "") => {
+  let normalizedPhone = String(phone || "").replace(/\D/g, "");
+  if (normalizedPhone.startsWith("84") && normalizedPhone.length >= 11) {
+    normalizedPhone = `0${normalizedPhone.slice(2)}`;
+  }
+  return normalizedPhone;
+};
 
 const makeCustomerCode = (value, index) => {
   if (!value) return `KH${String(index + 1).padStart(5, "0")}`;
@@ -287,12 +293,10 @@ export const getCustomerByPhone = async (req, res) => {
             name: dineInCustomer.name,
             phone: dineInCustomer.phone,
             address: dineInCustomer.address || {},
-            linked_user_id:
-              dineInCustomer.linked_user_id?._id ||
-              dineInCustomer.linked_user_id ||
-              null,
-            online_user: dineInCustomer.linked_user_id || null,
-            reward_points: dineInCustomer.linked_user_id?.coin || 0,
+            linked_user_id: dineInCustomer.linked_user_id?._id || null,
+            online_user: null,
+            reward_points: dineInCustomer.coin || 0,
+            coin: dineInCustomer.coin || 0,
             source: "dine_in_customer",
           },
         },
@@ -301,14 +305,11 @@ export const getCustomerByPhone = async (req, res) => {
       );
     }
 
-    const users = await User.find({ role: "customer" })
-      .select("_id name email phone coin")
-      .lean();
-    const user = users.find((item) => normalizePhone(item.phone) === phone);
+    const user = null;
 
     return response.sendSuccess(
       res,
-      { customer: user || null },
+      { customer: null },
       user ? "Tìm khách hàng thành công" : "Số điện thoại chưa được sử dụng",
       200
     );
@@ -351,18 +352,13 @@ export const createManagerDineInCustomer = async (req, res) => {
       );
     }
 
-    const users = await User.find({ role: "customer" })
-      .select("_id name email phone coin")
-      .lean();
-    const linkedUser =
-      users.find((item) => normalizePhone(item.phone) === normalizedPhone) ||
-      null;
+    const linkedUser = null;
 
     const customer = await DineInCustomer.create({
       name: name.trim(),
       phone: String(phone).trim(),
       normalized_phone: normalizedPhone,
-      linked_user_id: linkedUser?._id || null,
+      linked_user_id: null,
       address: {
         province: address.province || "",
         ward: address.ward || "",
@@ -381,7 +377,8 @@ export const createManagerDineInCustomer = async (req, res) => {
           address: customer.address || {},
           linked_user_id: linkedUser?._id || null,
           online_user: linkedUser,
-          reward_points: linkedUser?.coin || 0,
+          reward_points: customer.coin || 0,
+          coin: customer.coin || 0,
           source: "dine_in_customer",
         },
         existed: false,
@@ -493,11 +490,12 @@ export const getManagerCustomers = async (req, res) => {
 
     const customersByKey = new Map();
     const userKeyById = new Map();
-    const userKeyByPhone = new Map();
+    const dineInKeyById = new Map();
 
     users.forEach((user, index) => {
       const phone = normalizePhone(user.phone);
       const key = `user:${user._id}`;
+      const rewardPoints = user.coin || 0;
       const customer = {
         _id: key,
         user_id: user._id,
@@ -507,7 +505,8 @@ export const getManagerCustomers = async (req, res) => {
         phone: user.phone || "",
         normalized_phone: phone,
         total_spent: 0,
-        reward_points: user.coin || 0,
+        reward_points: rewardPoints,
+        coin: rewardPoints,
         total_orders: 0,
         source: "online_account",
         created_at: user.createdAt,
@@ -515,44 +514,33 @@ export const getManagerCustomers = async (req, res) => {
 
       customersByKey.set(key, customer);
       userKeyById.set(String(user._id), key);
-      if (phone) userKeyByPhone.set(phone, key);
     });
 
     dineInCustomers.forEach((dineInCustomer) => {
       const phone = normalizePhone(dineInCustomer.phone);
-      const linkedUser = dineInCustomer.linked_user_id;
-      const linkedUserId = linkedUser?._id ? String(linkedUser._id) : "";
-
-      let key = linkedUserId ? userKeyById.get(linkedUserId) : null;
-      if (!key && phone) key = userKeyByPhone.get(phone);
-      if (!key && phone) key = `phone:${phone}`;
-      if (!key) return;
+      const key = `dinein:${dineInCustomer._id}`;
+      const rewardPoints = dineInCustomer.coin || 0;
 
       if (!customersByKey.has(key)) {
         customersByKey.set(key, {
           _id: key,
-          user_id: linkedUser?._id || null,
+          user_id: null,
           dine_in_customer_id: dineInCustomer._id,
           customer_code: makeCustomerCode(phone, customersByKey.size),
-          name: dineInCustomer.name || linkedUser?.name || "Khách hàng",
-          email: linkedUser?.email || "",
-          phone: dineInCustomer.phone || linkedUser?.phone || "",
+          name: dineInCustomer.name || "Khách hàng",
+          email: "",
+          phone: dineInCustomer.phone || "",
           normalized_phone: phone,
           total_spent: 0,
-          reward_points: linkedUser?.coin || 0,
+          reward_points: rewardPoints,
+          coin: rewardPoints,
           total_orders: 0,
           source: "dine_in_customer",
           created_at: dineInCustomer.created_at,
         });
       }
 
-      const customer = customersByKey.get(key);
-      customer.dine_in_customer_id = dineInCustomer._id;
-      if (!customer.phone && dineInCustomer.phone) customer.phone = dineInCustomer.phone;
-      if (!customer.normalized_phone && phone) customer.normalized_phone = phone;
-      if (customer.name === "Khách hàng" || customer.name === "Khách vãng lai") {
-        customer.name = dineInCustomer.name || customer.name;
-      }
+      dineInKeyById.set(String(dineInCustomer._id), key);
     });
 
     orders.forEach((order) => {
@@ -565,8 +553,9 @@ export const getManagerCustomers = async (req, res) => {
         order.shipping_info?.name || dineInCustomer?.name || "Khách vãng lai";
 
       let key = userKeyById.get(userId);
-      if (!key && orderPhone) key = userKeyByPhone.get(orderPhone);
-      if (!key && dineInCustomer?._id) key = `dinein:${dineInCustomer._id}`;
+      if (!key && dineInCustomer?._id) {
+        key = dineInKeyById.get(String(dineInCustomer._id));
+      }
       if (!key && orderPhone) key = `phone:${orderPhone}`;
       if (!key) return;
 
@@ -581,6 +570,7 @@ export const getManagerCustomers = async (req, res) => {
           normalized_phone: orderPhone,
           total_spent: 0,
           reward_points: 0,
+          coin: 0,
           total_orders: 0,
           source: "dine_in_guest",
           created_at: order.created_at,
@@ -621,13 +611,18 @@ export const getManagerCustomers = async (req, res) => {
       });
     }
 
-    customers = customers.map((customer, index) => ({
-      ...customer,
-      stt: index + 1,
-      reward_points: customer.reward_points || 0,
-      total_spent: customer.total_spent || 0,
-      total_orders: customer.total_orders || 0,
-    }));
+    customers = customers.map((customer, index) => {
+      const rewardPoints = customer.reward_points ?? customer.coin ?? 0;
+
+      return {
+        ...customer,
+        stt: index + 1,
+        reward_points: rewardPoints,
+        coin: rewardPoints,
+        total_spent: customer.total_spent || 0,
+        total_orders: customer.total_orders || 0,
+      };
+    });
 
     const totalCustomers = customers.length;
     const totalPages = Math.ceil(totalCustomers / perPage);

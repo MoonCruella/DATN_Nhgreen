@@ -30,6 +30,11 @@ const dineInCustomerSchema = new mongoose.Schema(
       detail: String,
     },
     note: String,
+    coin: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     active: {
       type: Boolean,
       default: true,

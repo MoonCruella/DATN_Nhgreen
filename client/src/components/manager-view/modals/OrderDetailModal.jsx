@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import PaymentMethodModal from "./PaymentMethodModal";
 import userApi from "@/api/userApi";
 import { toast } from "sonner";
+import { useSelector } from "react-redux";
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
@@ -69,6 +70,7 @@ const OrderDetailModal = ({
   const [newCustomerWard, setNewCustomerWard] = useState("");
   const [newCustomerAddress, setNewCustomerAddress] = useState("");
   const paymentOpenTimerRef = useRef(null);
+  const accessToken = useSelector((state) => state.auth.accessToken);
 
   useEffect(() => {
     if (!open) {
@@ -117,7 +119,7 @@ const OrderDetailModal = ({
     const timer = setTimeout(async () => {
       try {
         setCheckingCustomer(true);
-        const res = await userApi.getCustomerByPhone(normalizedPhone);
+        const res = await userApi.getCustomerByPhone(normalizedPhone, accessToken);
         setFoundCustomer(res?.data?.customer || null);
         setHasSearchedCustomer(true);
       } catch (error) {
@@ -130,7 +132,7 @@ const OrderDetailModal = ({
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [customerPhone, showCustomerModal]);
+  }, [customerPhone, showCustomerModal, accessToken]);
 
   if (!open) return null;
 
@@ -222,15 +224,18 @@ const OrderDetailModal = ({
     }
 
     try {
-      const res = await userApi.createManagerDineInCustomer({
-        name: newCustomerName.trim(),
-        phone: customerPhone,
-        address: {
-          province: newCustomerProvince,
-          ward: newCustomerWard,
-          detail: newCustomerAddress,
+      const res = await userApi.createManagerDineInCustomer(
+        {
+          name: newCustomerName.trim(),
+          phone: customerPhone,
+          address: {
+            province: newCustomerProvince,
+            ward: newCustomerWard,
+            detail: newCustomerAddress,
+          },
         },
-      });
+        accessToken,
+      );
       const newCustomer = res?.data?.customer;
 
       setSelectedCustomer(newCustomer);

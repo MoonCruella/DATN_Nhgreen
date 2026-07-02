@@ -13,9 +13,13 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import userApi from "@/api/userApi";
 import CustomerCreateModal from "@/components/manager-view/modals/CustomerCreateModal";
+import { useSelector } from "react-redux";
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
+
+const getRewardPoints = (customer = {}) =>
+  Math.max(Number(customer.reward_points) || 0, Number(customer.coin) || 0);
 
 const defaultPagination = {
   current_page: 1,
@@ -33,6 +37,7 @@ const MaCustomers = () => {
   const [pageSize, setPageSize] = useState(20);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const accessToken = useSelector((state) => state.auth.accessToken);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -54,9 +59,11 @@ const MaCustomers = () => {
 
   useEffect(() => {
     const fetchCustomers = async () => {
+      if (!accessToken) return;
+
       try {
         setLoading(true);
-        const res = await userApi.getManagerCustomers(params);
+        const res = await userApi.getManagerCustomers(params, accessToken);
         const payload = res?.data || res || {};
 
         setCustomers(Array.isArray(payload.customers) ? payload.customers : []);
@@ -74,7 +81,7 @@ const MaCustomers = () => {
     };
 
     fetchCustomers();
-  }, [params, pageSize, refreshKey]);
+  }, [params, pageSize, refreshKey, accessToken]);
 
   const totalPages = Math.max(1, pagination.total_pages || 1);
   const startIndex =
@@ -177,7 +184,9 @@ const MaCustomers = () => {
               </div>
               <div>{customer.phone || "-"}</div>
               <div>{formatCurrency(customer.total_spent)} VND</div>
-              <div>{formatCurrency(customer.reward_points)}</div>
+              <div>
+                {formatCurrency(getRewardPoints(customer))}
+              </div>
               <div>{formatCurrency(customer.total_orders)}</div>
               <div className="text-gray-400">
                 <button
@@ -267,6 +276,7 @@ const MaCustomers = () => {
       <CustomerCreateModal
         open={showCreateModal}
         onClose={() => setShowCreateModal(false)}
+        accessToken={accessToken}
         onCreated={() => {
           setPagination((prev) => ({ ...prev, current_page: 1 }));
           setAppliedSearch("");

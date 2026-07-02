@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import userApi from "@/api/userApi";
 
-const CustomerCreateModal = ({ open, onClose, onCreated }) => {
+const CustomerCreateModal = ({ open, onClose, onCreated, accessToken = null }) => {
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -34,16 +34,19 @@ const CustomerCreateModal = ({ open, onClose, onCreated }) => {
 
     try {
       setCreating(true);
-      const res = await userApi.createManagerDineInCustomer({
-        name: form.name.trim(),
-        phone: form.phone.trim(),
-        address: {
-          province: form.province,
-          ward: form.ward,
-          detail: form.detail,
+      const res = await userApi.createManagerDineInCustomer(
+        {
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          address: {
+            province: form.province,
+            ward: form.ward,
+            detail: form.detail,
+          },
+          note: form.note.trim(),
         },
-        note: form.note.trim(),
-      });
+        accessToken,
+      );
 
       toast.success("Đã tạo khách hàng");
       setForm({

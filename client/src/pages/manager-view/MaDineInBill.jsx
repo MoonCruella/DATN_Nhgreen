@@ -101,6 +101,8 @@ const MaDineInBill = () => {
   }, [accessToken, orderId]);
 
   const totalAmount = order?.total_amount || 0;
+  const rewardCoins =
+    order?.reward_coin_earned || Math.floor(totalAmount / 100);
   const tableName = order?.table_info?.name || "Bàn";
   const dineInCustomer = getDineInCustomer(order);
   const customerName =
@@ -232,6 +234,10 @@ const MaDineInBill = () => {
             <div className="flex items-center justify-between text-sm font-bold">
               <span>Tổng cộng:</span>
               <span>{formatMoneyInput(totalAmount)}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs font-bold text-amber-600">
+              <span>Xu tích lũy:</span>
+              <span>+{formatCurrency(rewardCoins)} xu</span>
             </div>
           </div>
 

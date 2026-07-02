@@ -60,21 +60,31 @@ const getUserStats = (accessToken) => {
     .then((r) => r.data);
 };
 
-const getManagerCustomers = (params = {}) => {
+const authHeaders = (accessToken) =>
+  accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+
+const getManagerCustomers = (params = {}, accessToken = null) => {
   return axiosPrivate
-    .get(`${base}/manager/customers`, { params })
+    .get(`${base}/manager/customers`, {
+      params,
+      headers: authHeaders(accessToken),
+    })
     .then((r) => r.data);
 };
 
-const getCustomerByPhone = (phone) => {
+const getCustomerByPhone = (phone, accessToken = null) => {
   return axiosPrivate
-    .get(`${base}/manager/customers/phone/${phone}`)
+    .get(`${base}/manager/customers/phone/${phone}`, {
+      headers: authHeaders(accessToken),
+    })
     .then((r) => r.data);
 };
 
-const createManagerDineInCustomer = (payload) => {
+const createManagerDineInCustomer = (payload, accessToken = null) => {
   return axiosPrivate
-    .post(`${base}/manager/customers`, payload)
+    .post(`${base}/manager/customers`, payload, {
+      headers: authHeaders(accessToken),
+    })
     .then((r) => r.data);
 };
 

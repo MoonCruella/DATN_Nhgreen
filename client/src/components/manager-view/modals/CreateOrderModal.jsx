@@ -28,6 +28,21 @@ const getDishImage = (dish) =>
 
 const getDishPrice = (dish) => dish?.sale_price || dish?.price || 0;
 
+const showRewardToast = (reward) => {
+  if (!reward) return;
+  if (reward.awarded && reward.coins > 0) {
+    toast.success(`Đã cộng ${reward.coins.toLocaleString("vi-VN")} xu cho khách hàng`);
+    return;
+  }
+  if (
+    ["customer_not_found", "reward_target_not_found", "user_not_found"].includes(
+      reward.reason,
+    )
+  ) {
+    toast.info("Không tìm thấy khách hàng để cộng xu");
+  }
+};
+
 const CreateOrderModal = ({
   table,
   branchId,
@@ -184,6 +199,15 @@ const CreateOrderModal = ({
           setZalopayQrCreatedAt(null);
           setVnpayPaymentUrl("");
           toast.success("Thanh toán thành công");
+          showRewardToast(
+            latestOrder?.reward ||
+              (latestOrder?.reward_coin_awarded_at
+                ? {
+                    awarded: true,
+                    coins: latestOrder.reward_coin_earned || 0,
+                  }
+                : null),
+          );
           onOrderCreated?.(latestOrder);
           navigateToBill(latestOrder);
         }
@@ -587,9 +611,11 @@ const CreateOrderModal = ({
         paymentMethod,
       );
       const completedOrder = response?.data?.order || createdOrder;
+      const reward = response?.data?.reward;
       setCreatedOrder(completedOrder);
       setOrderStatus("completed");
       toast.success("Đơn hàng đã hoàn thành");
+      showRewardToast(reward);
       onOrderCreated?.(completedOrder);
       navigateToBill(completedOrder);
     } catch (error) {
