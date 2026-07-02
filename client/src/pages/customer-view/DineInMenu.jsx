@@ -75,7 +75,8 @@ const getPaymentTabClass = (method, active) => {
   }
 
   if (method === "momo") return "border-[#a50064] bg-[#fff5fb] text-[#a50064]";
-  if (method === "zalopay") return "border-[#0068ff] bg-[#f3f8ff] text-[#0068ff]";
+  if (method === "zalopay")
+    return "border-[#0068ff] bg-[#f3f8ff] text-[#0068ff]";
   if (method === "vnpay") return "border-[#25358f] bg-blue-50 text-[#25358f]";
   return "border-emerald-600 bg-emerald-50 text-emerald-600";
 };
@@ -147,10 +148,13 @@ const DineInMenu = () => {
           }
         }
 
-        const dishResponse = await branchApi.getBranchDishes(scannedBranch._id, {
-          limit: 100,
-          isAvailable: true,
-        });
+        const dishResponse = await branchApi.getBranchDishes(
+          scannedBranch._id,
+          {
+            limit: 100,
+            isAvailable: true,
+          },
+        );
 
         setTable(scannedTable);
         setBranch(scannedBranch);
@@ -159,7 +163,9 @@ const DineInMenu = () => {
         setQuantities(
           (activeSession?.cart_items || []).reduce((result, item) => {
             const dishId =
-              typeof item.dish_id === "object" ? item.dish_id?._id : item.dish_id;
+              typeof item.dish_id === "object"
+                ? item.dish_id?._id
+                : item.dish_id;
             if (dishId) result[dishId] = item.quantity;
             return result;
           }, {}),
@@ -303,9 +309,7 @@ const DineInMenu = () => {
       toast.success("Đã gửi đơn đến quầy");
     } catch (error) {
       toast.error(
-        error?.response?.data?.message ||
-          error?.message ||
-          "Không thể gửi đơn",
+        error?.response?.data?.message || error?.message || "Không thể gửi đơn",
       );
     } finally {
       setSubmitting(false);
@@ -465,8 +469,9 @@ const DineInMenu = () => {
   };
 
   const activePayment = paymentData[paymentMethod] || {};
-  const activeQrUrl =
-    ["momo", "zalopay"].includes(paymentMethod) ? activePayment.qrDataUrl : "";
+  const activeQrUrl = ["momo", "zalopay"].includes(paymentMethod)
+    ? activePayment.qrDataUrl
+    : "";
   const activePaymentUrl =
     activePayment.paymentUrl ||
     activePayment.payUrl ||
@@ -490,9 +495,9 @@ const DineInMenu = () => {
     : 0;
   const activeQrExpired = Boolean(
     ["momo", "zalopay"].includes(paymentMethod) &&
-      activeQrUrl &&
-      activePayment.createdAt &&
-      activeRemainingMs <= 0,
+    activeQrUrl &&
+    activePayment.createdAt &&
+    activeRemainingMs <= 0,
   );
   const vnpayQrUrl = activePaymentUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encodeURIComponent(
@@ -663,13 +668,13 @@ const DineInMenu = () => {
                   <div className="mt-1 text-sm font-black text-red-500">
                     {formatCurrency(price)} VND
                   </div>
-                  <div className="mt-auto flex items-center gap-2">
-                    <div className="flex items-center gap-3">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <div className="flex h-9 shrink-0 items-center gap-3">
                       <button
                         type="button"
                         onClick={() => updateQuantity(dish._id, -1)}
                         disabled={quantity === 0}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-900 text-white disabled:opacity-35"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white disabled:opacity-35"
                       >
                         <Minus className="h-5 w-5" />
                       </button>
@@ -679,7 +684,7 @@ const DineInMenu = () => {
                       <button
                         type="button"
                         onClick={() => updateQuantity(dish._id, 1)}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-2xl font-medium leading-none text-white"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-2xl font-medium leading-none text-white"
                       >
                         +
                       </button>
@@ -687,11 +692,13 @@ const DineInMenu = () => {
                     <button
                       type="button"
                       onClick={() => setSelectedNutritionDish(dish)}
-                      className="flex h-9 shrink-0 items-center justify-center gap-1 rounded-full bg-emerald-50 px-2.5 text-[11px] font-black leading-none text-emerald-600"
+                      className="flex h-9 min-w-[104px] shrink-0 items-center justify-center gap-1 rounded-full bg-emerald-50 px-3 text-[11px] font-black leading-none text-emerald-600"
                       title="Dinh dưỡng"
                     >
-                      <Info className="h-4 w-4" />
-                      <span>Dinh dưỡng</span>
+                      <Info className="h-4 w-4 shrink-0" />
+                      <span className="whitespace-nowrap">
+                        Thông tin dinh dưỡng
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -764,9 +771,6 @@ const DineInMenu = () => {
                 <h3 className="line-clamp-2 text-lg font-black leading-snug text-gray-950">
                   {selectedNutritionDish.name}
                 </h3>
-                <span className="mt-1 inline-flex max-w-full items-center self-start rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black leading-4 text-emerald-600">
-                  Dinh dưỡng
-                </span>
               </div>
             </div>
 
@@ -804,9 +808,7 @@ const DineInMenu = () => {
                     <div className="text-sm font-bold opacity-80">
                       {item.label}
                     </div>
-                    <div className="mt-1 text-2xl font-black">
-                      {item.value}
-                    </div>
+                    <div className="mt-1 text-2xl font-black">{item.value}</div>
                   </div>
                 ));
               })()}
@@ -1027,7 +1029,9 @@ const DineInMenu = () => {
 
             <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-9">
               <div className="mb-5 flex items-center justify-between">
-                <h3 className="text-xl font-black text-black">Tóm tắt đơn hàng</h3>
+                <h3 className="text-xl font-black text-black">
+                  Tóm tắt đơn hàng
+                </h3>
                 <button
                   type="button"
                   onClick={() => setShowOrderDetail(false)}
@@ -1086,17 +1090,6 @@ const DineInMenu = () => {
             </main>
 
             <footer className="space-y-4 bg-[#f7f7f8] px-4 pb-5 pt-4 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-gray-500">Khách hàng</span>
-                <button
-                  type="button"
-                  className="flex h-10 items-center gap-2 rounded-lg border border-emerald-500 px-4 text-sm font-black text-emerald-600"
-                >
-                  <UserCircle className="h-5 w-5" />
-                  Khách vãng lai
-                </button>
-              </div>
-
               <div className="grid grid-cols-4 gap-2">
                 {PAYMENT_METHODS.map((method) => {
                   const Icon = method.icon;
@@ -1198,7 +1191,9 @@ const DineInMenu = () => {
                         Đang tạo link...
                       </div>
                     ) : vnpayQrUrl ? (
-                      <div className={`relative rounded-2xl border-[3px] bg-white p-2 ${activeFrameClass}`}>
+                      <div
+                        className={`relative rounded-2xl border-[3px] bg-white p-2 ${activeFrameClass}`}
+                      >
                         <img
                           src={vnpayQrUrl}
                           alt="VNPay QR"
@@ -1278,10 +1273,14 @@ const DineInMenu = () => {
                   <Button
                     type="button"
                     onClick={handleRequestPayment}
-                    disabled={orderDetailItems.length === 0 || paymentLoading === "cod"}
+                    disabled={
+                      orderDetailItems.length === 0 || paymentLoading === "cod"
+                    }
                     className="h-14 rounded-lg bg-emerald-600 px-5 text-base font-black text-white hover:bg-emerald-700 disabled:bg-gray-300"
                   >
-                    {paymentLoading === "cod" ? "Đang gọi..." : "Gọi thanh toán"}
+                    {paymentLoading === "cod"
+                      ? "Đang gọi..."
+                      : "Gọi thanh toán"}
                   </Button>
                 )}
               </div>

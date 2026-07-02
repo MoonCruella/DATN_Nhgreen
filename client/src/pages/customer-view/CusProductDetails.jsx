@@ -77,7 +77,7 @@ const ProductDetails = () => {
       // Kiểm tra số lượng không vượt quá Flash Sale stock
       if (flashSaleInfo && quantity > flashSaleInfo.remaining) {
         toast.error(
-          `Chỉ còn ${flashSaleInfo.remaining} sản phẩm trong Flash Sale!`
+          `Chỉ còn ${flashSaleInfo.remaining} sản phẩm trong Flash Sale!`,
         );
         return;
       }
@@ -85,7 +85,7 @@ const ProductDetails = () => {
       await addToCart(
         product._id,
         quantity,
-        flashSaleInfo?.flashSaleId || null
+        flashSaleInfo?.flashSaleId || null,
       );
       toast.success(`${product.name} đã được thêm vào giỏ hàng!`);
     } catch (err) {
@@ -110,7 +110,7 @@ const ProductDetails = () => {
 
     if (flashSaleInfo && quantity > flashSaleInfo.remaining) {
       toast.error(
-        `Chỉ còn ${flashSaleInfo.remaining} sản phẩm trong Flash Sale!`
+        `Chỉ còn ${flashSaleInfo.remaining} sản phẩm trong Flash Sale!`,
       );
       return;
     }
@@ -174,7 +174,7 @@ const ProductDetails = () => {
             ? prod.defaultImageIndex
             : 0;
         setThumbnail(
-          normalizedImages[defaultIndex] || normalizedImages[0] || null
+          normalizedImages[defaultIndex] || normalizedImages[0] || null,
         );
 
         // 2️ Fetch category dựa trên category_id
@@ -210,7 +210,7 @@ const ProductDetails = () => {
               console.warn(
                 "Related products error response:",
                 e.response.status,
-                e.response.data
+                e.response.data,
               );
             } else {
               console.warn("Failed to fetch related products:", e);
@@ -245,7 +245,7 @@ const ProductDetails = () => {
           if (startTime > now) {
             // Kiểm tra sản phẩm hiện tại có trong chương trình không
             const dishInProgram = upcomingProgram.dishes?.find(
-              (d) => d.dish_id._id.toString() === product._id.toString()
+              (d) => d.dish_id._id.toString() === product._id.toString(),
             );
 
             if (dishInProgram) {
@@ -278,7 +278,7 @@ const ProductDetails = () => {
         console.log("Ratings response:", res);
         if (res.success) {
           const visibleRatings = res.data.ratings.filter(
-            (r) => r.status === "visible"
+            (r) => r.status === "visible",
           );
 
           console.log("Visible ratings:", visibleRatings);
@@ -402,10 +402,8 @@ const ProductDetails = () => {
             <div className="flex items-center text-gray-700 px-4">
               <FaShoppingCart className="text-green-600 mr-1 inline-block" />
               <p className="text-sm">
-                <span className="font-medium">
-                  {product.soldCount || 0}
-                </span>{" "}
-                đã bán
+                <span className="font-medium">{product.soldCount || 0}</span> đã
+                bán
               </p>
             </div>
           </div>
@@ -420,7 +418,7 @@ const ProductDetails = () => {
                 {Math.round(
                   ((flashSaleInfo.originalPrice - flashSaleInfo.salePrice) /
                     flashSaleInfo.originalPrice) *
-                    100
+                    100,
                 )}
                 %
               </span>
@@ -452,7 +450,7 @@ const ProductDetails = () => {
                       year: "numeric",
                       hour: "2-digit",
                       minute: "2-digit",
-                    }
+                    },
                   )}
                 </p>
                 <p>
@@ -469,7 +467,7 @@ const ProductDetails = () => {
                       ((upcomingFlashSale.originalPrice -
                         upcomingFlashSale.salePrice) /
                         upcomingFlashSale.originalPrice) *
-                        100
+                        100,
                     )}
                     %
                   </span>
@@ -494,7 +492,7 @@ const ProductDetails = () => {
                   {Math.round(
                     ((flashSaleInfo.originalPrice - flashSaleInfo.salePrice) /
                       flashSaleInfo.originalPrice) *
-                      100
+                      100,
                   )}
                   %
                 </span>
@@ -511,7 +509,8 @@ const ProductDetails = () => {
                 <span className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
                   -
                   {Math.round(
-                    ((product.price - product.sale_price) / product.price) * 100
+                    ((product.price - product.sale_price) / product.price) *
+                      100,
                   )}
                   %
                 </span>
@@ -713,7 +712,7 @@ const ProductDetails = () => {
                   </div>
                   <p className="text-xs text-gray-400">
                     {new Date(r.created_at || r.createdAt).toLocaleString(
-                      "vi-VN"
+                      "vi-VN",
                     )}
                   </p>
                 </div>
@@ -755,8 +754,8 @@ const ProductDetails = () => {
                   ? product.images.find((img) => img.is_primary)?.image_url ||
                     product.images[0].image_url
                   : product.imageUrls && product.imageUrls.length > 0
-                  ? product.imageUrls[0]
-                  : "";
+                    ? product.imageUrls[0]
+                    : "";
 
               return (
                 <ProductCard
