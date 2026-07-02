@@ -294,17 +294,26 @@ const AdminBranchCreate = () => {
     try {
       setSaving(true);
       const token = accessToken || null;
-      await branchApi.create(token, payload);
-      toast.success("Tạo chi nhánh thành công");
+      const response = await branchApi.create(token, payload);
+      const warning = response?.warning || response?.data?.warning;
+      if (warning) {
+        toast.warning(`Tạo chi nhánh thành công, nhưng GHN lỗi: ${warning}`);
+      } else {
+        toast.success("Tạo chi nhánh thành công");
+      }
       navigate("/admin/branches");
     } catch (error) {
       console.error("Error creating branch:", error);
-      const errorMessage = error?.response?.data?.message || "Lỗi tạo chi nhánh";
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        "Lỗi tạo chi nhánh";
       
       // Check if error is about duplicate name
       if (errorMessage.includes("already exists") || errorMessage.toLowerCase().includes("tên") || errorMessage.toLowerCase().includes("tồn tại")) {
         setErrors((prev) => ({ ...prev, name: "Tên chi nhánh đã tồn tại" }));
       }
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }

@@ -655,9 +655,17 @@ const ProductDetails = () => {
                       {product.ingredients.map((item, index) => (
                         <span
                           key={item._id || index}
-                          className="px-3 py-1 bg-white border border-green-300 rounded-full text-xs text-gray-700"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-green-300 rounded-full text-xs text-gray-700 shadow-sm"
                         >
-                          {item.ingredient?.name || ""}
+                          <span className="font-semibold text-gray-900">
+                            {item.ingredient?.name || ""}
+                          </span>
+                          {item.ingredient?.origin?.trim() && (
+                            <>
+                              <span className="text-gray-400">•</span>
+                              <span>{item.ingredient.origin}</span>
+                            </>
+                          )}
                         </span>
                       ))}
                     </div>
