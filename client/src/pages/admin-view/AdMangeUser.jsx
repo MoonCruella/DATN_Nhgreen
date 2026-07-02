@@ -18,8 +18,10 @@ const AdminUserAccount = () => {
   const [qSearch, setQSearch] = useState("");
   const [debouncedQSearch, setDebouncedQSearch] = useState("");
   const [qRole, setQRole] = useState("all");
+  const [qActiveStatus, setQActiveStatus] = useState("all");
   const [qBanStatus, setQBanStatus] = useState("all");
   const [appliedRole, setAppliedRole] = useState("all");
+  const [appliedActiveStatus, setAppliedActiveStatus] = useState("all");
   const [appliedBanStatus, setAppliedBanStatus] = useState("all");
 
   const [page, setPage] = useState(1);
@@ -37,6 +39,8 @@ const AdminUserAccount = () => {
         page,
         limit,
         role: appliedRole !== "all" ? appliedRole : undefined,
+        status: appliedActiveStatus !== "all" ? appliedActiveStatus : undefined,
+        banStatus: appliedBanStatus !== "all" ? appliedBanStatus : undefined,
         search: debouncedQSearch || undefined,
       };
 
@@ -62,7 +66,15 @@ const AdminUserAccount = () => {
     if (isAuthenticated && user?.role === "admin") {
       loadUsers();
     }
-  }, [isAuthenticated, user, page, debouncedQSearch, appliedRole]);
+  }, [
+    isAuthenticated,
+    user,
+    page,
+    debouncedQSearch,
+    appliedRole,
+    appliedActiveStatus,
+    appliedBanStatus,
+  ]);
 
   const handleRowClick = (user) => {
     setSelectedUser(user);
@@ -72,35 +84,27 @@ const AdminUserAccount = () => {
   const handleResetFilters = () => {
     setQSearch("");
     setQRole("all");
+    setQActiveStatus("all");
     setQBanStatus("all");
     setAppliedRole("all");
+    setAppliedActiveStatus("all");
     setAppliedBanStatus("all");
     setPage(1);
   };
 
-  const filteredUsers = users.filter((user) => {
-    if (appliedBanStatus === "all") return true;
-    const isBanned =
-      user?.ban_info?.status !== null && user?.ban_info?.status !== undefined;
-    const banUntil = user?.ban_info?.banned_until
-      ? new Date(user.ban_info.banned_until)
-      : null;
-    const isBanActive = isBanned && banUntil && banUntil > new Date();
-
-    if (appliedBanStatus === "banned") return isBanActive;
-    if (appliedBanStatus === "not_banned") return !isBanActive;
-    return true;
-  });
   const applyFilters = () => {
     setAppliedRole(qRole);
+    setAppliedActiveStatus(qActiveStatus);
     setAppliedBanStatus(qBanStatus);
     setPage(1);
   };
   const hasActiveFilters =
     Boolean(qSearch.trim()) ||
     qRole !== "all" ||
+    qActiveStatus !== "all" ||
     qBanStatus !== "all" ||
     appliedRole !== "all" ||
+    appliedActiveStatus !== "all" ||
     appliedBanStatus !== "all";
 
   const handleBanUser = async (userId, data) => {
@@ -127,6 +131,22 @@ const AdminUserAccount = () => {
     }
   };
 
+  const handleToggleUserStatus = async (userId) => {
+    try {
+      await userApi.toggleUserStatus(accessToken, userId);
+      toast.success("Cập nhật trạng thái tài khoản thành công");
+      loadUsers();
+    } catch (err) {
+      console.error("Error toggling user status", err);
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Lỗi cập nhật trạng thái tài khoản"
+      );
+      throw err;
+    }
+  };
+
   return (
     <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
       <header className="mb-5 flex items-center gap-2 text-lg font-bold">
@@ -138,8 +158,8 @@ const AdminUserAccount = () => {
         <div className="text-[#34ad54]">Quản lý người dùng</div>
       </header>
 
-      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:flex-1">
+      <div className="mb-4 flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-start">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
           <div className="relative w-full lg:w-[300px]">
             <input
               type="text"
@@ -185,6 +205,21 @@ const AdminUserAccount = () => {
             className="lg:w-[220px]"
           />
 
+          <FilterSelect
+            label="Trạng thái"
+            value={qActiveStatus}
+            onChange={(value) => {
+              setQActiveStatus(value);
+            }}
+            options={[
+              { value: "all", label: "Tất cả trạng thái" },
+              { value: "active", label: "Đã kích hoạt" },
+              { value: "unverified", label: "Chưa xác thực email" },
+              { value: "disabled", label: "Vô hiệu hóa" },
+            ]}
+            className="lg:w-[220px]"
+          />
+
           {hasActiveFilters && (
             <button
               type="button"
@@ -195,19 +230,20 @@ const AdminUserAccount = () => {
             </button>
           )}
 
+        </div>
+
           <Button
             type="button"
             onClick={applyFilters}
-            className="h-12 min-w-[110px] rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45] lg:ml-auto"
+            className="h-12 w-full min-w-[110px] shrink-0 rounded-lg bg-[#34ad54] px-5 text-base font-bold text-white hover:bg-[#2f9b45] sm:w-auto"
           >
             Áp dụng
           </Button>
-        </div>
       </div>
 
       <section className="pb-16 w-full">
         <UsersTable
-          users={filteredUsers}
+          users={users}
           isLoading={isLoading}
           onRowClick={handleRowClick}
         />
@@ -228,6 +264,7 @@ const AdminUserAccount = () => {
         user={selectedUser}
         onBanUser={handleBanUser}
         onUnbanUser={handleUnbanUser}
+        onToggleUserStatus={handleToggleUserStatus}
       />
     </section>
   );

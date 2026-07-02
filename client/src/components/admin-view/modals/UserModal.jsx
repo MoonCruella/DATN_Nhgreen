@@ -10,12 +10,19 @@ import {
   MapPin,
   Ban,
   Unlock,
-  Clock,
+  Power,
 } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 
-const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
+const UserModal = ({
+  open,
+  onClose,
+  user,
+  onBanUser,
+  onUnbanUser,
+  onToggleUserStatus,
+}) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showBanDialog, setShowBanDialog] = useState(false);
   const [banDuration, setBanDuration] = useState("1");
@@ -50,6 +57,20 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
       onClose();
     } catch (err) {
       console.error("Failed to unban user", err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleToggleStatus = async () => {
+    if (!onToggleUserStatus) return;
+
+    setIsUpdating(true);
+    try {
+      await onToggleUserStatus(user._id);
+      onClose();
+    } catch (err) {
+      console.error("Failed to toggle user status", err);
     } finally {
       setIsUpdating(false);
     }
@@ -220,6 +241,11 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
                     <Ban className="w-5 h-5" />
                     Đã bị ban
                   </span>
+                ) : user.disabled ? (
+                  <span className="flex items-center gap-2 text-slate-600">
+                    <XCircle className="w-5 h-5" />
+                    Vô hiệu hóa
+                  </span>
                 ) : user.active ? (
                   <span className="flex items-center gap-2 text-green-600">
                     <CheckCircle className="w-5 h-5" />
@@ -228,7 +254,7 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
                 ) : (
                   <span className="flex items-center gap-2 text-orange-600">
                     <XCircle className="w-5 h-5" />
-                    Chưa kích hoạt
+                    Chưa xác thực email
                   </span>
                 )}
               </div>
@@ -240,7 +266,7 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
                     ? format(new Date(user.createdAt), "dd/MM/yyyy HH:mm", {
                         locale: vi,
                       })
-                    : "N/A"}
+                    : ""}
                 </span>
               </div>
 
@@ -251,7 +277,7 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
                     ? format(new Date(user.updatedAt), "dd/MM/yyyy HH:mm", {
                         locale: vi,
                       })
-                    : "N/A"}
+                    : ""}
                 </span>
               </div>
 
@@ -392,7 +418,24 @@ const UserModal = ({ open, onClose, user, onBanUser, onUnbanUser }) => {
         )}
 
         <div className="sticky bottom-0 bg-white border-t px-6 py-4 flex justify-between gap-3">
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleToggleStatus}
+              disabled={isUpdating || user.role === "admin"}
+              className={`px-4 py-2 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer ${
+                user.disabled
+                  ? "bg-green-600 hover:bg-green-700"
+                  : "bg-orange-600 hover:bg-orange-700"
+              }`}
+            >
+              <Power className="w-4 h-4" />
+              {isUpdating
+                ? "Đang cập nhật..."
+                : user.disabled
+                ? "Mở vô hiệu hóa"
+                : "Vô hiệu hóa"}
+            </button>
+
             {isBanActive ? (
               <button
                 onClick={handleUnbanUser}

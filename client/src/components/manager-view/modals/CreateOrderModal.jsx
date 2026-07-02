@@ -462,7 +462,7 @@ const CreateOrderModal = ({
     return true;
   };
 
-  const handleConfirmOrder = async (selectedCustomer = null) => {
+  const handleConfirmOrder = async () => {
     if (!validateSelectedItems() || submitting) return;
 
     // Nếu đã có order, chuyển sang xác nhận (move to processing status)
@@ -520,7 +520,6 @@ const CreateOrderModal = ({
         order_channel: "dine_in",
         payment_method: "cod",
         shipping_fee: 0,
-        customer_id: selectedCustomer?._id || undefined,
         items: selectedItems.map((item) => ({
           dish_id: item._id,
           quantity: item.quantity,
@@ -603,21 +602,6 @@ const CreateOrderModal = ({
     }
   };
 
-  const handleUpdateOrderCustomer = async (selectedCustomer) => {
-    if (!selectedCustomer?._id || !createdOrder?._id) return;
-
-    const response = await orderApi.updateDineInOrderCustomer(
-      accessToken,
-      createdOrder._id,
-      selectedCustomer._id,
-    );
-    const updatedOrder = response?.data?.order;
-    if (updatedOrder) {
-      setCreatedOrder(updatedOrder);
-      onOrderCreated?.(updatedOrder);
-    }
-  };
-
   const primaryActionLabel =
     orderStatus === "selecting"
       ? "Xác nhận đơn hàng"
@@ -642,9 +626,9 @@ const CreateOrderModal = ({
     setShowOrderDetail(false);
   };
 
-  const handleOrderDetailPrimaryAction = (paymentMethod, selectedCustomer) => {
+  const handleOrderDetailPrimaryAction = (paymentMethod) => {
     if (orderStatus === "selecting") {
-      handleConfirmOrder(selectedCustomer);
+      handleConfirmOrder();
       return;
     }
 
@@ -656,8 +640,8 @@ const CreateOrderModal = ({
     setShowOrderDetail(false);
   };
 
-  const handleOrderDetailSecondaryAction = (selectedCustomer) => {
-    handleConfirmOrder(selectedCustomer);
+  const handleOrderDetailSecondaryAction = () => {
+    handleConfirmOrder();
   };
 
   return (
@@ -838,7 +822,6 @@ const CreateOrderModal = ({
         onAddMore={() => setShowOrderDetail(false)}
         onPrimaryAction={handleOrderDetailPrimaryAction}
         onSecondaryAction={handleOrderDetailSecondaryAction}
-        onCustomerSelected={handleUpdateOrderCustomer}
         momoPaymentUrl={momoPaymentUrl}
         momoQrUrl={momoQrUrl}
         momoQrCreatedAt={momoQrCreatedAt}

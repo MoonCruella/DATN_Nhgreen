@@ -69,7 +69,7 @@ const AdminFlashSaleDetail = () => {
             })
             .map((d) => ({
               dish_id: d.dish_id?._id || d.dish_id,
-              dishName: d.dish_id?.name || "N/A",
+              dishName: d.dish_id?.name || "",
               originalPrice: d.originalPrice,
               salePrice: d.salePrice,
               stock: d.stock,
@@ -213,7 +213,7 @@ const AdminFlashSaleDetail = () => {
           })
           .map((d) => ({
             dish_id: d.dish_id?._id || d.dish_id,
-            dishName: d.dish_id?.name || "N/A",
+            dishName: d.dish_id?.name || "",
             originalPrice: d.originalPrice,
             salePrice: d.salePrice,
             stock: d.stock,

@@ -4,6 +4,7 @@ import axios from "axios";
 import Order from "../models/order-model.js";
 import Dish from "../models/dish-model.js";
 import { getIO } from "../config/socket.js";
+import { awardOrderRewardCoins } from "../services/reward-service.js";
 
 dotenv.config();
 
@@ -208,6 +209,8 @@ export const vnpayReturn = async (req, res) => {
           }
 
           await order.save();
+
+          await awardOrderRewardCoins(order);
 
           try {
             const io = getIO();

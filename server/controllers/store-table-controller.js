@@ -52,6 +52,54 @@ const parseBooleanFilter = (value) => {
   return undefined;
 };
 
+const buildTableCode = (value = "") =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 24)
+    .toUpperCase();
+
+const getRequestedTableCode = ({ code, name }) => {
+  const rawCode = typeof code === "string" && code.trim() ? code : name;
+  return buildTableCode(rawCode || "");
+};
+
+const markDeletedCodeAsReusable = async (branchId, code) => {
+  if (!branchId || !code) return;
+
+  const deletedTable = await StoreTable.findOne({
+    branch_id: branchId,
+    code,
+    deleted: true,
+  });
+
+  if (!deletedTable) return;
+
+  const deletedSuffix = `DELETED-${deletedTable._id.toString().slice(-8)}`;
+  deletedTable.code = `${code}-${deletedSuffix}`.slice(0, 60);
+  deletedTable.name = `${deletedTable.name || "Bàn"} (${deletedSuffix})`;
+  deletedTable.qr_token = `${deletedTable.qr_token}-${deletedSuffix}`;
+  await deletedTable.save();
+};
+
+const findActiveCodeConflict = async (branchId, code, excludeId = null) => {
+  if (!branchId || !code) return null;
+
+  const filter = {
+    branch_id: branchId,
+    code,
+    deleted: { $ne: true },
+  };
+
+  if (excludeId) {
+    filter._id = { $ne: excludeId };
+  }
+
+  return StoreTable.findOne(filter).select("_id name code").lean();
+};
+
 const serializeTable = async (req, table) => {
   const plainTable = table.toObject ? table.toObject() : table;
   const qrUrl = getQrUrl(req, plainTable.qr_token);
@@ -113,6 +161,14 @@ export const createStoreTable = async (req, res) => {
       );
     }
 
+    const requestedCode = getRequestedTableCode({ code, name });
+    await markDeletedCodeAsReusable(branch_id, requestedCode);
+
+    const codeConflict = await findActiveCodeConflict(branch_id, requestedCode);
+    if (codeConflict) {
+      return response.sendError(res, "Mã bàn đã tồn tại trong chi nhánh", 409);
+    }
+
     const table = new StoreTable({
       branch_id,
       name,
@@ -157,7 +213,7 @@ export const getStoreTables = async (req, res) => {
     } = req.query;
 
     const selectedBranchId = branch_id || branchId;
-    const filter = {};
+    const filter = { deleted: { $ne: true } };
 
     if (selectedBranchId) {
       if (!mongoose.Types.ObjectId.isValid(selectedBranchId)) {
@@ -282,7 +338,10 @@ export const updateStoreTable = async (req, res) => {
       return response.sendError(res, "ID bàn không hợp lệ", 400);
     }
 
-    const table = await StoreTable.findById(id);
+    const table = await StoreTable.findOne({
+      _id: id,
+      deleted: { $ne: true },
+    });
     if (!table) {
       return response.sendError(res, "Không tìm thấy bàn", 404);
     }
@@ -298,7 +357,21 @@ export const updateStoreTable = async (req, res) => {
       table.name = name;
     }
 
-    if (typeof code !== "undefined") table.code = code;
+    if (typeof code !== "undefined") {
+      const requestedCode = getRequestedTableCode({ code, name: table.name });
+      await markDeletedCodeAsReusable(table.branch_id, requestedCode);
+
+      const codeConflict = await findActiveCodeConflict(
+        table.branch_id,
+        requestedCode,
+        table._id
+      );
+      if (codeConflict) {
+        return response.sendError(res, "Mã bàn đã tồn tại trong chi nhánh", 409);
+      }
+
+      table.code = code;
+    }
     if (typeof active !== "undefined") table.active = active;
     if (typeof sort_order !== "undefined") table.sort_order = sort_order;
 
@@ -333,7 +406,10 @@ export const deleteStoreTable = async (req, res) => {
       return response.sendError(res, "ID bàn không hợp lệ", 400);
     }
 
-    const table = await StoreTable.findById(id);
+    const table = await StoreTable.findOne({
+      _id: id,
+      deleted: { $ne: true },
+    });
     if (!table) {
       return response.sendError(res, "Không tìm thấy bàn", 404);
     }
@@ -342,7 +418,16 @@ export const deleteStoreTable = async (req, res) => {
       return response.sendError(res, "Không có quyền xóa bàn này", 403);
     }
 
-    await StoreTable.deleteOne({ _id: table._id });
+    const deletedSuffix = `DELETED-${table._id.toString().slice(-8)}`;
+    table.active = false;
+    table.deleted = true;
+    table.deleted_at = new Date();
+    table.name = `${table.name || "Bàn"} (${deletedSuffix})`;
+    if (table.code) {
+      table.code = `${table.code}-${deletedSuffix}`.slice(0, 60);
+    }
+    table.qr_token = `${table.qr_token}-${deletedSuffix}`;
+    await table.save();
 
     return response.sendSuccess(
       res,

@@ -39,13 +39,21 @@ const UsersTable = ({ users = [], onRowClick, isLoading }) => {
       );
     }
 
+    if (user.disabled) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+          Vô hiệu hóa
+        </span>
+      );
+    }
+
     return user.active ? (
       <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
         Đã kích hoạt
       </span>
     ) : (
       <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-        Chưa kích hoạt
+        Chưa xác thực email
       </span>
     );
   };
@@ -80,11 +88,11 @@ const UsersTable = ({ users = [], onRowClick, isLoading }) => {
                 onClick={() => onRowClick && onRowClick(user)}
               >
                 <td className="px-5 py-3 font-bold text-gray-800">
-                  {user.name || "N/A"}
+                  {user.name || ""}
                 </td>
                 <td className="px-5 py-3 text-gray-700">{user.email}</td>
                 <td className="px-5 py-3 text-gray-700">
-                  {user.phone || "N/A"}
+                  {user.phone || ""}
                 </td>
                 <td className="px-5 py-3 text-center">
                   {getRoleBadge(user.role)}
@@ -97,7 +105,7 @@ const UsersTable = ({ users = [], onRowClick, isLoading }) => {
                     ? format(new Date(user.createdAt), "dd/MM/yyyy", {
                         locale: vi,
                       })
-                    : "N/A"}
+                    : ""}
                 </td>
               </tr>
             ))

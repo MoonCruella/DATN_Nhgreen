@@ -64,17 +64,17 @@ const OrdersTable = ({ orders = [], onRowClick, isLoading }) => {
                 </td>
                 <td className="px-5 py-3 text-gray-700">
                   <div>
-                    <div className="font-medium">{order.shipping_info?.name || "N/A"}</div>
+                    <div className="font-medium">{order.shipping_info?.name || ""}</div>
                     <div className="text-sm text-gray-500">{order.shipping_info?.phone || ""}</div>
                   </div>
                 </td>
                 <td className="px-5 py-3 text-gray-700">
                   {order.created_at
                     ? format(new Date(order.created_at), "dd/MM/yyyy HH:mm", { locale: vi })
-                    : "N/A"}
+                    : ""}
                 </td>
                 <td className="px-5 py-3 text-gray-700">
-                  {order.branch_info?.name || "N/A"}
+                  {order.branch_info?.name || ""}
                 </td>
                 <td className="px-5 py-3 text-center">
                   {getStatusBadge(order.status)}

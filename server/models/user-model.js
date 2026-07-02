@@ -73,6 +73,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    disabled: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     ban_info: {
       status: {
         type: String,
