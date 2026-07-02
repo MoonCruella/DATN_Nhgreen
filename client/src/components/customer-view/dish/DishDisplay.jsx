@@ -76,6 +76,10 @@ const ProductDisplay = ({
                     null,
                   category: prod.category,
                   avgRating: prod.avgRating || 0,
+                  totalEnergyKcal: prod.totalEnergyKcal || 0,
+                  totalProtein: prod.totalProtein || 0,
+                  totalCarbs: prod.totalCarbs || 0,
+                  totalFat: prod.totalFat || 0,
                   // Gắn Flash Sale info - chỉ gửi flashSaleId nếu đang active
                   flashSale: {
                     flashSaleId: isActive ? flashSale._id : null,

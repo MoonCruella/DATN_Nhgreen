@@ -136,7 +136,19 @@ export const getDishes = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Support both 'search' and 'q' params for compatibility
-    const { category, minPrice, maxPrice, search, q, sort, status } = req.query;
+    const {
+      category,
+      minPrice,
+      maxPrice,
+      minKcal,
+      maxKcal,
+      ingredient,
+      ingredientIds,
+      search,
+      q,
+      sort,
+      status,
+    } = req.query;
     const searchTerm = search || q;
     console.log(`   → search param: "${searchTerm}"`);
 
@@ -158,6 +170,21 @@ export const getDishes = async (req, res) => {
       filter.price = {};
       if (minPrice) filter.price.$gte = parseFloat(minPrice);
       if (maxPrice) filter.price.$lte = parseFloat(maxPrice);
+    }
+
+    if (minKcal || maxKcal) {
+      filter.totalEnergyKcal = {};
+      if (minKcal) filter.totalEnergyKcal.$gte = parseFloat(minKcal);
+      if (maxKcal) filter.totalEnergyKcal.$lte = parseFloat(maxKcal);
+    }
+
+    const selectedIngredientIds = String(ingredientIds || ingredient || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    if (selectedIngredientIds.length > 0) {
+      filter["ingredients.ingredient"] = { $in: selectedIngredientIds };
     }
 
     if (searchTerm) {
@@ -269,7 +296,7 @@ export const getDishById = async (req, res) => {
       .populate("category", "name status")
       .populate(
         "ingredients.ingredient",
-        "name protein fat carbs imageUrl status"
+        "name origin protein fat carbs imageUrl status"
       )
       .lean();
 
