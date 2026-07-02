@@ -25,7 +25,7 @@ const branchApi = {
     });
     return res.data;
   },
-  remove: async (accessToken, id) => {
+  deactivate: async (accessToken, id) => {
     const headers = accessToken
       ? { Authorization: `Bearer ${accessToken}` }
       : undefined;

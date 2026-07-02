@@ -59,7 +59,7 @@ router.put(
 // Cập nhật branch theo ID
 router.put("/:id", authMiddleware, requireAdmin, updateBranch);
 
-// Xóa branch theo ID
-router.delete("/:id", authMiddleware, deleteBranch);
+// Ngừng kinh doanh branch theo ID
+router.delete("/:id", authMiddleware, requireAdmin, deleteBranch);
 
 export default router;

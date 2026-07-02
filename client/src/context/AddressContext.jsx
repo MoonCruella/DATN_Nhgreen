@@ -57,13 +57,16 @@ export const AddressProvider = ({ children }) => {
   const loadBranches = async () => {
     try {
       setLoadingBranches(true);
-      const res = await branchApi.getAll();
+      const res = await branchApi.getAll({ active: true, limit: 1000 });
       const list = res?.data || [];
       setBranches(list);
 
-      // Tự động chọn chi nhánh đầu tiên nếu chưa có chi nhánh được chọn
-      if (list.length > 0 && !selectedBranch) {
-        setSelectedBranch(list[0]);
+      const selectedBranchStillActive = list.some(
+        (branch) => branch._id === selectedBranch?._id
+      );
+
+      if (!selectedBranchStillActive) {
+        setSelectedBranch(list.length > 0 ? list[0] : null);
       }
     } catch (err) {
       console.error("Error loading branches:", err);

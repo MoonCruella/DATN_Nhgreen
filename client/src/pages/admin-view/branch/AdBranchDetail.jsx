@@ -322,17 +322,20 @@ const AdminBranchDetail = () => {
     }
   };
 
-  // Handle delete
-  const handleDelete = async () => {
-    if (!window.confirm("Bạn có chắc muốn xóa chi nhánh này?")) return;
+  // Handle deactivate
+  const handleDeactivate = async () => {
+    if (!window.confirm("Bạn có chắc muốn ngừng kinh doanh chi nhánh này?"))
+      return;
 
     try {
-      await branchApi.remove(accessToken, id);
-      toast.success("Xóa chi nhánh thành công");
-      navigate("/admin/branches");
+      await branchApi.deactivate(accessToken, id);
+      toast.success("Ngừng kinh doanh chi nhánh thành công");
+      fetchBranchDetail();
     } catch (error) {
-      console.error("Error deleting branch:", error);
-      toast.error("Lỗi xóa chi nhánh");
+      console.error("Error deactivating branch:", error);
+      toast.error(
+        error?.response?.data?.message || "Không thể ngừng kinh doanh chi nhánh"
+      );
     }
   };
 
@@ -481,10 +484,11 @@ const AdminBranchDetail = () => {
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={handleDelete}
+                  onClick={handleDeactivate}
                   className="cursor-pointer"
+                  disabled={!branch.active}
                 >
-                  Xóa chi nhánh
+                  {branch.active ? "Ngừng kinh doanh" : "Đã ngừng kinh doanh"}
                 </Button>
               </>
             ) : (
@@ -875,5 +879,3 @@ const AdminBranchDetail = () => {
 };
 
 export default AdminBranchDetail;
-
-

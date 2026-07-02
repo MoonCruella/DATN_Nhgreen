@@ -230,36 +230,41 @@ export const updateBranch = async (req, res) => {
   }
 };
 
-// Xóa branch
+// Ngừng kinh doanh branch
 export const deleteBranch = async (req, res) => {
   try {
-    const branch = await Branch.findByIdAndDelete(req.params.id);
+    const branch = await Branch.findById(req.params.id);
     if (!branch) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Branch not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Chi nhánh không tồn tại",
+      });
     }
 
-    // Xóa tất cả BranchDishStatus liên quan đến chi nhánh này
-    try {
-      await BranchDishStatus.deleteMany({ branchId: req.params.id });
-    } catch (statusError) {
-      console.error("Error deleting branch dish statuses:", statusError);
-      // Không throw error, vẫn trả về thành công
+    if (!branch.active) {
+      return res.status(200).json({
+        success: true,
+        message: "Chi nhánh đã ngừng kinh doanh",
+        data: branch,
+      });
     }
 
-    res
-      .status(200)
-      .json({ success: true, message: "Branch deleted successfully" });
+    branch.active = false;
+    await branch.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Ngừng kinh doanh chi nhánh thành công",
+      data: branch,
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error deleting branch",
+      message: "Không thể ngừng kinh doanh chi nhánh, vui lòng thử lại sau",
       error: error.message,
     });
   }
 };
-
 // Lấy danh sách món ăn của chi nhánh với trạng thái availability
 export const getBranchDishes = async (req, res) => {
   try {
