@@ -5,6 +5,7 @@ import {
   Copy,
   CreditCard,
   Edit3,
+  Info,
   Menu,
   Minus,
   QrCode,
@@ -32,6 +33,20 @@ const getDishImage = (dish) =>
   assets.add_icon;
 
 const getDishPrice = (dish) => dish?.sale_price || dish?.price || 0;
+
+const formatNutrition = (value = 0, suffix = "g") => {
+  const number = Number(value) || 0;
+  const formatted =
+    suffix === "kcal" ? Math.round(number) : Math.round(number * 10) / 10;
+  return `${formatted}${suffix === "kcal" ? " kcal" : suffix}`;
+};
+
+const getDishNutrition = (dish) => ({
+  calories: dish?.totalEnergyKcal || 0,
+  protein: dish?.totalProtein || 0,
+  carbs: dish?.totalCarbs || 0,
+  fat: dish?.totalFat || 0,
+});
 
 const getStoredSessionKey = (qrToken) => `nhgreen_dine_in_session_${qrToken}`;
 
@@ -85,6 +100,7 @@ const DineInMenu = () => {
   const [paymentLoading, setPaymentLoading] = useState("");
   const [paymentError, setPaymentError] = useState("");
   const [paymentData, setPaymentData] = useState({});
+  const [selectedNutritionDish, setSelectedNutritionDish] = useState(null);
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -335,6 +351,31 @@ const DineInMenu = () => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [showOrderDetail, paymentMethod]);
+
+  useEffect(() => {
+    if (!selectedNutritionDish) return undefined;
+
+    const scrollY = window.scrollY;
+    const originalStyle = {
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+    };
+
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+
+    return () => {
+      document.body.style.overflow = originalStyle.overflow;
+      document.body.style.position = originalStyle.position;
+      document.body.style.top = originalStyle.top;
+      document.body.style.width = originalStyle.width;
+      window.scrollTo(0, scrollY);
+    };
+  }, [selectedNutritionDish]);
 
   const requestGatewayPayment = async (method, force = false) => {
     if (!lastOrder?._id || paymentLoading) return;
@@ -622,24 +663,35 @@ const DineInMenu = () => {
                   <div className="mt-1 text-sm font-black text-red-500">
                     {formatCurrency(price)} VND
                   </div>
-                  <div className="mt-auto flex items-center gap-4">
+                  <div className="mt-auto flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(dish._id, -1)}
+                        disabled={quantity === 0}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-900 text-white disabled:opacity-35"
+                      >
+                        <Minus className="h-5 w-5" />
+                      </button>
+                      <span className="min-w-6 text-center text-lg font-bold text-gray-600">
+                        {quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(dish._id, 1)}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-2xl font-medium leading-none text-white"
+                      >
+                        +
+                      </button>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => updateQuantity(dish._id, -1)}
-                      disabled={quantity === 0}
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-900 text-white disabled:opacity-35"
+                      onClick={() => setSelectedNutritionDish(dish)}
+                      className="flex h-9 shrink-0 items-center justify-center gap-1 rounded-full bg-emerald-50 px-2.5 text-[11px] font-black leading-none text-emerald-600"
+                      title="Dinh dưỡng"
                     >
-                      <Minus className="h-5 w-5" />
-                    </button>
-                    <span className="min-w-6 text-center text-lg font-bold text-gray-600">
-                      {quantity}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(dish._id, 1)}
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-2xl font-medium leading-none text-white"
-                    >
-                      +
+                      <Info className="h-4 w-4" />
+                      <span>Dinh dưỡng</span>
                     </button>
                   </div>
                 </div>
@@ -689,6 +741,87 @@ const DineInMenu = () => {
           </span>
         )}
       </button>
+
+      {selectedNutritionDish && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/70 px-4 py-6">
+          <div className="relative max-h-[calc(100vh-48px)] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl bg-white p-5 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setSelectedNutritionDish(null)}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-700"
+              title="Đóng"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3 pr-10">
+              <img
+                src={getDishImage(selectedNutritionDish)}
+                alt={selectedNutritionDish.name}
+                className="h-20 w-20 rounded-xl object-cover"
+              />
+              <div className="min-w-0">
+                <h3 className="line-clamp-2 text-lg font-black leading-snug text-gray-950">
+                  {selectedNutritionDish.name}
+                </h3>
+                <span className="mt-1 inline-flex max-w-full items-center self-start rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black leading-4 text-emerald-600">
+                  Dinh dưỡng
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              {(() => {
+                const nutrition = getDishNutrition(selectedNutritionDish);
+                const values = [
+                  {
+                    label: "Calo",
+                    value: formatNutrition(nutrition.calories, "kcal"),
+                    className: "bg-orange-50 text-orange-600",
+                  },
+                  {
+                    label: "Protein",
+                    value: formatNutrition(nutrition.protein),
+                    className: "bg-sky-50 text-sky-600",
+                  },
+                  {
+                    label: "Carb",
+                    value: formatNutrition(nutrition.carbs),
+                    className: "bg-emerald-50 text-emerald-600",
+                  },
+                  {
+                    label: "Chất béo",
+                    value: formatNutrition(nutrition.fat),
+                    className: "bg-rose-50 text-rose-600",
+                  },
+                ];
+
+                return values.map((item) => (
+                  <div
+                    key={item.label}
+                    className={`rounded-xl px-4 py-3 ${item.className}`}
+                  >
+                    <div className="text-sm font-bold opacity-80">
+                      {item.label}
+                    </div>
+                    <div className="mt-1 text-2xl font-black">
+                      {item.value}
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedNutritionDish(null)}
+              className="mt-5 h-12 w-full rounded-xl bg-emerald-600 text-base font-black text-white"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
 
       {showPaymentSuccessPopup && (
         <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/75 px-3">

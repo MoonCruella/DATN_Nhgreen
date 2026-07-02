@@ -93,7 +93,7 @@ const ManagerRatingsTable = ({
                     />
                     <div>
                       <p className="font-medium text-sm">
-                        {rating.dishName || "N/A"}
+                        {rating.dishName || ""}
                       </p>
                       <p className="text-xs text-gray-500">
                         #{rating.dish_id?._id?.slice(-6)}
@@ -109,7 +109,7 @@ const ManagerRatingsTable = ({
                 >
                   <div>
                     <p className="font-medium text-sm">
-                      {rating.userName || "N/A"}
+                      {rating.userName || ""}
                     </p>
                     <p className="text-xs text-gray-500">
                       {rating.userEmail || ""}
@@ -151,7 +151,9 @@ const ManagerRatingsTable = ({
                   onClick={() => onRowClick(rating)}
                 >
                   <p className="text-sm font-mono text-gray-700">
-                    #{rating.order_id?.order_number || "N/A"}
+                    {rating.order_id?.order_number
+                      ? `#${rating.order_id.order_number}`
+                      : ""}
                   </p>
                 </td>
 

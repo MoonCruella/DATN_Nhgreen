@@ -83,7 +83,7 @@ const AdminDishDetail = () => {
               typeof ing.ingredient === "string"
                 ? ing.ingredient
                 : ing.ingredient?._id || "",
-            name: ing.ingredient?.name || "N/A",
+            name: ing.ingredient?.name || "",
             energyKcal: ing.ingredient?.energyKcal || 0,
             imageUrl: ing.ingredient?.imageUrl || "",
             quantityGram: String(ing.quantityGram || 0),
@@ -218,7 +218,7 @@ const AdminDishDetail = () => {
             typeof ing.ingredient === "string"
               ? ing.ingredient
               : ing.ingredient?._id || "",
-          name: ing.ingredient?.name || "N/A",
+          name: ing.ingredient?.name || "",
           energyKcal: ing.ingredient?.energyKcal || 0,
           imageUrl: ing.ingredient?.imageUrl || "",
           quantityGram: String(ing.quantityGram || 0),

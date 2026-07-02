@@ -29,6 +29,15 @@ const storeTableSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    deleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deleted_at: {
+      type: Date,
+      default: null,
+    },
     sort_order: {
       type: Number,
       default: 0,
@@ -39,7 +48,13 @@ const storeTableSchema = new mongoose.Schema(
   }
 );
 
-storeTableSchema.index({ branch_id: 1, code: 1 }, { unique: true, sparse: true });
+storeTableSchema.index(
+  { branch_id: 1, code: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { deleted: false },
+  }
+);
 
 storeTableSchema.pre("validate", function (next) {
   if (!this.qr_token) {

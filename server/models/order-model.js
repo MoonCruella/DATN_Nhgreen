@@ -215,6 +215,16 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    reward_coin_earned: {
+      type: Number,
+      default: 0,
+    },
+    reward_coin_awarded_at: Date,
+    reward_coin_user_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     payment_method: {
       type: String,
       enum: ["cod", "bank_transfer", "vnpay", "momo", "zalopay"],

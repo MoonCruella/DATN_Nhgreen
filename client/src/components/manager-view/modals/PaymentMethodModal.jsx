@@ -63,16 +63,6 @@ const getOrderDateTime = (order) => {
   }).format(date);
 };
 
-const getTextValue = (value) =>
-  typeof value === "string" ? value.trim() : value;
-
-const getDineInCustomer = (order, selectedCustomer) => {
-  if (selectedCustomer?._id) return selectedCustomer;
-
-  const customer = order?.customer_id;
-  return customer && typeof customer === "object" ? customer : null;
-};
-
 const PAYMENT_METHODS = [
   { value: "cod", label: "Tiền mặt", icon: Banknote },
   { value: "momo", label: "QR-Momo", icon: QrCode },
@@ -114,7 +104,6 @@ const PaymentMethodModal = ({
   open,
   table,
   order,
-  selectedCustomer = null,
   items = [],
   totalQuantity = 0,
   totalAmount = 0,
@@ -173,12 +162,6 @@ const PaymentMethodModal = ({
   const cashChange = Math.max(cashReceived - totalAmount, 0);
   const orderCode = getOrderCode(order);
   const tableName = table?.name || order?.table_info?.name || "Bàn";
-  const dineInCustomer = getDineInCustomer(order, selectedCustomer);
-  const customerName =
-    getTextValue(dineInCustomer?.name) ||
-    "Khách vãng lai";
-  const customerPhone =
-    getTextValue(dineInCustomer?.phone) || "";
   const gatewayQrUrl = paymentMethod === "momo" ? momoQrUrl : zalopayQrUrl;
   const gatewayQrCreatedAt =
     paymentMethod === "momo" ? momoQrCreatedAt : zalopayQrCreatedAt;
@@ -410,25 +393,11 @@ const PaymentMethodModal = ({
                 <span>{tableName}</span>
               </div>
               <div className="flex items-center justify-between gap-5">
-                <span>Khách hàng:</span>
-                <span>{customerName}</span>
-              </div>
-              {customerPhone && (
-                <div className="flex items-center justify-between gap-5">
-                  <span>SĐT:</span>
-                  <span>{customerPhone}</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-5">
                 <span>Thời gian tạo đơn:</span>
                 <span className="inline-flex items-center justify-center rounded-full border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-500">
                   <Clock3 className="mr-2 h-4 w-4" />
                   {getOrderDateTime(order)}
                 </span>
-              </div>
-              <div className="flex items-center justify-between gap-5">
-                <span>Điểm:</span>
-                <span>{formatCurrency(Math.floor(totalAmount / 10))}</span>
               </div>
               <div className="flex items-center justify-between gap-5">
                 <span>Thành tiền:</span>
@@ -526,14 +495,6 @@ const PaymentMethodModal = ({
               <span className="text-right">{orderCode}</span>
               <span>Bàn:</span>
               <span className="text-right">{tableName}</span>
-              <span>Khách hàng:</span>
-              <span className="text-right">{customerName}</span>
-              {customerPhone && (
-                <>
-                  <span>SĐT:</span>
-                  <span className="text-right">{customerPhone}</span>
-                </>
-              )}
               <span>Thời gian:</span>
               <span className="text-right">{getOrderDateTime(order)}</span>
               <span>Trạng thái hóa đơn:</span>

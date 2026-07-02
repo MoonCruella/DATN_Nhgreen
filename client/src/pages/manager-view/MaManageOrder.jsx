@@ -397,7 +397,7 @@ const MaManageOrder = () => {
       </div>
 
       <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
-        <div className="grid grid-cols-[64px_0.9fr_1.15fr_1.2fr_1.05fr_0.85fr_minmax(230px,1.45fr)] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
+        <div className="grid grid-cols-[52px_0.85fr_1.05fr_1.15fr_1.05fr_0.9fr_minmax(190px,1fr)] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
           <div>STT</div>
           <div>Mã đơn</div>
           <div>Thời gian</div>
@@ -431,7 +431,7 @@ const MaManageOrder = () => {
             return (
               <div
                 key={order._id}
-                className="grid min-h-14 grid-cols-[64px_0.9fr_1.15fr_1.2fr_1.05fr_0.85fr_minmax(230px,1.45fr)] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
+                className="grid min-h-14 grid-cols-[52px_0.85fr_1.05fr_1.15fr_1.05fr_0.9fr_minmax(190px,1fr)] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
               >
                 <div>{startIndex + index + 1}</div>
                 <div>{compactOrderCode(order.order_number)}</div>

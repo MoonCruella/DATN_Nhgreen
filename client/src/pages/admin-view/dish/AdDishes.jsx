@@ -195,7 +195,7 @@ const AdminDishes = () => {
           .map((d) =>
             JSON.stringify({
               _id: d.category._id || d.category,
-              name: d.category.name || "N/A",
+              name: d.category.name || "",
             })
           )
       )
@@ -248,8 +248,8 @@ const AdminDishes = () => {
         <div className="text-[#34ad54]">Món ăn</div>
       </header>
 
-      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center xl:flex-1">
+      <div className="mb-4 flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-start">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
           <div className="relative w-full lg:w-[300px]">
             <input
               type="text"
@@ -303,14 +303,15 @@ const AdminDishes = () => {
             </button>
           )}
 
-          <Button
-            type="button"
-            onClick={applyFilters}
-            className="h-12 min-w-[110px] rounded-lg bg-[#34ad54] text-base font-bold text-white hover:bg-[#2f9b45] lg:ml-auto"
-          >
-            Áp dụng
-          </Button>
         </div>
+
+        <Button
+          type="button"
+          onClick={applyFilters}
+          className="h-12 w-full min-w-[110px] shrink-0 rounded-lg bg-[#34ad54] px-5 text-base font-bold text-white hover:bg-[#2f9b45] sm:w-auto"
+        >
+          Áp dụng
+        </Button>
 
         <Button
           type="button"

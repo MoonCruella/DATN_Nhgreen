@@ -5,17 +5,21 @@ import {
   ChevronRight,
   PackageOpen,
   PencilLine,
-  Plus,
   Search,
   Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import userApi from "@/api/userApi";
-import CustomerCreateModal from "@/components/manager-view/modals/CustomerCreateModal";
+import { useSelector } from "react-redux";
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
+
+const getRewardPoints = (customer = {}) =>
+  customer.source === "online_account"
+    ? Math.max(Number(customer.reward_points) || 0, Number(customer.coin) || 0)
+    : 0;
 
 const defaultPagination = {
   current_page: 1,
@@ -31,8 +35,7 @@ const MaCustomers = () => {
   const [appliedSearch, setAppliedSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [pageSize, setPageSize] = useState(20);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const accessToken = useSelector((state) => state.auth.accessToken);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -54,9 +57,11 @@ const MaCustomers = () => {
 
   useEffect(() => {
     const fetchCustomers = async () => {
+      if (!accessToken) return;
+
       try {
         setLoading(true);
-        const res = await userApi.getManagerCustomers(params);
+        const res = await userApi.getManagerCustomers(params, accessToken);
         const payload = res?.data || res || {};
 
         setCustomers(Array.isArray(payload.customers) ? payload.customers : []);
@@ -74,7 +79,7 @@ const MaCustomers = () => {
     };
 
     fetchCustomers();
-  }, [params, pageSize, refreshKey]);
+  }, [params, pageSize, accessToken]);
 
   const totalPages = Math.max(1, pagination.total_pages || 1);
   const startIndex =
@@ -122,17 +127,6 @@ const MaCustomers = () => {
           </div>
         </div>
 
-        <div className="flex gap-3">
-          <Button
-            type="button"
-            onClick={() => setShowCreateModal(true)}
-            variant="outline"
-            className="h-12 rounded-lg border-[#34ad54] bg-white px-5 text-base font-bold text-[#34ad54] hover:bg-green-50 hover:text-[#2f9b45]"
-          >
-            <Plus className="h-5 w-5" />
-            Thêm
-          </Button>
-        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
@@ -177,7 +171,9 @@ const MaCustomers = () => {
               </div>
               <div>{customer.phone || "-"}</div>
               <div>{formatCurrency(customer.total_spent)} VND</div>
-              <div>{formatCurrency(customer.reward_points)}</div>
+              <div>
+                {formatCurrency(getRewardPoints(customer))}
+              </div>
               <div>{formatCurrency(customer.total_orders)}</div>
               <div className="text-gray-400">
                 <button
@@ -264,16 +260,6 @@ const MaCustomers = () => {
         </div>
       )}
 
-      <CustomerCreateModal
-        open={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCreated={() => {
-          setPagination((prev) => ({ ...prev, current_page: 1 }));
-          setAppliedSearch("");
-          setSearchTerm("");
-          setRefreshKey((prev) => prev + 1);
-        }}
-      />
     </section>
   );
 };

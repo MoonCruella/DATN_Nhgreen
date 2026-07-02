@@ -6,12 +6,12 @@ import Voucher from "../models/voucher-model.js";
 import FlashSale from "../models/flashsale-model.js";
 import StoreTable from "../models/store-table-model.js";
 import DineInSession from "../models/dinein-session-model.js";
-import DineInCustomer from "../models/dinein-customer-model.js";
 import OrderCounter from "../models/order-counter-model.js";
 import mongoose from "mongoose";
 import response from "../helpers/response.js";
 import * as notificationService from "../services/notification-service.js";
 import * as orderSchedulerService from "../services/order-scheduler-service.js";
+import { awardOrderRewardCoins } from "../services/reward-service.js";
 import CartItem from "../models/cart-model.js";
 import Rating from "../models/rating-model.js";
 import { getIO } from "../config/socket.js";
@@ -1235,7 +1235,6 @@ export const createOrder = async (req, res) => {
       order_channel = "delivery",
       order_type,
       table_id,
-      customer_id,
       dine_in_session_id,
       dine_in_session_token,
       vnpay_txn_ref,
@@ -1314,7 +1313,6 @@ export const createOrder = async (req, res) => {
     let selectedBranchId = branch_id;
     let selectedTable = null;
     let dineInSession = null;
-    let dineInCustomer = null;
 
     if (isDineInQr) {
       if (
@@ -1381,29 +1379,6 @@ export const createOrder = async (req, res) => {
       }
 
       selectedBranchId = selectedTable.branch_id;
-    }
-
-    if (isDineIn) {
-      const dineInCustomerId = customer_id;
-
-      if (dineInCustomerId) {
-        if (!mongoose.Types.ObjectId.isValid(dineInCustomerId)) {
-          return response.sendError(res, "Khách hàng tại quán không hợp lệ", 400);
-        }
-
-        dineInCustomer = await DineInCustomer.findOne({
-          _id: dineInCustomerId,
-          active: true,
-        }).lean();
-
-        if (!dineInCustomer) {
-          return response.sendError(
-            res,
-            "Không tìm thấy khách hàng tại quán",
-            404
-          );
-        }
-      }
     }
 
     // Validate branch selection
@@ -1647,6 +1622,101 @@ export const createOrder = async (req, res) => {
       (freeship_value || 0) -
       coinDiscount;
 
+    if (isDineInQr) {
+      const activeDineInOrder = await Order.findOne({
+        table_id: selectedTable._id,
+        branch_id: branch._id,
+        order_type: "dine_in",
+        status: { $in: ["pending", "confirmed", "processing"] },
+        payment_status: { $ne: "paid" },
+      }).sort({ created_at: -1 });
+
+      if (activeDineInOrder) {
+        const itemKey = (item) =>
+          `${item.dish_id?.toString() || ""}:${JSON.stringify(item.variant || {})}`;
+        const itemMap = new Map();
+
+        for (const item of activeDineInOrder.items || []) {
+          itemMap.set(itemKey(item), item);
+        }
+
+        for (const newItem of orderItems) {
+          const key = itemKey(newItem);
+          const existingItem = itemMap.get(key);
+
+          if (existingItem) {
+            existingItem.quantity += newItem.quantity;
+            existingItem.total =
+              (existingItem.sale_price || existingItem.price || 0) *
+              existingItem.quantity;
+          } else {
+            activeDineInOrder.items.push(newItem);
+            itemMap.set(
+              key,
+              activeDineInOrder.items[activeDineInOrder.items.length - 1]
+            );
+          }
+        }
+
+        activeDineInOrder.subtotal = (activeDineInOrder.items || []).reduce(
+          (sum, item) => sum + (item.total || 0),
+          0
+        );
+        activeDineInOrder.total_amount =
+          activeDineInOrder.subtotal +
+          (activeDineInOrder.shipping_fee || 0) -
+          (activeDineInOrder.discount_value || 0) -
+          (activeDineInOrder.freeship_value || 0) -
+          (activeDineInOrder.coin_discount || 0);
+        activeDineInOrder.notes = [activeDineInOrder.notes, notes]
+          .filter(Boolean)
+          .join("\n");
+        activeDineInOrder.history = activeDineInOrder.history || [];
+        activeDineInOrder.history.push({
+          status: activeDineInOrder.status,
+          date: new Date(),
+          note: "KhÃ¡ch gá»i thÃªm mÃ³n tá»« E-menu",
+        });
+
+        await activeDineInOrder.save();
+
+        await DineInSession.findByIdAndUpdate(dineInSession._id, {
+          last_order_id: activeDineInOrder._id,
+          cart_items: [],
+        });
+
+        const updatedOrder = await Order.findById(activeDineInOrder._id)
+          .populate("user_id", "name email phone")
+          .populate("customer_id", "name phone address linked_user_id")
+          .populate("branch_id", "name phone address code")
+          .lean();
+
+        try {
+          const io = getIO();
+          io.to(`branch:${branch._id}`).emit("order_status_updated", {
+            order_id: updatedOrder._id,
+            order_number: updatedOrder.order_number,
+            branch_id: branch._id,
+            status: updatedOrder.status,
+            updates: {
+              items: updatedOrder.items,
+              subtotal: updatedOrder.subtotal,
+              total_amount: updatedOrder.total_amount,
+            },
+          });
+        } catch (socketError) {
+          console.error("Socket dine-in QR add items error:", socketError);
+        }
+
+        return response.sendSuccess(
+          res,
+          { order: updatedOrder },
+          "ÄÃ£ thÃªm mÃ³n vÃ o Ä‘Æ¡n Ä‘ang má»Ÿ",
+          200
+        );
+      }
+    }
+
     // Deduct coins from user if coin_discount is used
     if (coinDiscount > 0) {
       if (!userId) {
@@ -1679,7 +1749,7 @@ export const createOrder = async (req, res) => {
             code: selectedTable.code,
           }
         : undefined,
-      customer_id: isDineIn ? dineInCustomer?._id || null : null,
+      customer_id: null,
       dine_in_session_id: isDineInQr ? dineInSession._id : null,
       branch_id: branch._id,
       branch_info: {
@@ -1757,6 +1827,10 @@ export const createOrder = async (req, res) => {
     });
 
     await newOrder.save();
+
+    if (newOrder.payment_status === "paid") {
+      await awardOrderRewardCoins(newOrder);
+    }
 
     if (isDineInQr) {
       await DineInSession.findByIdAndUpdate(dineInSession._id, {
@@ -2464,6 +2538,8 @@ export const completeDineInOrder = async (req, res) => {
 
     await order.save();
 
+    const reward = await awardOrderRewardCoins(order);
+
     try {
       const io = getIO();
       io.to(`branch:${order.branch_id}`).emit("order_status_updated", {
@@ -2483,7 +2559,7 @@ export const completeDineInOrder = async (req, res) => {
 
     return response.sendSuccess(
       res,
-      { order },
+      { order, reward },
       "Thanh toán đơn ăn tại quán thành công",
       200
     );
@@ -2492,75 +2568,6 @@ export const completeDineInOrder = async (req, res) => {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi thanh toán đơn ăn tại quán",
-      500,
-      error.message
-    );
-  }
-};
-
-export const updateDineInOrderCustomer = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const { customer_id } = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
-    }
-
-    if (!customer_id || !mongoose.Types.ObjectId.isValid(customer_id)) {
-      return response.sendError(res, "Khách hàng tại quán không hợp lệ", 400);
-    }
-
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return response.sendError(res, "Không tìm thấy đơn hàng", 404);
-    }
-
-    if (order.order_type !== "dine_in") {
-      return response.sendError(res, "Chỉ áp dụng cho đơn ăn tại quán", 400);
-    }
-
-    const userRole = req.user?.role;
-    if (userRole === "manager") {
-      const tokenBranchId = req.user.branch_id?.toString();
-      if (tokenBranchId && tokenBranchId !== order.branch_id.toString()) {
-        return response.sendError(
-          res,
-          "Bạn không có quyền cập nhật đơn hàng của chi nhánh này",
-          403
-        );
-      }
-    }
-
-    const dineInCustomer = await DineInCustomer.findOne({
-      _id: customer_id,
-      active: true,
-    }).lean();
-
-    if (!dineInCustomer) {
-      return response.sendError(res, "Không tìm thấy khách hàng tại quán", 404);
-    }
-
-    order.customer_id = dineInCustomer._id;
-    await order.save();
-
-    const updatedOrder = await Order.findById(order._id)
-      .populate("user_id", "name email phone")
-      .populate("customer_id", "name phone address linked_user_id")
-      .populate("branch_id", "name phone address code")
-      .lean();
-
-    return response.sendSuccess(
-      res,
-      { order: updatedOrder },
-      "Cập nhật khách hàng cho đơn tại quán thành công",
-      200
-    );
-  } catch (error) {
-    console.error("Update dine-in order customer error:", error);
-    return response.sendError(
-      res,
-      "Có lỗi xảy ra khi cập nhật khách hàng cho đơn tại quán",
       500,
       error.message
     );
@@ -3203,6 +3210,8 @@ export const confirmReceived = async (req, res) => {
     await order.save();
 
     // Reset cancel order streak khi đơn hàng hoàn thành thành công
+    await awardOrderRewardCoins(order);
+
     try {
       const user = await User.findById(userId);
       if (user) {
@@ -3443,6 +3452,8 @@ export const autoCompleteOrder = async (orderId) => {
     });
 
     await order.save();
+
+    await awardOrderRewardCoins(order);
 
     // Send socket notification
     try {

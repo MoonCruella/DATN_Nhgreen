@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Eye,
   Search,
-  SlidersHorizontal,
   Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -361,16 +360,13 @@ const MaDineInOrders = () => {
       </div>
 
       <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
-        <div className="grid grid-cols-[70px_1fr_1.3fr_1.1fr_1.05fr_1fr_56px] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
+        <div className="grid grid-cols-[56px_1fr_1.25fr_1.05fr_0.95fr_72px] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
           <div>STT</div>
           <div>Mã hóa đơn</div>
           <div>Thời gian</div>
           <div>Trạng thái</div>
           <div>Tổng tiền</div>
-          <div>Hành động</div>
-          <div className="flex justify-end">
-            <SlidersHorizontal className="h-5 w-5" />
-          </div>
+          <div className="text-right">Hành động</div>
         </div>
 
         {loading ? (
@@ -389,7 +385,7 @@ const MaDineInOrders = () => {
             return (
               <div
                 key={order._id}
-                className="grid min-h-14 grid-cols-[70px_1fr_1.3fr_1.1fr_1.05fr_1fr_56px] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
+                className="grid min-h-14 grid-cols-[56px_1fr_1.25fr_1.05fr_0.95fr_72px] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
               >
                 <div>{startIndex + index + 1}</div>
                 <div>{compactOrderCode(order.order_number)}</div>
@@ -403,7 +399,7 @@ const MaDineInOrders = () => {
                   </span>
                 </div>
                 <div>{formatCurrency(order.total_amount)} VND</div>
-                <div className="flex items-center gap-5 text-gray-400">
+                <div className="flex items-center justify-end gap-3 text-gray-400">
                   <button
                     type="button"
                     onClick={() => setSelectedOrder(order)}
@@ -413,7 +409,6 @@ const MaDineInOrders = () => {
                     <Eye className="h-5 w-5" strokeWidth={2.2} />
                   </button>
                 </div>
-                <div />
               </div>
             );
           })

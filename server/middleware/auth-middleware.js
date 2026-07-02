@@ -20,6 +20,14 @@ const authMiddleware = async (req, res, next) => {
     // Kiểm tra trạng thái ban của user
     const user = await User.findById(decoded.userId);
     if (user) {
+      if (user.disabled) {
+        return res.status(403).json({
+          success: false,
+          message: "Tai khoan da bi vo hieu hoa.",
+          disabled: true,
+        });
+      }
+
       const banStatus = user.isBanned();
       if (banStatus.banned) {
         return res.status(403).json({
@@ -109,7 +117,7 @@ const checkAuthOptional = async (req, res, next) => {
       try {
         const decoded = verifyAccessToken(token);
         const user = await User.findById(decoded.userId);
-        if (user && user.active) {
+        if (user && user.active && !user.disabled) {
           req.user = {
             ...decoded,
             email: user.email,

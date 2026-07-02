@@ -60,13 +60,17 @@ const RatingModal = ({ rating, onClose }) => {
                   <Package className="w-4 h-4 text-gray-500" />
                   <div className="flex-1 min-w-0">
                     <p className="text-lg font-medium text-gray-800 truncate">
-                      {rating.dishName || "N/A"}
+                      {rating.dishName || ""}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
                   <ShoppingBag className="w-4 h-4" />
-                  <span className="font-mono">ORDER: #{rating.order_id?.order_number || rating.order_id?._id?.slice(-8) || "N/A"}</span>
+                  <span className="font-mono">
+                    {rating.order_id?.order_number || rating.order_id?._id
+                      ? `ORDER: #${rating.order_id?.order_number || rating.order_id?._id?.slice(-8)}`
+                      : ""}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <StarRating rating={rating.rating} />
@@ -84,10 +88,10 @@ const RatingModal = ({ rating, onClose }) => {
               <User className="w-5 h-5 text-gray-500" />
               <h4 className="font-semibold text-gray-800">Người đánh giá</h4>
             </div>
-            <p className="text-base font-medium text-gray-800">{rating.userName || "N/A"}</p>
+            <p className="text-base font-medium text-gray-800">{rating.userName || ""}</p>
             <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
               <Mail className="w-4 h-4" />
-              <span>{rating.userEmail || "N/A"}</span>
+              <span>{rating.userEmail || ""}</span>
             </div>
           </div>
 
