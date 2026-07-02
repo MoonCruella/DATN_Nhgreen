@@ -5,7 +5,6 @@ import zalopayConfig from "../config/zalopay.js";
 import Order from "../models/order-model.js";
 import Dish from "../models/dish-model.js";
 import { getIO } from "../config/socket.js";
-import { awardOrderRewardCoins } from "../services/reward-service.js";
 
 // Helper to create HMAC SHA256
 function hmacSHA256(data, key) {
@@ -79,8 +78,6 @@ const completeDineInOrderByZalopay = async ({
   });
 
   await order.save();
-
-  await awardOrderRewardCoins(order);
 
   try {
     const io = getIO();

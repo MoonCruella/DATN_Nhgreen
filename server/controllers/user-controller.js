@@ -1,24 +1,11 @@
 import response from "../helpers/response.js";
 import User from "../models/user-model.js";
-import Order from "../models/order-model.js";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 import { createVietnameseSearchQuery } from "../utils/fuzzySearch.js";
 
-const normalizePhone = (phone = "") => {
-  let normalizedPhone = String(phone || "").replace(/\D/g, "");
-  if (normalizedPhone.startsWith("84") && normalizedPhone.length >= 11) {
-    normalizedPhone = `0${normalizedPhone.slice(2)}`;
-  }
-  return normalizedPhone;
-};
-
-const makeCustomerCode = (value, index) => {
-  if (!value) return `KH${String(index + 1).padStart(5, "0")}`;
-  return `KH${String(value).slice(-6).toUpperCase()}`;
-};
 
 // Get current user profile (from req.user)
 export const getMyProfile = async (req, res) => {
@@ -364,132 +351,6 @@ export const getUserList = async (req, res) => {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi lấy danh sách người dùng",
-      500,
-      error.message
-    );
-  }
-};
-
-export const getManagerCustomers = async (req, res) => {
-  try {
-    const { page = 1, limit = 20, search = "" } = req.query;
-    const currentPage = Math.max(parseInt(page, 10) || 1, 1);
-    const perPage = Math.max(parseInt(limit, 10) || 20, 1);
-    const keyword = String(search || "").trim().toLowerCase();
-
-    const [users, orders] = await Promise.all([
-      User.find({ role: "customer" })
-        .select("_id name email phone coin createdAt")
-        .lean(),
-      Order.find({})
-        .select(
-          "user_id total_amount status order_number created_at"
-        )
-        .lean(),
-    ]);
-
-    const customersByKey = new Map();
-    const userKeyById = new Map();
-
-    users.forEach((user, index) => {
-      const phone = normalizePhone(user.phone);
-      const key = `user:${user._id}`;
-      const rewardPoints = user.coin || 0;
-      const customer = {
-        _id: key,
-        user_id: user._id,
-        customer_code: makeCustomerCode(user._id, index),
-        name: user.name || "Khách hàng",
-        email: user.email || "",
-        phone: user.phone || "",
-        normalized_phone: phone,
-        total_spent: 0,
-        reward_points: rewardPoints,
-        coin: rewardPoints,
-        total_orders: 0,
-        source: "online_account",
-        created_at: user.createdAt,
-      };
-
-      customersByKey.set(key, customer);
-      userKeyById.set(String(user._id), key);
-    });
-
-    orders.forEach((order) => {
-      const userId = order.user_id ? String(order.user_id) : "";
-      const key = userKeyById.get(userId);
-      if (!key) return;
-
-      const customer = customersByKey.get(key);
-
-      if (order.status !== "cancelled") {
-        customer.total_orders += 1;
-        customer.total_spent += order.total_amount || 0;
-      }
-    });
-
-    let customers = Array.from(customersByKey.values()).sort((a, b) => {
-      if (b.total_orders !== a.total_orders) return b.total_orders - a.total_orders;
-      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-    });
-
-    if (keyword) {
-      customers = customers.filter((customer) => {
-        const haystack = [
-          customer.customer_code,
-          customer.name,
-          customer.phone,
-          customer.email,
-        ]
-          .join(" ")
-          .toLowerCase();
-        return haystack.includes(keyword);
-      });
-    }
-
-    customers = customers.map((customer, index) => {
-      const rewardPoints =
-        customer.source === "online_account"
-          ? customer.reward_points ?? customer.coin ?? 0
-          : 0;
-
-      return {
-        ...customer,
-        stt: index + 1,
-        reward_points: rewardPoints,
-        coin: rewardPoints,
-        total_spent: customer.total_spent || 0,
-        total_orders: customer.total_orders || 0,
-      };
-    });
-
-    const totalCustomers = customers.length;
-    const totalPages = Math.ceil(totalCustomers / perPage);
-    const start = (currentPage - 1) * perPage;
-    const pagedCustomers = customers.slice(start, start + perPage);
-
-    return response.sendSuccess(
-      res,
-      {
-        customers: pagedCustomers,
-        pagination: {
-          current_page: currentPage,
-          total_pages: totalPages,
-          total_customers: totalCustomers,
-          per_page: perPage,
-        },
-        filter: {
-          search: search || null,
-        },
-      },
-      "Lấy danh sách khách hàng thành công",
-      200
-    );
-  } catch (error) {
-    console.error("Get manager customers error:", error);
-    return response.sendError(
-      res,
-      "Có lỗi xảy ra khi lấy danh sách khách hàng",
       500,
       error.message
     );

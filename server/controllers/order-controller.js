@@ -1612,7 +1612,7 @@ export const createOrder = async (req, res) => {
 
     // Sử dụng shipping_fee từ frontend, fallback về 30000 nếu không có
     const shippingFeeFromFrontend = isDineIn ? 0 : shipping_fee || 30000;
-    const coinDiscount = coin_discount || 0;
+    const coinDiscount = isDineIn ? 0 : coin_discount || 0;
 
     // Tính total_amount = subtotal + shipping_fee - discount - freeship - coin_discount
     const totalAmount =
@@ -1667,7 +1667,7 @@ export const createOrder = async (req, res) => {
           (activeDineInOrder.shipping_fee || 0) -
           (activeDineInOrder.discount_value || 0) -
           (activeDineInOrder.freeship_value || 0) -
-          (activeDineInOrder.coin_discount || 0);
+          0;
         activeDineInOrder.notes = [activeDineInOrder.notes, notes]
           .filter(Boolean)
           .join("\n");
@@ -1828,7 +1828,7 @@ export const createOrder = async (req, res) => {
 
     await newOrder.save();
 
-    if (newOrder.payment_status === "paid") {
+    if (!isDineIn && newOrder.payment_status === "paid") {
       await awardOrderRewardCoins(newOrder);
     }
 
@@ -2538,8 +2538,6 @@ export const completeDineInOrder = async (req, res) => {
 
     await order.save();
 
-    const reward = await awardOrderRewardCoins(order);
-
     try {
       const io = getIO();
       io.to(`branch:${order.branch_id}`).emit("order_status_updated", {
@@ -2559,7 +2557,7 @@ export const completeDineInOrder = async (req, res) => {
 
     return response.sendSuccess(
       res,
-      { order, reward },
+      { order },
       "Thanh toán đơn ăn tại quán thành công",
       200
     );

@@ -210,7 +210,9 @@ export const vnpayReturn = async (req, res) => {
 
           await order.save();
 
-          await awardOrderRewardCoins(order);
+          if (order.order_type !== "dine_in") {
+            await awardOrderRewardCoins(order);
+          }
 
           try {
             const io = getIO();

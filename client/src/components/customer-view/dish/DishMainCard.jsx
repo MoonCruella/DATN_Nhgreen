@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { assets } from "@/assets/assets";
@@ -17,36 +17,6 @@ const ProductCard = ({ product }) => {
   const formatCurrency = (value) =>
     value?.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
 
-  const formatNutrition = (value, suffix = "g") => {
-    const number = Number(value || 0);
-    const rounded = Number.isInteger(number) ? number : number.toFixed(1);
-    return `${rounded}${suffix}`;
-  };
-
-  const nutritionItems = [
-    {
-      label: "Kcal",
-      value: formatNutrition(product.totalEnergyKcal, " kcal"),
-      color: "text-green-700",
-    },
-    {
-      label: "Protein",
-      value: formatNutrition(product.totalProtein),
-      color: "text-blue-700",
-    },
-    {
-      label: "Carbs",
-      value: formatNutrition(product.totalCarbs),
-      color: "text-amber-700",
-    },
-    {
-      label: "Fat",
-      value: formatNutrition(product.totalFat),
-      color: "text-rose-700",
-    },
-  ];
-
-  // Xử lý thêm vào giỏ
   const handleAddToCart = async (e) => {
     e.preventDefault();
 
@@ -143,34 +113,6 @@ const ProductCard = ({ product }) => {
               {/* cart icon from assets */}
               <img src={assets.cart} alt="cart" className="w-6 h-6" />
             </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="pointer-events-none absolute left-4 right-4 top-[220px] z-30 translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
-        <div className="rounded-xl border border-green-100 bg-green-50/95 p-3 text-left shadow-xl backdrop-blur">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-sm font-bold text-gray-900">
-              Thông tin dinh dưỡng
-            </p>
-            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-green-700">
-              / món
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {nutritionItems.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-lg border border-white bg-white px-3 py-2 shadow-sm"
-              >
-                <p className="text-[11px] font-medium text-gray-500">
-                  {item.label}
-                </p>
-                <p className={`text-sm font-bold ${item.color}`}>
-                  {item.value}
-                </p>
-              </div>
-            ))}
           </div>
         </div>
       </div>

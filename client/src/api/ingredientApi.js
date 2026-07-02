@@ -1,4 +1,4 @@
-import { axiosPrivate } from "./axios";
+import { axiosPrivate, axiosPublic } from "./axios";
 
 const base = "/api/ingredients";
 
@@ -7,7 +7,8 @@ const ingredientApi = {
     const headers = accessToken
       ? { Authorization: `Bearer ${accessToken}` }
       : undefined;
-    const res = await axiosPrivate.get(base, { params, headers });
+    const client = accessToken ? axiosPrivate : axiosPublic;
+    const res = await client.get(base, { params, headers });
     return res.data;
   },
   getById: async (accessToken, id) => {

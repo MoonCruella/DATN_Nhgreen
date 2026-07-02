@@ -58,7 +58,6 @@ import DineInMenu from "./pages/customer-view/DineInMenu";
 import MaNotifications from "./pages/manager-view/MaNotifications";
 import ManagerRating from "./pages/manager-view/MaRatings";
 import MaManageTables from "./pages/manager-view/MaManageTables";
-import MaCustomers from "./pages/manager-view/MaCustomers";
 import MaDineInBill from "./pages/manager-view/MaDineInBill";
 
 function App() {
@@ -173,7 +172,6 @@ function App() {
           <Route path="orders/dine-in" element={<MaDineInOrders />} />
           <Route path="tables" element={<MaManageTables />} />
           <Route path="tables/bill/:orderId" element={<MaDineInBill />} />
-          <Route path="customers" element={<MaCustomers />} />
           <Route path="notifications" element={<MaNotifications />} />
           <Route path="orders/:orderId" element={<MaOrderDetail />} />
           <Route path="ratings" element={<ManagerRating />} />

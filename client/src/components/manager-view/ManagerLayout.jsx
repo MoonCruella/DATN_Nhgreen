@@ -7,7 +7,6 @@ import {
   IconChefHat,
   IconStar,
   IconTable,
-  IconUsers,
 } from "@tabler/icons-react";
 import { Banknote, Clock3, Utensils, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -212,11 +211,6 @@ const ManagerLayout = () => {
       link: "/manager/tables",
       label: "Quản lý bàn",
       icon: IconTable,
-    },
-    {
-      link: "/manager/customers",
-      label: "Quản lý khách hàng",
-      icon: IconUsers,
     },
     {
       link: "/manager/dishes",

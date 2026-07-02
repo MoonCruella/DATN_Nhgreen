@@ -28,6 +28,25 @@ export const getRecommendations = async (accessToken, params = {}) => {
  * @param {Object} params - { limit }
  * @returns {Promise}
  */
+
+/**
+ * Lấy các món user mua nhiều nhất
+ * @param {string} accessToken - JWT token
+ * @param {Object} params - { limit }
+ * @returns {Promise}
+ */
+export const getFamiliarDishes = async (accessToken, params = {}) => {
+  const { limit = 4 } = params;
+
+  const response = await axiosPrivate.get("/api/recommendations/familiar/me", {
+    params: { limit },
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  return response.data;
+};
 export const getSimilarDishes = async (dishId, params = {}) => {
   const { limit = 10 } = params;
 
@@ -62,6 +81,7 @@ export const retrainModel = async (accessToken) => {
 
 export default {
   getRecommendations,
+  getFamiliarDishes,
   getSimilarDishes,
   retrainModel,
 };

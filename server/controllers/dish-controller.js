@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Dish from "../models/dish-model.js";
 import FlashSale from "../models/flashsale-model.js";
 import BranchDishStatus from "../models/branch-dish-status-model.js";
@@ -172,21 +173,26 @@ export const getDishes = async (req, res) => {
       if (maxPrice) filter.price.$lte = parseFloat(maxPrice);
     }
 
-    if (minKcal || maxKcal) {
+    const parsedMinKcal = Number(minKcal);
+    const parsedMaxKcal = Number(maxKcal);
+    const hasMinKcal = Number.isFinite(parsedMinKcal) && parsedMinKcal >= 0;
+    const hasMaxKcal = Number.isFinite(parsedMaxKcal) && parsedMaxKcal >= 0;
+
+    if (hasMinKcal || hasMaxKcal) {
       filter.totalEnergyKcal = {};
-      if (minKcal) filter.totalEnergyKcal.$gte = parseFloat(minKcal);
-      if (maxKcal) filter.totalEnergyKcal.$lte = parseFloat(maxKcal);
+      if (hasMinKcal) filter.totalEnergyKcal.$gte = parsedMinKcal;
+      if (hasMaxKcal) filter.totalEnergyKcal.$lte = parsedMaxKcal;
     }
 
     const selectedIngredientIds = String(ingredientIds || ingredient || "")
       .split(",")
       .map((id) => id.trim())
-      .filter(Boolean);
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
 
     if (selectedIngredientIds.length > 0) {
-      filter["ingredients.ingredient"] = { $in: selectedIngredientIds };
+      filter["ingredients.ingredient"] = { $all: selectedIngredientIds };
     }
-
     if (searchTerm) {
       console.log(`\n🔍 getDishes: Searching for "${searchTerm}"`);
       const searchQuery = createVietnameseSearchQuery(searchTerm, [

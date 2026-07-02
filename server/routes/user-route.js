@@ -13,12 +13,10 @@ import {
   getUserStats,
   banUser,
   unbanUser,
-  getManagerCustomers,
 } from "../controllers/user-controller.js";
 import {
   authMiddleware,
   requireAdmin,
-  requireAdminOrManager,
 } from "../middleware/auth-middleware.js";
 import { upload } from "./upload-routes.js";
 
@@ -50,12 +48,6 @@ router.get("/admin/list", authMiddleware, requireAdmin, getUserList);
 
 router.get("/admin/all", authMiddleware, requireAdmin, getUsers);
 
-router.get(
-  "/manager/customers",
-  authMiddleware,
-  requireAdminOrManager,
-  getManagerCustomers
-);
 
 router.get("/admin/email/:email", authMiddleware, requireAdmin, getUserByEmail);
 

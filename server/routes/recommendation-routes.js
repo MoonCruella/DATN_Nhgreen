@@ -9,6 +9,16 @@ import {
 const router = express.Router();
 
 /**
+ * @route   GET /api/recommendations/familiar/me
+ * @desc    Lấy 4 món user mua nhiều nhất
+ * @access  Private
+ */
+router.get(
+  "/familiar/me",
+  authMiddleware,
+  recommendationController.getFamiliarDishesForCurrentUser
+);
+/**
  * @route   GET /api/recommendations/user/:userId
  * @desc    Lấy gợi ý món ăn cho user
  * @access  Private (cần đăng nhập)

@@ -60,18 +60,6 @@ const getUserStats = (accessToken) => {
     .then((r) => r.data);
 };
 
-const authHeaders = (accessToken) =>
-  accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-
-const getManagerCustomers = (params = {}, accessToken = null) => {
-  return axiosPrivate
-    .get(`${base}/manager/customers`, {
-      params,
-      headers: authHeaders(accessToken),
-    })
-    .then((r) => r.data);
-};
-
 const getUserByEmail = (accessToken, email) => {
   const headers = { Authorization: `Bearer ${accessToken}` };
   return axiosPrivate
@@ -128,7 +116,6 @@ const userApi = {
   updateMyProfile,
   changePassword,
   getUserList,
-  getManagerCustomers,
   getUserStats,
   getUserByEmail,
   toggleUserStatus,
