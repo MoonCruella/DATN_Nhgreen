@@ -28,21 +28,6 @@ const getDishImage = (dish) =>
 
 const getDishPrice = (dish) => dish?.sale_price || dish?.price || 0;
 
-const showRewardToast = (reward) => {
-  if (!reward) return;
-  if (reward.awarded && reward.coins > 0) {
-    toast.success(`Đã cộng ${reward.coins.toLocaleString("vi-VN")} xu cho khách hàng`);
-    return;
-  }
-  if (
-    ["customer_not_found", "reward_target_not_found", "user_not_found"].includes(
-      reward.reason,
-    )
-  ) {
-    toast.info("Không tìm thấy khách hàng để cộng xu");
-  }
-};
-
 const CreateOrderModal = ({
   table,
   branchId,
@@ -199,15 +184,6 @@ const CreateOrderModal = ({
           setZalopayQrCreatedAt(null);
           setVnpayPaymentUrl("");
           toast.success("Thanh toán thành công");
-          showRewardToast(
-            latestOrder?.reward ||
-              (latestOrder?.reward_coin_awarded_at
-                ? {
-                    awarded: true,
-                    coins: latestOrder.reward_coin_earned || 0,
-                  }
-                : null),
-          );
           onOrderCreated?.(latestOrder);
           navigateToBill(latestOrder);
         }
@@ -486,7 +462,7 @@ const CreateOrderModal = ({
     return true;
   };
 
-  const handleConfirmOrder = async (selectedCustomer = null) => {
+  const handleConfirmOrder = async () => {
     if (!validateSelectedItems() || submitting) return;
 
     // Nếu đã có order, chuyển sang xác nhận (move to processing status)
@@ -544,7 +520,6 @@ const CreateOrderModal = ({
         order_channel: "dine_in",
         payment_method: "cod",
         shipping_fee: 0,
-        customer_id: selectedCustomer?._id || undefined,
         items: selectedItems.map((item) => ({
           dish_id: item._id,
           quantity: item.quantity,
@@ -611,11 +586,9 @@ const CreateOrderModal = ({
         paymentMethod,
       );
       const completedOrder = response?.data?.order || createdOrder;
-      const reward = response?.data?.reward;
       setCreatedOrder(completedOrder);
       setOrderStatus("completed");
       toast.success("Đơn hàng đã hoàn thành");
-      showRewardToast(reward);
       onOrderCreated?.(completedOrder);
       navigateToBill(completedOrder);
     } catch (error) {
@@ -626,21 +599,6 @@ const CreateOrderModal = ({
       );
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleUpdateOrderCustomer = async (selectedCustomer) => {
-    if (!selectedCustomer?._id || !createdOrder?._id) return;
-
-    const response = await orderApi.updateDineInOrderCustomer(
-      accessToken,
-      createdOrder._id,
-      selectedCustomer._id,
-    );
-    const updatedOrder = response?.data?.order;
-    if (updatedOrder) {
-      setCreatedOrder(updatedOrder);
-      onOrderCreated?.(updatedOrder);
     }
   };
 
@@ -668,9 +626,9 @@ const CreateOrderModal = ({
     setShowOrderDetail(false);
   };
 
-  const handleOrderDetailPrimaryAction = (paymentMethod, selectedCustomer) => {
+  const handleOrderDetailPrimaryAction = (paymentMethod) => {
     if (orderStatus === "selecting") {
-      handleConfirmOrder(selectedCustomer);
+      handleConfirmOrder();
       return;
     }
 
@@ -682,8 +640,8 @@ const CreateOrderModal = ({
     setShowOrderDetail(false);
   };
 
-  const handleOrderDetailSecondaryAction = (selectedCustomer) => {
-    handleConfirmOrder(selectedCustomer);
+  const handleOrderDetailSecondaryAction = () => {
+    handleConfirmOrder();
   };
 
   return (
@@ -864,7 +822,6 @@ const CreateOrderModal = ({
         onAddMore={() => setShowOrderDetail(false)}
         onPrimaryAction={handleOrderDetailPrimaryAction}
         onSecondaryAction={handleOrderDetailSecondaryAction}
-        onCustomerSelected={handleUpdateOrderCustomer}
         momoPaymentUrl={momoPaymentUrl}
         momoQrUrl={momoQrUrl}
         momoQrCreatedAt={momoQrCreatedAt}

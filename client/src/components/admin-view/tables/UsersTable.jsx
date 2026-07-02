@@ -39,13 +39,21 @@ const UsersTable = ({ users = [], onRowClick, isLoading }) => {
       );
     }
 
+    if (user.disabled) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+          Vô hiệu hóa
+        </span>
+      );
+    }
+
     return user.active ? (
       <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
         Đã kích hoạt
       </span>
     ) : (
       <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-        Chưa kích hoạt
+        Chưa xác thực email
       </span>
     );
   };

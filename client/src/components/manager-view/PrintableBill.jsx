@@ -61,21 +61,15 @@ const getItemPrice = (item) => item?.sale_price || item?.price || 0;
 const getItemName = (item) => item?.dish_name || item?.name || "Sản phẩm";
 
 const PrintableBill = React.forwardRef(({ order }, ref) => {
-  const dineInCustomer =
-    order.customer_id && typeof order.customer_id === "object"
-      ? order.customer_id
-      : null;
+  const tableName = order?.table_info?.name || order?.table_id?.name || "";
+  const isDineIn = order.order_type === "dine_in" || Boolean(tableName);
   const customerName =
-    getTextValue(order.shipping_info?.name) ||
-    getTextValue(dineInCustomer?.name) ||
+    !isDineIn && getTextValue(order.shipping_info?.name) ||
     "Khách vãng lai";
   const customerPhone =
-    getTextValue(order.shipping_info?.phone) ||
-    getTextValue(dineInCustomer?.phone) ||
+    !isDineIn && getTextValue(order.shipping_info?.phone) ||
     "";
-  const tableName = order?.table_info?.name || order?.table_id?.name || "";
   const shippingAddress = getShippingAddress(order.shipping_info);
-  const isDineIn = order.order_type === "dine_in" || Boolean(tableName);
   const items = order.items || [];
 
   return (
@@ -97,12 +91,16 @@ const PrintableBill = React.forwardRef(({ order }, ref) => {
               <span className="bill-right">{tableName || "Bàn"}</span>
             </>
           )}
-          <span>Khách hàng:</span>
-          <span className="bill-right">{customerName}</span>
-          {customerPhone && (
+          {!isDineIn && (
             <>
-              <span>SĐT:</span>
-              <span className="bill-right">{customerPhone}</span>
+              <span>Khách hàng:</span>
+              <span className="bill-right">{customerName}</span>
+              {customerPhone && (
+                <>
+                  <span>SĐT:</span>
+                  <span className="bill-right">{customerPhone}</span>
+                </>
+              )}
             </>
           )}
           <span>Thời gian:</span>

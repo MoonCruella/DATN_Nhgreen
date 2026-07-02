@@ -1,7 +1,6 @@
 import response from "../helpers/response.js";
 import User from "../models/user-model.js";
 import Order from "../models/order-model.js";
-import DineInCustomer from "../models/dinein-customer-model.js";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import cloudinary from "../config/cloudinary.js";
@@ -257,6 +256,7 @@ export const getUserByEmail = async (req, res, next) => {
         phone: user.phone,
         role: user.role,
         active: user.active,
+        disabled: user.disabled || false,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
@@ -269,141 +269,9 @@ export const getUserByEmail = async (req, res, next) => {
   }
 };
 
-export const getCustomerByPhone = async (req, res) => {
-  try {
-    const phone = normalizePhone(req.params.phone);
-
-    if (!phone || phone.length < 9) {
-      return response.sendError(res, "Số điện thoại không hợp lệ", 400);
-    }
-
-    const dineInCustomer = await DineInCustomer.findOne({
-      normalized_phone: phone,
-      active: true,
-    })
-      .populate("linked_user_id", "_id name email phone coin")
-      .lean();
-
-    if (dineInCustomer) {
-      return response.sendSuccess(
-        res,
-        {
-          customer: {
-            _id: dineInCustomer._id,
-            name: dineInCustomer.name,
-            phone: dineInCustomer.phone,
-            address: dineInCustomer.address || {},
-            linked_user_id: dineInCustomer.linked_user_id?._id || null,
-            online_user: null,
-            reward_points: dineInCustomer.coin || 0,
-            coin: dineInCustomer.coin || 0,
-            source: "dine_in_customer",
-          },
-        },
-        "Tìm khách hàng thành công",
-        200
-      );
-    }
-
-    const user = null;
-
-    return response.sendSuccess(
-      res,
-      { customer: null },
-      user ? "Tìm khách hàng thành công" : "Số điện thoại chưa được sử dụng",
-      200
-    );
-  } catch (error) {
-    console.error("Get customer by phone error:", error);
-    return response.sendError(
-      res,
-      "Có lỗi xảy ra khi tìm khách hàng",
-      500,
-      error.message
-    );
-  }
-};
-
-export const createManagerDineInCustomer = async (req, res) => {
-  try {
-    const { name, phone, address = {}, note = "" } = req.body;
-    const normalizedPhone = normalizePhone(phone);
-
-    if (!name || !name.trim()) {
-      return response.sendError(res, "Tên khách hàng không được để trống", 400);
-    }
-
-    if (!normalizedPhone || normalizedPhone.length < 9 || normalizedPhone.length > 11) {
-      return response.sendError(res, "Số điện thoại không hợp lệ", 400);
-    }
-
-    const existedCustomer = await DineInCustomer.findOne({
-      normalized_phone: normalizedPhone,
-      active: true,
-    })
-      .populate("linked_user_id", "_id name email phone coin")
-      .lean();
-
-    if (existedCustomer) {
-      return response.sendError(
-        res,
-        "Số điện thoại đã có khách hàng",
-        409
-      );
-    }
-
-    const linkedUser = null;
-
-    const customer = await DineInCustomer.create({
-      name: name.trim(),
-      phone: String(phone).trim(),
-      normalized_phone: normalizedPhone,
-      linked_user_id: null,
-      address: {
-        province: address.province || "",
-        ward: address.ward || "",
-        detail: address.detail || "",
-      },
-      note,
-    });
-
-    return response.sendSuccess(
-      res,
-      {
-        customer: {
-          _id: customer._id,
-          name: customer.name,
-          phone: customer.phone,
-          address: customer.address || {},
-          linked_user_id: linkedUser?._id || null,
-          online_user: linkedUser,
-          reward_points: customer.coin || 0,
-          coin: customer.coin || 0,
-          source: "dine_in_customer",
-        },
-        existed: false,
-      },
-      "Tạo khách hàng tại quán thành công",
-      201
-    );
-  } catch (error) {
-    if (error.code === 11000) {
-      return response.sendError(res, "Số điện thoại đã tồn tại", 409);
-    }
-
-    console.error("Create manager dine-in customer error:", error);
-    return response.sendError(
-      res,
-      "Có lỗi xảy ra khi tạo khách hàng tại quán",
-      500,
-      error.message
-    );
-  }
-};
-
 export const getUserList = async (req, res) => {
   try {
-    const { page = 1, limit = 10, role, status, search } = req.query;
+    const { page = 1, limit = 10, role, status, banStatus, search } = req.query;
 
     const filter = {};
 
@@ -411,8 +279,33 @@ export const getUserList = async (req, res) => {
       filter.role = role;
     }
 
-    if (status && status !== "all") {
-      filter.active = status === "active";
+    if (status === "active") {
+      filter.active = true;
+      filter.disabled = { $ne: true };
+    }
+
+    if (status === "unverified") {
+      filter.active = false;
+      filter.disabled = { $ne: true };
+    }
+
+    if (status === "disabled") {
+      filter.disabled = true;
+    }
+
+    if (banStatus === "banned") {
+      filter["ban_info.status"] = { $exists: true, $ne: null };
+      filter["ban_info.banned_until"] = { $gt: new Date() };
+    }
+
+    if (banStatus === "not_banned") {
+      filter.$or = [
+        { "ban_info.status": { $exists: false } },
+        { "ban_info.status": null },
+        { "ban_info.banned_until": { $exists: false } },
+        { "ban_info.banned_until": null },
+        { "ban_info.banned_until": { $lte: new Date() } },
+      ];
     }
 
     if (search) {
@@ -421,7 +314,17 @@ export const getUserList = async (req, res) => {
         "email",
         "phone",
       ]);
-      Object.assign(filter, searchQuery);
+      if (filter.$or && searchQuery.$or) {
+        const existingOr = filter.$or;
+        delete filter.$or;
+        filter.$and = [
+          ...(filter.$and || []),
+          { $or: existingOr },
+          { $or: searchQuery.$or },
+        ];
+      } else {
+        Object.assign(filter, searchQuery);
+      }
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -449,6 +352,7 @@ export const getUserList = async (req, res) => {
         filter: {
           role,
           status,
+          banStatus,
           search: search || null,
         },
       },
@@ -473,24 +377,19 @@ export const getManagerCustomers = async (req, res) => {
     const perPage = Math.max(parseInt(limit, 10) || 20, 1);
     const keyword = String(search || "").trim().toLowerCase();
 
-    const [users, dineInCustomers, orders] = await Promise.all([
+    const [users, orders] = await Promise.all([
       User.find({ role: "customer" })
         .select("_id name email phone coin createdAt")
         .lean(),
-      DineInCustomer.find({ active: true })
-        .populate("linked_user_id", "_id name email phone coin")
-        .lean(),
       Order.find({})
         .select(
-          "user_id customer_id shipping_info total_amount status order_number created_at"
+          "user_id total_amount status order_number created_at"
         )
-        .populate("customer_id", "_id name phone")
         .lean(),
     ]);
 
     const customersByKey = new Map();
     const userKeyById = new Map();
-    const dineInKeyById = new Map();
 
     users.forEach((user, index) => {
       const phone = normalizePhone(user.phone);
@@ -516,75 +415,12 @@ export const getManagerCustomers = async (req, res) => {
       userKeyById.set(String(user._id), key);
     });
 
-    dineInCustomers.forEach((dineInCustomer) => {
-      const phone = normalizePhone(dineInCustomer.phone);
-      const key = `dinein:${dineInCustomer._id}`;
-      const rewardPoints = dineInCustomer.coin || 0;
-
-      if (!customersByKey.has(key)) {
-        customersByKey.set(key, {
-          _id: key,
-          user_id: null,
-          dine_in_customer_id: dineInCustomer._id,
-          customer_code: makeCustomerCode(phone, customersByKey.size),
-          name: dineInCustomer.name || "Khách hàng",
-          email: "",
-          phone: dineInCustomer.phone || "",
-          normalized_phone: phone,
-          total_spent: 0,
-          reward_points: rewardPoints,
-          coin: rewardPoints,
-          total_orders: 0,
-          source: "dine_in_customer",
-          created_at: dineInCustomer.created_at,
-        });
-      }
-
-      dineInKeyById.set(String(dineInCustomer._id), key);
-    });
-
     orders.forEach((order) => {
       const userId = order.user_id ? String(order.user_id) : "";
-      const dineInCustomer = order.customer_id;
-      const orderPhone =
-        normalizePhone(order.shipping_info?.phone) ||
-        normalizePhone(dineInCustomer?.phone);
-      const orderName =
-        order.shipping_info?.name || dineInCustomer?.name || "Khách vãng lai";
-
-      let key = userKeyById.get(userId);
-      if (!key && dineInCustomer?._id) {
-        key = dineInKeyById.get(String(dineInCustomer._id));
-      }
-      if (!key && orderPhone) key = `phone:${orderPhone}`;
+      const key = userKeyById.get(userId);
       if (!key) return;
 
-      if (!customersByKey.has(key)) {
-        customersByKey.set(key, {
-          _id: key,
-          user_id: null,
-          customer_code: makeCustomerCode(orderPhone, customersByKey.size),
-          name: orderName,
-          email: "",
-          phone: order.shipping_info?.phone || dineInCustomer?.phone || "",
-          normalized_phone: orderPhone,
-          total_spent: 0,
-          reward_points: 0,
-          coin: 0,
-          total_orders: 0,
-          source: "dine_in_guest",
-          created_at: order.created_at,
-        });
-      }
-
       const customer = customersByKey.get(key);
-      if (!customer.phone && orderPhone) {
-        customer.phone = order.shipping_info?.phone || dineInCustomer?.phone;
-        customer.normalized_phone = orderPhone;
-      }
-      if (customer.name === "Khách hàng" || customer.name === "Khách vãng lai") {
-        customer.name = orderName || customer.name;
-      }
 
       if (order.status !== "cancelled") {
         customer.total_orders += 1;
@@ -612,7 +448,10 @@ export const getManagerCustomers = async (req, res) => {
     }
 
     customers = customers.map((customer, index) => {
-      const rewardPoints = customer.reward_points ?? customer.coin ?? 0;
+      const rewardPoints =
+        customer.source === "online_account"
+          ? customer.reward_points ?? customer.coin ?? 0
+          : 0;
 
       return {
         ...customer,
@@ -694,12 +533,31 @@ export const updateUserProfile = async (req, res) => {
   try {
     const { userId } = req.params;
     const updateData = req.body;
+    const requesterId = req.user?.userId || req.user?._id || req.user?.id;
+    const isAdmin = req.user?.role === "admin";
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return response.sendError(res, "ID user không hợp lệ", 400);
     }
 
-    const { password, refresh_tokens, role, ...allowedUpdates } = updateData;
+    if (!isAdmin && String(requesterId) !== String(userId)) {
+      return response.sendError(
+        res,
+        "Khong co quyen cap nhat tai khoan nay",
+        403
+      );
+    }
+
+    const {
+      password,
+      refresh_tokens,
+      role,
+      active,
+      ban_info,
+      coin,
+      disabled,
+      ...allowedUpdates
+    } = updateData;
 
     if (allowedUpdates.name && !allowedUpdates.name.trim()) {
       return response.sendError(res, "Tên không được để trống", 400);
@@ -774,7 +632,14 @@ export const updateUserProfile = async (req, res) => {
 
 export const deleteUser = async (req, res) => {
   try {
+    return response.sendError(
+      res,
+      "He thong khong ho tro xoa tai khoan. Vui long khoa hoac vo hieu hoa tai khoan.",
+      405
+    );
+
     const { userId } = req.params;
+    const requesterId = req.user?.userId || req.user?._id || req.user?.id;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return response.sendError(res, "ID user không hợp lệ", 400);
@@ -801,6 +666,7 @@ export const deleteUser = async (req, res) => {
 export const toggleUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
+    const requesterId = req.user?.userId || req.user?._id || req.user?.id;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return response.sendError(res, "ID user không hợp lệ", 400);
@@ -813,11 +679,27 @@ export const toggleUserStatus = async (req, res) => {
       return response.sendError(res, "User không tồn tại", 404);
     }
 
-    const newActive = !Boolean(user.active);
+    if (user.role === "admin") {
+      return response.sendError(
+        res,
+        "Khong the vo hieu hoa tai khoan admin",
+        403
+      );
+    }
+
+    if (String(requesterId) === String(userId)) {
+      return response.sendError(
+        res,
+        "Khong the tu vo hieu hoa tai khoan dang dang nhap",
+        400
+      );
+    }
+
+    const newDisabled = !Boolean(user.disabled);
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { active: newActive },
+      { disabled: newDisabled },
       {
         new: true,
         select: "-password -refresh_tokens",
@@ -827,7 +709,9 @@ export const toggleUserStatus = async (req, res) => {
     return response.sendSuccess(
       res,
       { user: updatedUser },
-      `${newActive ? "Kích hoạt" : "Vô hiệu hóa"} user thành công`,
+      newDisabled
+        ? "Vô hiệu hóa user thành công"
+        : "Mở vô hiệu hóa user thành công",
       200
     );
   } catch (error) {
@@ -849,7 +733,10 @@ export const getUserStats = async (req, res) => {
         User.countDocuments({ active: true }),
         User.countDocuments({ role: "admin" }),
         User.countDocuments({ role: "manager" }),
-        User.countDocuments({ "ban_info.status": { $ne: null } }),
+        User.countDocuments({
+          "ban_info.status": { $exists: true, $ne: null },
+          "ban_info.banned_until": { $gt: new Date() },
+        }),
       ]);
 
     const stats = {

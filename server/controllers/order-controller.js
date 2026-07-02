@@ -6,7 +6,6 @@ import Voucher from "../models/voucher-model.js";
 import FlashSale from "../models/flashsale-model.js";
 import StoreTable from "../models/store-table-model.js";
 import DineInSession from "../models/dinein-session-model.js";
-import DineInCustomer from "../models/dinein-customer-model.js";
 import OrderCounter from "../models/order-counter-model.js";
 import mongoose from "mongoose";
 import response from "../helpers/response.js";
@@ -1236,7 +1235,6 @@ export const createOrder = async (req, res) => {
       order_channel = "delivery",
       order_type,
       table_id,
-      customer_id,
       dine_in_session_id,
       dine_in_session_token,
       vnpay_txn_ref,
@@ -1315,7 +1313,6 @@ export const createOrder = async (req, res) => {
     let selectedBranchId = branch_id;
     let selectedTable = null;
     let dineInSession = null;
-    let dineInCustomer = null;
 
     if (isDineInQr) {
       if (
@@ -1382,29 +1379,6 @@ export const createOrder = async (req, res) => {
       }
 
       selectedBranchId = selectedTable.branch_id;
-    }
-
-    if (isDineIn) {
-      const dineInCustomerId = customer_id;
-
-      if (dineInCustomerId) {
-        if (!mongoose.Types.ObjectId.isValid(dineInCustomerId)) {
-          return response.sendError(res, "Khách hàng tại quán không hợp lệ", 400);
-        }
-
-        dineInCustomer = await DineInCustomer.findOne({
-          _id: dineInCustomerId,
-          active: true,
-        }).lean();
-
-        if (!dineInCustomer) {
-          return response.sendError(
-            res,
-            "Không tìm thấy khách hàng tại quán",
-            404
-          );
-        }
-      }
     }
 
     // Validate branch selection
@@ -1775,7 +1749,7 @@ export const createOrder = async (req, res) => {
             code: selectedTable.code,
           }
         : undefined,
-      customer_id: isDineIn ? dineInCustomer?._id || null : null,
+      customer_id: null,
       dine_in_session_id: isDineInQr ? dineInSession._id : null,
       branch_id: branch._id,
       branch_info: {
@@ -2594,75 +2568,6 @@ export const completeDineInOrder = async (req, res) => {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi thanh toán đơn ăn tại quán",
-      500,
-      error.message
-    );
-  }
-};
-
-export const updateDineInOrderCustomer = async (req, res) => {
-  try {
-    const { orderId } = req.params;
-    const { customer_id } = req.body;
-
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
-    }
-
-    if (!customer_id || !mongoose.Types.ObjectId.isValid(customer_id)) {
-      return response.sendError(res, "Khách hàng tại quán không hợp lệ", 400);
-    }
-
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return response.sendError(res, "Không tìm thấy đơn hàng", 404);
-    }
-
-    if (order.order_type !== "dine_in") {
-      return response.sendError(res, "Chỉ áp dụng cho đơn ăn tại quán", 400);
-    }
-
-    const userRole = req.user?.role;
-    if (userRole === "manager") {
-      const tokenBranchId = req.user.branch_id?.toString();
-      if (tokenBranchId && tokenBranchId !== order.branch_id.toString()) {
-        return response.sendError(
-          res,
-          "Bạn không có quyền cập nhật đơn hàng của chi nhánh này",
-          403
-        );
-      }
-    }
-
-    const dineInCustomer = await DineInCustomer.findOne({
-      _id: customer_id,
-      active: true,
-    }).lean();
-
-    if (!dineInCustomer) {
-      return response.sendError(res, "Không tìm thấy khách hàng tại quán", 404);
-    }
-
-    order.customer_id = dineInCustomer._id;
-    await order.save();
-
-    const updatedOrder = await Order.findById(order._id)
-      .populate("user_id", "name email phone")
-      .populate("customer_id", "name phone address linked_user_id")
-      .populate("branch_id", "name phone address code")
-      .lean();
-
-    return response.sendSuccess(
-      res,
-      { order: updatedOrder },
-      "Cập nhật khách hàng cho đơn tại quán thành công",
-      200
-    );
-  } catch (error) {
-    console.error("Update dine-in order customer error:", error);
-    return response.sendError(
-      res,
-      "Có lỗi xảy ra khi cập nhật khách hàng cho đơn tại quán",
       500,
       error.message
     );

@@ -65,14 +65,6 @@ const getItemPrice = (item) => item?.sale_price || item?.price || 0;
 
 const getItemName = (item) => item?.dish_name || item?.name || "Sản phẩm";
 
-const getTextValue = (value) =>
-  typeof value === "string" ? value.trim() : value;
-
-const getDineInCustomer = (order) => {
-  const customer = order?.customer_id;
-  return customer && typeof customer === "object" ? customer : null;
-};
-
 const MaDineInBill = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
@@ -101,15 +93,7 @@ const MaDineInBill = () => {
   }, [accessToken, orderId]);
 
   const totalAmount = order?.total_amount || 0;
-  const rewardCoins =
-    order?.reward_coin_earned || Math.floor(totalAmount / 100);
   const tableName = order?.table_info?.name || "Bàn";
-  const dineInCustomer = getDineInCustomer(order);
-  const customerName =
-    getTextValue(dineInCustomer?.name) ||
-    "Khách vãng lai";
-  const customerPhone =
-    getTextValue(dineInCustomer?.phone) || "";
   const items = useMemo(() => order?.items || [], [order?.items]);
 
   const handlePrint = () => {
@@ -183,14 +167,6 @@ const MaDineInBill = () => {
             <span className="text-right">{getOrderCode(order)}</span>
             <span>Bàn:</span>
             <span className="text-right">{tableName}</span>
-            <span>Khách hàng:</span>
-            <span className="text-right">{customerName}</span>
-            {customerPhone && (
-              <>
-                <span>SĐT:</span>
-                <span className="text-right">{customerPhone}</span>
-              </>
-            )}
             <span>Thời gian:</span>
             <span className="text-right">{getOrderDateTime(order)}</span>
             <span>Thanh toán:</span>
@@ -234,10 +210,6 @@ const MaDineInBill = () => {
             <div className="flex items-center justify-between text-sm font-bold">
               <span>Tổng cộng:</span>
               <span>{formatMoneyInput(totalAmount)}</span>
-            </div>
-            <div className="mt-2 flex items-center justify-between text-xs font-bold text-amber-600">
-              <span>Xu tích lũy:</span>
-              <span>+{formatCurrency(rewardCoins)} xu</span>
             </div>
           </div>
 

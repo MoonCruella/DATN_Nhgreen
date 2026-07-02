@@ -32,11 +32,8 @@ const serializeCustomer = (customer, linkedUser = null) => {
           name: linkedUser.name,
           email: linkedUser.email,
           phone: linkedUser.phone,
-          coin: linkedUser.coin || 0,
         }
       : null,
-    reward_points: customer?.coin || 0,
-    coin: customer?.coin || 0,
     source: customer ? "dine_in_customer" : "online_user",
     created_at: customer?.created_at || linkedUser?.createdAt,
   };
@@ -91,7 +88,7 @@ export const createDineInCustomer = async (req, res) => {
       normalized_phone: normalizedPhone,
       active: true,
     })
-      .populate("linked_user_id", "_id name email phone coin")
+      .populate("linked_user_id", "_id name email phone")
       .lean();
 
     if (existedCustomer) {

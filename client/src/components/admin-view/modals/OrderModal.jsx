@@ -229,13 +229,15 @@ const OrderModal = ({ open, onClose, order }) => {
         </div>
 
         <div className="mt-4 space-y-5 text-base font-black">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">Điểm:</span>
-            <span className="inline-flex items-center gap-3 text-[#06183a]">
-              <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
-              {formatCurrency(earnedPoint)}
-            </span>
-          </div>
+          {!isDineIn && (
+            <div className="flex items-center justify-between">
+              <span className="text-gray-500">Điểm:</span>
+              <span className="inline-flex items-center gap-3 text-[#06183a]">
+                <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                {formatCurrency(earnedPoint)}
+              </span>
+            </div>
+          )}
 
           {!isDineIn && (
             <>
@@ -289,19 +291,23 @@ const OrderModal = ({ open, onClose, order }) => {
               </>
             )}
 
-            <div>Khách hàng:</div>
-            <div className="inline-flex items-center justify-center rounded-full bg-[#34ad54] px-4 py-1.5 text-sm font-black text-white">
-              <UserCircle className="mr-2 h-4 w-4" />
-              {customerName}
-            </div>
-
-            {customerPhone && (
+            {!isDineIn && (
               <>
-                <div>Số điện thoại:</div>
-                <div className="inline-flex items-center justify-center rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-black text-emerald-600">
-                  <Phone className="mr-2 h-4 w-4" />
-                  {customerPhone}
+                <div>Khách hàng:</div>
+                <div className="inline-flex items-center justify-center rounded-full bg-[#34ad54] px-4 py-1.5 text-sm font-black text-white">
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  {customerName}
                 </div>
+
+                {customerPhone && (
+                  <>
+                    <div>Số điện thoại:</div>
+                    <div className="inline-flex items-center justify-center rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-black text-emerald-600">
+                      <Phone className="mr-2 h-4 w-4" />
+                      {customerPhone}
+                    </div>
+                  </>
+                )}
               </>
             )}
 

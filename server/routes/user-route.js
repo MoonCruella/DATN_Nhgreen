@@ -14,8 +14,6 @@ import {
   banUser,
   unbanUser,
   getManagerCustomers,
-  getCustomerByPhone,
-  createManagerDineInCustomer,
 } from "../controllers/user-controller.js";
 import {
   authMiddleware,
@@ -57,20 +55,6 @@ router.get(
   authMiddleware,
   requireAdminOrManager,
   getManagerCustomers
-);
-
-router.get(
-  "/manager/customers/phone/:phone",
-  authMiddleware,
-  requireAdminOrManager,
-  getCustomerByPhone
-);
-
-router.post(
-  "/manager/customers",
-  authMiddleware,
-  requireAdminOrManager,
-  createManagerDineInCustomer
 );
 
 router.get("/admin/email/:email", authMiddleware, requireAdmin, getUserByEmail);

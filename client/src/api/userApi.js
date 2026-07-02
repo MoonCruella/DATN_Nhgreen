@@ -72,22 +72,6 @@ const getManagerCustomers = (params = {}, accessToken = null) => {
     .then((r) => r.data);
 };
 
-const getCustomerByPhone = (phone, accessToken = null) => {
-  return axiosPrivate
-    .get(`${base}/manager/customers/phone/${phone}`, {
-      headers: authHeaders(accessToken),
-    })
-    .then((r) => r.data);
-};
-
-const createManagerDineInCustomer = (payload, accessToken = null) => {
-  return axiosPrivate
-    .post(`${base}/manager/customers`, payload, {
-      headers: authHeaders(accessToken),
-    })
-    .then((r) => r.data);
-};
-
 const getUserByEmail = (accessToken, email) => {
   const headers = { Authorization: `Bearer ${accessToken}` };
   return axiosPrivate
@@ -145,8 +129,6 @@ const userApi = {
   changePassword,
   getUserList,
   getManagerCustomers,
-  getCustomerByPhone,
-  createManagerDineInCustomer,
   getUserStats,
   getUserByEmail,
   toggleUserStatus,

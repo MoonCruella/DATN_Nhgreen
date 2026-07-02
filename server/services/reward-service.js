@@ -1,4 +1,3 @@
-import DineInCustomer from "../models/dinein-customer-model.js";
 import Order from "../models/order-model.js";
 import User from "../models/user-model.js";
 
@@ -21,34 +20,19 @@ export const awardOrderRewardCoins = async (orderOrId) => {
     return { awarded: false, coins: 0, reason: "payment_not_paid" };
   }
 
+  const isDineInOrder =
+    order.order_type === "dine_in" ||
+    order.order_channel === "dine-in" ||
+    order.order_channel === "dine_in" ||
+    Boolean(order.table_id);
+
+  if (isDineInOrder) {
+    return { awarded: false, coins: 0, reason: "dine_in_reward_disabled" };
+  }
+
   const coins = calculateRewardCoins(order.total_amount);
   if (coins <= 0) {
     return { awarded: false, coins: 0, reason: "no_reward" };
-  }
-
-  const customerId = getId(order.customer_id);
-  if (customerId) {
-    const customer = await DineInCustomer.findByIdAndUpdate(
-      customerId,
-      { $inc: { coin: coins } },
-      { new: true }
-    ).select("_id coin");
-
-    if (!customer) {
-      return { awarded: false, coins, reason: "customer_not_found" };
-    }
-
-    order.reward_coin_earned = coins;
-    order.reward_coin_awarded_at = new Date();
-    order.reward_coin_user_id = null;
-    await order.save();
-
-    return {
-      awarded: true,
-      coins,
-      customerId: customer._id,
-      customerCoin: customer.coin || 0,
-    };
   }
 
   const userId = getId(order.user_id);
