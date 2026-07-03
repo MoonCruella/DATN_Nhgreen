@@ -19,10 +19,8 @@ const AdminUserAccount = () => {
   const [debouncedQSearch, setDebouncedQSearch] = useState("");
   const [qRole, setQRole] = useState("all");
   const [qActiveStatus, setQActiveStatus] = useState("all");
-  const [qBanStatus, setQBanStatus] = useState("all");
   const [appliedRole, setAppliedRole] = useState("all");
   const [appliedActiveStatus, setAppliedActiveStatus] = useState("all");
-  const [appliedBanStatus, setAppliedBanStatus] = useState("all");
 
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
@@ -40,7 +38,6 @@ const AdminUserAccount = () => {
         limit,
         role: appliedRole !== "all" ? appliedRole : undefined,
         status: appliedActiveStatus !== "all" ? appliedActiveStatus : undefined,
-        banStatus: appliedBanStatus !== "all" ? appliedBanStatus : undefined,
         search: debouncedQSearch || undefined,
       };
 
@@ -73,7 +70,6 @@ const AdminUserAccount = () => {
     debouncedQSearch,
     appliedRole,
     appliedActiveStatus,
-    appliedBanStatus,
   ]);
 
   const handleRowClick = (user) => {
@@ -85,27 +81,22 @@ const AdminUserAccount = () => {
     setQSearch("");
     setQRole("all");
     setQActiveStatus("all");
-    setQBanStatus("all");
     setAppliedRole("all");
     setAppliedActiveStatus("all");
-    setAppliedBanStatus("all");
     setPage(1);
   };
 
   const applyFilters = () => {
     setAppliedRole(qRole);
     setAppliedActiveStatus(qActiveStatus);
-    setAppliedBanStatus(qBanStatus);
     setPage(1);
   };
   const hasActiveFilters =
     Boolean(qSearch.trim()) ||
     qRole !== "all" ||
     qActiveStatus !== "all" ||
-    qBanStatus !== "all" ||
     appliedRole !== "all" ||
-    appliedActiveStatus !== "all" ||
-    appliedBanStatus !== "all";
+    appliedActiveStatus !== "all";
 
   const handleBanUser = async (userId, data) => {
     try {
@@ -187,20 +178,6 @@ const AdminUserAccount = () => {
               { value: "customer", label: "Khách hàng" },
               { value: "manager", label: "Manager" },
               { value: "admin", label: "Admin" },
-            ]}
-            className="lg:w-[220px]"
-          />
-
-          <FilterSelect
-            label="Ban status"
-            value={qBanStatus}
-            onChange={(value) => {
-              setQBanStatus(value);
-            }}
-            options={[
-              { value: "all", label: "Tất cả ban status" },
-              { value: "banned", label: "Đang bị ban" },
-              { value: "not_banned", label: "Không bị ban" },
             ]}
             className="lg:w-[220px]"
           />
