@@ -1,4 +1,23 @@
-# NHGREEN
+<p align="center">
+  <img src="./docs/images/banner.png" width="100%">
+</p>
+
+<h1 align="center">
+🥗 NHGREEN
+</h1>
+
+<p align="center">
+Healthy Food Ordering & Restaurant Management System
+</p>
+
+<p align="center">
+
+![React](https://img.shields.io/badge/React-19-blue)
+![NodeJS](https://img.shields.io/badge/NodeJS-Express-green)
+![MongoDB](https://img.shields.io/badge/Database-MongoDB-success)
+![License](https://img.shields.io/badge/license-MIT-orange)
+
+</p>
 
 NHGREEN là hệ thống quản lý và bán món ăn dinh dưỡng theo mô hình nhiều chi nhánh. Dự án bao gồm website khách hàng, E-menu tại bàn, trang quản lý chi nhánh và trang quản trị hệ thống. Hệ thống hỗ trợ đặt món online, đặt món tại bàn bằng QR, thanh toán điện tử, quản lý vận chuyển GHN, quản lý dinh dưỡng món ăn và gợi ý món ăn thông minh.
 
