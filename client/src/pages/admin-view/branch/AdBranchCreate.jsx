@@ -8,11 +8,20 @@ import { Label } from "@/components/ui/label";
 import branchApi from "@/api/branchApi";
 import locationApi from "@/api/locationApi";
 
+const normalizePhone = (value = "") => value.replace(/[\s.-]/g, "");
+
+const isValidPhone = (value = "") => {
+  const phone = normalizePhone(value);
+  return !phone || /^(0\d{9}|\+84\d{9})$/.test(phone);
+};
+
 const AdminBranchCreate = () => {
   const navigate = useNavigate();
   const accessToken = useSelector((state) => state.auth.accessToken);
 
   const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
   const [saving, setSaving] = useState(false);
   const [loadingCoords, setLoadingCoords] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState([]);
@@ -22,6 +31,7 @@ const AdminBranchCreate = () => {
   // Error state
   const [errors, setErrors] = useState({
     name: "",
+    phone: "",
     provinceCode: "",
     districtCode: "",
     wardCode: "",
@@ -43,16 +53,6 @@ const AdminBranchCreate = () => {
     },
   });
 
-  // Derived lists
-  const selectedProvince = provinces.find(
-    (p) => p.code === Number(formData.provinceCode)
-  );
-  const districts = selectedProvince ? selectedProvince.districts || [] : [];
-  const selectedDistrict = districts.find(
-    (d) => d.code === Number(formData.districtCode)
-  );
-  const wards = selectedDistrict ? selectedDistrict.wards || [] : [];
-
   useEffect(() => {
     const fetchProvinces = async () => {
       try {
@@ -65,6 +65,42 @@ const AdminBranchCreate = () => {
     fetchProvinces();
   }, []);
 
+  useEffect(() => {
+    const loadDistricts = async () => {
+      if (!formData.provinceCode) {
+        setDistricts([]);
+        setWards([]);
+        return;
+      }
+
+      const province = await locationApi.getProvinceByCode(formData.provinceCode);
+      setDistricts(province?.districts || []);
+    };
+
+    loadDistricts().catch((error) => {
+      console.error("Error fetching GHN districts:", error);
+      setDistricts([]);
+      setWards([]);
+    });
+  }, [formData.provinceCode]);
+
+  useEffect(() => {
+    const loadWards = async () => {
+      if (!formData.districtCode) {
+        setWards([]);
+        return;
+      }
+
+      const district = await locationApi.getDistrictByCode(formData.districtCode);
+      setWards(district?.wards || []);
+    };
+
+    loadWards().catch((error) => {
+      console.error("Error fetching GHN wards:", error);
+      setWards([]);
+    });
+  }, [formData.districtCode]);
+
   // Debounced address search
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -74,11 +110,11 @@ const AdminBranchCreate = () => {
           const prov = provinces.find(
             (p) => p.code === Number(formData.provinceCode)
           );
-          const dist = prov?.districts?.find(
+          const dist = districts.find(
             (d) => d.code === Number(formData.districtCode)
           );
-          const ward = dist?.wards?.find(
-            (w) => w.code === Number(formData.wardCode)
+          const ward = wards.find(
+            (w) => String(w.code) === String(formData.wardCode)
           );
 
           const results = await locationApi.searchAddress(formData.street, {
@@ -104,6 +140,8 @@ const AdminBranchCreate = () => {
     formData.districtCode,
     formData.wardCode,
     provinces,
+    districts,
+    wards,
   ]);
 
   const handleFetchCoordinates = async () => {
@@ -122,11 +160,11 @@ const AdminBranchCreate = () => {
       const prov = provinces.find(
         (p) => p.code === Number(formData.provinceCode)
       );
-      const dist = prov?.districts?.find(
+      const dist = districts.find(
         (d) => d.code === Number(formData.districtCode)
       );
-      const ward = dist?.wards?.find(
-        (w) => w.code === Number(formData.wardCode)
+      const ward = wards.find(
+        (w) => String(w.code) === String(formData.wardCode)
       );
 
       if (!prov || !dist || !ward) return;
@@ -171,15 +209,21 @@ const AdminBranchCreate = () => {
     // Clear previous errors
     const newErrors = {
       name: "",
+      phone: "",
       provinceCode: "",
       districtCode: "",
       wardCode: "",
       street: "",
     };
+    const normalizedPhone = normalizePhone(formData.phone);
 
     // Validation
     if (!formData.name || !formData.name.trim()) {
       newErrors.name = "Vui lòng nhập tên chi nhánh";
+    }
+
+    if (formData.phone.trim() && !isValidPhone(formData.phone)) {
+      newErrors.phone = "Số điện thoại không đúng định dạng";
     }
 
     if (!formData.provinceCode) {
@@ -201,6 +245,7 @@ const AdminBranchCreate = () => {
     // Check if there are any errors
     if (
       newErrors.name ||
+      newErrors.phone ||
       newErrors.provinceCode ||
       newErrors.districtCode ||
       newErrors.wardCode ||
@@ -214,14 +259,16 @@ const AdminBranchCreate = () => {
     const prov = provinces.find(
       (p) => p.code === Number(formData.provinceCode)
     );
-    const dist = prov?.districts?.find(
+    const dist = districts.find(
       (d) => d.code === Number(formData.districtCode)
     );
-    const ward = dist?.wards?.find((w) => w.code === Number(formData.wardCode));
+    const ward = wards.find(
+      (w) => String(w.code) === String(formData.wardCode)
+    );
 
     const payload = {
       name: formData.name,
-      phone: formData.phone,
+      phone: normalizedPhone,
       address: {
         street: formData.street,
         province: {
@@ -233,7 +280,7 @@ const AdminBranchCreate = () => {
           name: dist?.name || "",
         },
         ward: {
-          code: Number(formData.wardCode),
+          code: String(formData.wardCode),
           name: ward?.name || "",
         },
         coordinates: {
@@ -247,17 +294,26 @@ const AdminBranchCreate = () => {
     try {
       setSaving(true);
       const token = accessToken || null;
-      await branchApi.create(token, payload);
-      toast.success("Tạo chi nhánh thành công");
+      const response = await branchApi.create(token, payload);
+      const warning = response?.warning || response?.data?.warning;
+      if (warning) {
+        toast.warning(`Tạo chi nhánh thành công, nhưng GHN lỗi: ${warning}`);
+      } else {
+        toast.success("Tạo chi nhánh thành công");
+      }
       navigate("/admin/branches");
     } catch (error) {
       console.error("Error creating branch:", error);
-      const errorMessage = error?.response?.data?.message || "Lỗi tạo chi nhánh";
+      const errorMessage =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        "Lỗi tạo chi nhánh";
       
       // Check if error is about duplicate name
       if (errorMessage.includes("already exists") || errorMessage.toLowerCase().includes("tên") || errorMessage.toLowerCase().includes("tồn tại")) {
         setErrors((prev) => ({ ...prev, name: "Tên chi nhánh đã tồn tại" }));
       }
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -331,12 +387,18 @@ const AdminBranchCreate = () => {
                 <input
                   type="text"
                   value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  onChange={(e) => {
+                    setFormData({ ...formData, phone: e.target.value });
+                    if (errors.phone) setErrors({ ...errors, phone: "" });
+                  }}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 ${
+                    errors.phone ? "border-red-500" : ""
+                  }`}
                   placeholder="Nhập số điện thoại"
                 />
+                {errors.phone && (
+                  <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
+                )}
               </div>
 
               <div className="pt-4 border-t">

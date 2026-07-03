@@ -4,6 +4,10 @@ import { useSelector } from "react-redux";
 import CategoriesTable from "@/components/admin-view/tables/CategoriesTable";
 import CategoryModal from "@/components/admin-view/modals/CategoryModal";
 import categoryApi from "@/api/categoryApi";
+import { ChevronRight, Search, Store } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import FilterSelect from "@/components/common/FilterSelect";
+import AdminPagination from "@/components/admin-view/AdminPagination";
 
 const AdminCategories = () => {
   const { user, isAuthenticated, accessToken } = useSelector((s) => s.auth);
@@ -15,11 +19,13 @@ const AdminCategories = () => {
   const [qName, setQName] = useState("");
   const [debouncedQName, setDebouncedQName] = useState("");
   const [qStatus, setQStatus] = useState("");
+  const [appliedStatus, setAppliedStatus] = useState("");
 
   // pagination
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   // modal
   const [isOpen, setIsOpen] = useState(false);
@@ -29,7 +35,7 @@ const AdminCategories = () => {
     try {
       setIsLoading(true);
       const params = { page, limit };
-      if (qStatus) params.status = qStatus;
+      if (appliedStatus) params.status = appliedStatus;
       if (debouncedQName) params.q = debouncedQName;
 
       const res = await categoryApi.getAll(params);
@@ -37,6 +43,7 @@ const AdminCategories = () => {
       // server returns body like { success, data, pagination }
       setCategories(res?.data || []);
       setTotalPages(res?.pagination?.totalPages || 1);
+      setTotalItems(res?.pagination?.totalItems || res?.data?.length || 0);
     } catch (err) {
       console.error("Error loading categories", err);
       toast.error("Lỗi tải danh sách danh mục");
@@ -55,7 +62,7 @@ const AdminCategories = () => {
   useEffect(() => {
     if (isAuthenticated && user?.role === "admin") loadCategories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user, page, debouncedQName, qStatus]);
+  }, [isAuthenticated, user, page, debouncedQName, appliedStatus]);
 
   const handleAdd = () => {
     setEditing(null);
@@ -70,8 +77,17 @@ const AdminCategories = () => {
   const handleResetFilters = () => {
     setQName("");
     setQStatus("");
+    setAppliedStatus("");
     setPage(1);
   };
+
+  const applyFilters = () => {
+    setAppliedStatus(qStatus);
+    setPage(1);
+  };
+
+  const hasActiveFilters =
+    Boolean(qName.trim()) || Boolean(qStatus) || Boolean(appliedStatus);
 
   const handleSubmit = async (data) => {
     const token = accessToken || null;
@@ -115,98 +131,92 @@ const AdminCategories = () => {
   };
 
   return (
-    <main className="bg-gray-50 min-h-screen">
-      <section className="w-full px-4 pt-8">
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between">
-          <div className="text-lg font-medium">Quản lý danh mục</div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-4">
-              <input
-                type="text"
-                placeholder="Tìm theo tên"
-                value={qName}
-                onChange={(e) => {
-                  setQName(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition"
-              />
-
-              <select
-                value={qStatus}
-                onChange={(e) => {
-                  setQStatus(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition cursor-pointer"
-              >
-                <option value="">Tất cả</option>
-                <option value="available">Đang bán</option>
-                <option value="suspended">Ngừng bán</option>
-              </select>
-
-              <button
-                onClick={handleResetFilters}
-                className="px-3 py-2 bg-gray-100 rounded-lg transition hover:bg-gray-200 cursor-pointer"
-              >
-                Đặt lại
-              </button>
-            </div>
-
-            <button
-              onClick={handleAdd}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg transition transform hover:scale-105 hover:bg-green-700 active:scale-95 cursor-pointer"
-            >
-              + Thêm danh mục
-            </button>
-          </div>
+    <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
+      <header className="mb-5 flex items-center gap-2 text-lg font-bold">
+        <div className="flex items-center gap-2 text-gray-900">
+          <Store className="h-5 w-5" strokeWidth={1.8} />
+          Quản trị hệ thống
         </div>
-      </section>
+        <ChevronRight className="h-5 w-5 text-gray-500" />
+        <div className="text-[#34ad54]">Danh mục món ăn</div>
+      </header>
 
-      <section className="pb-16 w-full px-4">
+      <div className="mb-4 flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-start">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+          <div className="relative w-full lg:w-[300px]">
+            <input
+              type="text"
+              placeholder="Tên danh mục"
+              value={qName}
+              onChange={(e) => {
+                setQName(e.target.value);
+                setPage(1);
+              }}
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
+            />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          </div>
+
+          <div className="text-base font-bold text-gray-500">Lọc bởi:</div>
+
+          <FilterSelect
+            label="Trạng thái"
+            value={qStatus || "all"}
+            onChange={(value) => {
+              setQStatus(value === "all" ? "" : value);
+            }}
+            options={[
+              { value: "all", label: "Tất cả trạng thái" },
+              { value: "available", label: "Đang bán" },
+              { value: "suspended", label: "Ngừng bán" },
+            ]}
+            className="lg:w-[220px]"
+          />
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="whitespace-nowrap text-base font-bold text-[#34ad54] underline underline-offset-4 hover:text-[#2f9b45]"
+            >
+              Chọn mặc định
+            </button>
+          )}
+
+        </div>
+
+        <Button
+          type="button"
+          onClick={applyFilters}
+          className="h-12 w-full min-w-[110px] shrink-0 rounded-lg bg-[#34ad54] px-5 text-base font-bold text-white hover:bg-[#2f9b45] sm:w-auto"
+        >
+          Áp dụng
+        </Button>
+
+        <Button
+          type="button"
+          onClick={handleAdd}
+          className="h-12 rounded-lg bg-[#34ad54] px-5 text-base font-bold text-white hover:bg-[#2f9b45]"
+        >
+          + Thêm danh mục
+        </Button>
+      </div>
+
+      <section className="pb-16 w-full">
         <CategoriesTable
           categories={categories}
           isLoading={isLoading}
           onRowClick={handleRowClick}
         />
 
-        {totalPages > 1 && (
-          <div className="flex justify-center mt-4 gap-2">
-            <button
-              disabled={page === 1}
-              onClick={() => setPage(page - 1)}
-              className={`px-3 py-1 rounded ${
-                page === 1
-                  ? "bg-gray-200 text-gray-400"
-                  : "bg-green-600 text-white"
-              }`}
-            >
-              {"<"}
-            </button>
-            {[...Array(totalPages)].map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setPage(idx + 1)}
-                className={`px-3 py-1 rounded ${
-                  page === idx + 1 ? "bg-green-600 text-white" : "bg-gray-200"
-                }`}
-              >
-                {idx + 1}
-              </button>
-            ))}
-            <button
-              disabled={page === totalPages}
-              onClick={() => setPage(page + 1)}
-              className={`px-3 py-1 rounded ${
-                page === totalPages
-                  ? "bg-gray-200 text-gray-400"
-                  : "bg-green-600 text-white"
-              }`}
-            >
-              {">"}
-            </button>
-          </div>
-        )}
+        <AdminPagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={limit}
+          itemLabel="danh mục"
+          onPageChange={setPage}
+        />
       </section>
 
       <CategoryModal
@@ -216,7 +226,7 @@ const AdminCategories = () => {
         onSubmit={handleSubmit}
         onDelete={handleDelete}
       />
-    </main>
+    </section>
   );
 };
 

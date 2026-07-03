@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ChevronRight,
   Minus,
@@ -9,7 +10,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import branchApi from "@/api/branchApi";
+import momoApi from "@/api/momoApi";
 import orderApi from "@/api/orderApi";
+import vnpayApi from "@/api/vnpayApi";
+import zalopayApi from "@/api/zalopayApi";
 import { Button } from "@/components/ui/button";
 import { assets } from "@/assets/assets";
 import OrderDetailModal from "./OrderDetailModal";
@@ -33,6 +37,7 @@ const CreateOrderModal = ({
   initialOrder,
   open,
 }) => {
+  const navigate = useNavigate();
   const [dishes, setDishes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -42,6 +47,32 @@ const CreateOrderModal = ({
   const [showOrderDetail, setShowOrderDetail] = useState(false);
   const [orderStatus, setOrderStatus] = useState("selecting");
   const [createdOrder, setCreatedOrder] = useState(null);
+  const [momoPaymentUrl, setMomoPaymentUrl] = useState("");
+  const [momoQrUrl, setMomoQrUrl] = useState("");
+  const [momoQrCreatedAt, setMomoQrCreatedAt] = useState(null);
+  const [momoLoading, setMomoLoading] = useState(false);
+  const [momoError, setMomoError] = useState("");
+  const [zalopayPaymentUrl, setZalopayPaymentUrl] = useState("");
+  const [zalopayQrUrl, setZalopayQrUrl] = useState("");
+  const [zalopayAppTransId, setZalopayAppTransId] = useState("");
+  const [zalopayQrCreatedAt, setZalopayQrCreatedAt] = useState(null);
+  const [zalopayLoading, setZalopayLoading] = useState(false);
+  const [zalopayError, setZalopayError] = useState("");
+  const [vnpayPaymentUrl, setVnpayPaymentUrl] = useState("");
+  const [vnpayLoading, setVnpayLoading] = useState(false);
+  const [vnpayError, setVnpayError] = useState("");
+
+  const navigateToBill = useCallback(
+    (order) => {
+      const billOrderId = order?._id || createdOrder?._id;
+      if (!billOrderId) return;
+
+      setShowOrderDetail(false);
+      onClose?.();
+      navigate(`/manager/tables/bill/${billOrderId}`);
+    },
+    [createdOrder?._id, navigate, onClose],
+  );
 
   useEffect(() => {
     if (!table || !branchId) return;
@@ -66,6 +97,20 @@ const CreateOrderModal = ({
     fetchDishes();
     setSearchTerm("");
     setShowOrderDetail(false);
+    setMomoPaymentUrl("");
+    setMomoQrUrl("");
+    setMomoQrCreatedAt(null);
+    setMomoLoading(false);
+    setMomoError("");
+    setZalopayPaymentUrl("");
+    setZalopayQrUrl("");
+    setZalopayAppTransId("");
+    setZalopayQrCreatedAt(null);
+    setZalopayLoading(false);
+    setZalopayError("");
+    setVnpayPaymentUrl("");
+    setVnpayLoading(false);
+    setVnpayError("");
 
     // Nếu có initialOrder, điền thông tin vào form
     if (initialOrder) {
@@ -99,6 +144,68 @@ const CreateOrderModal = ({
     }
   }, [table, branchId, initialOrder]);
 
+  useEffect(() => {
+    if (
+      (!momoPaymentUrl &&
+        !momoQrUrl &&
+        !zalopayQrUrl &&
+        !zalopayAppTransId &&
+        !vnpayPaymentUrl) ||
+      !createdOrder?._id ||
+      orderStatus === "completed"
+    ) {
+      return undefined;
+    }
+
+    const timer = setInterval(async () => {
+      try {
+        if (zalopayAppTransId) {
+          await zalopayApi.queryStatus(accessToken, zalopayAppTransId);
+        }
+
+        const response = await orderApi.getOrderById(
+          accessToken,
+          createdOrder._id,
+        );
+        const latestOrder = response?.data?.order;
+
+        if (
+          latestOrder?.payment_status === "paid" ||
+          latestOrder?.status === "completed"
+        ) {
+          setCreatedOrder(latestOrder);
+          setOrderStatus("completed");
+          setMomoPaymentUrl("");
+          setMomoQrUrl("");
+          setMomoQrCreatedAt(null);
+          setZalopayPaymentUrl("");
+          setZalopayQrUrl("");
+          setZalopayAppTransId("");
+          setZalopayQrCreatedAt(null);
+          setVnpayPaymentUrl("");
+          toast.success("Thanh toán thành công");
+          onOrderCreated?.(latestOrder);
+          navigateToBill(latestOrder);
+        }
+      } catch (error) {
+        console.error("Poll QR dine-in order error:", error);
+      }
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [
+    accessToken,
+    createdOrder?._id,
+    momoPaymentUrl,
+    momoQrUrl,
+    navigateToBill,
+    onOrderCreated,
+    orderStatus,
+    vnpayPaymentUrl,
+    zalopayAppTransId,
+    zalopayQrUrl,
+  ]);
+
   const filteredDishes = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
     if (!keyword) return dishes;
@@ -125,6 +232,192 @@ const CreateOrderModal = ({
     (sum, item) => sum + getDishPrice(item) * item.quantity,
     0,
   );
+  const confirmedItems = useMemo(() => {
+    if (!createdOrder?.items?.length) return [];
+
+    return createdOrder.items.map((item) => ({
+      ...item,
+      _id: item._id || item.dish_id,
+      name: item.dish_name || item.name,
+      quantity: item.quantity || 0,
+    }));
+  }, [createdOrder?.items]);
+  const confirmedTotalQuantity = confirmedItems.reduce(
+    (sum, item) => sum + (item.quantity || 0),
+    0,
+  );
+  const confirmedTotalAmount =
+    createdOrder?.total_amount ||
+    confirmedItems.reduce(
+      (sum, item) => sum + getDishPrice(item) * (item.quantity || 0),
+      0,
+    );
+  const hasUnconfirmedChanges =
+    orderStatus === "processing" &&
+    selectedItems.some(
+      (item) => (item.quantity || 0) > (initialQuantities[item._id] || 0),
+    );
+  const payableItems =
+    orderStatus === "processing" && confirmedItems.length > 0
+      ? confirmedItems
+      : selectedItems;
+  const payableTotalQuantity =
+    orderStatus === "processing" && confirmedItems.length > 0
+      ? confirmedTotalQuantity
+      : totalQuantity;
+  const payableTotalAmount =
+    orderStatus === "processing" && confirmedItems.length > 0
+      ? confirmedTotalAmount
+      : totalAmount;
+
+  const handleRequestMomoPayment = useCallback(async (force = false) => {
+    if (!createdOrder?._id || (!force && momoQrUrl) || momoLoading) return;
+
+    try {
+      setMomoLoading(true);
+      setMomoError("");
+      if (force) {
+        setMomoPaymentUrl("");
+        setMomoQrUrl("");
+        setMomoQrCreatedAt(null);
+      }
+      const result = await momoApi.createPayment(
+        accessToken,
+        createdOrder._id,
+        payableTotalAmount,
+        `Thanh toan hoa don ${createdOrder.order_number || createdOrder._id}`,
+      );
+
+      if (!result.success) {
+        throw new Error(result.message || "Không thể tạo QR MoMo");
+      }
+
+      const data = result.data || {};
+      const isImageUrl = (value = "") =>
+        value.startsWith("data:image/") || /^https?:\/\//i.test(value);
+      const qrUrl =
+        data.qrDataUrl || (isImageUrl(data.qrCodeUrl || "") ? data.qrCodeUrl : "");
+      const paymentUrl = data.deeplink || data.payUrl || data.paymentUrl || "";
+
+      if (!qrUrl) {
+        throw new Error(
+          "MoMo không trả về dữ liệu QR thanh toán. Kiểm tra requestType=captureWallet và tài khoản UAT.",
+        );
+      }
+
+      setMomoQrUrl(qrUrl || data.qrDataUrl || "");
+      setMomoPaymentUrl(paymentUrl);
+      setMomoQrCreatedAt(Date.now());
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể tạo QR MoMo";
+      setMomoError(message);
+      toast.error(message);
+    } finally {
+      setMomoLoading(false);
+    }
+  }, [
+    accessToken,
+    createdOrder?._id,
+    createdOrder?.order_number,
+    momoLoading,
+    momoQrUrl,
+    payableTotalAmount,
+  ]);
+
+  const handleRequestZalopayPayment = useCallback(async (force = false) => {
+    if (!createdOrder?._id || (!force && zalopayQrUrl) || zalopayLoading) return;
+
+    try {
+      setZalopayLoading(true);
+      setZalopayError("");
+      setZalopayPaymentUrl("");
+      setZalopayQrUrl("");
+      setZalopayAppTransId("");
+      setZalopayQrCreatedAt(null);
+      const result = await zalopayApi.createPayment(
+        accessToken,
+        createdOrder._id,
+        payableTotalAmount,
+        `Thanh toan hoa don ${createdOrder.order_number || createdOrder._id}`,
+      );
+
+      if (!result.success) {
+        throw new Error(result.message || "Khong the tao QR ZaloPay");
+      }
+
+      const data = result.data || {};
+      const qrUrl = data.qrDataUrl || "";
+
+      if (!qrUrl) {
+        throw new Error(
+          "ZaloPay khong tra ve QR thanh toan. Kiem tra sandbox va cau hinh callback.",
+        );
+      }
+
+      setZalopayQrUrl(qrUrl);
+      setZalopayPaymentUrl(data.orderUrl || data.paymentUrl || "");
+      setZalopayAppTransId(data.appTransId || "");
+      setZalopayQrCreatedAt(Date.now());
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Khong the tao QR ZaloPay";
+      setZalopayError(message);
+      toast.error(message);
+    } finally {
+      setZalopayLoading(false);
+    }
+  }, [
+    accessToken,
+    createdOrder?._id,
+    createdOrder?.order_number,
+    payableTotalAmount,
+    zalopayLoading,
+    zalopayQrUrl,
+  ]);
+
+  const handleRequestVnpayPayment = useCallback(async (force = false) => {
+    if (!createdOrder?._id || (!force && vnpayPaymentUrl) || vnpayLoading) return;
+
+    try {
+      setVnpayLoading(true);
+      setVnpayError("");
+      if (force) {
+        setVnpayPaymentUrl("");
+      }
+
+      const result = await vnpayApi.createPayment(
+        accessToken,
+        createdOrder._id,
+        payableTotalAmount,
+      );
+
+      if (!result.success || !result.url) {
+        throw new Error(result.message || "Không thể tạo link VNPay");
+      }
+
+      setVnpayPaymentUrl(result.url);
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể tạo link VNPay";
+      setVnpayError(message);
+      toast.error(message);
+    } finally {
+      setVnpayLoading(false);
+    }
+  }, [
+    accessToken,
+    createdOrder?._id,
+    payableTotalAmount,
+    vnpayLoading,
+    vnpayPaymentUrl,
+  ]);
 
   if (!table || open === false) return null;
 
@@ -174,7 +467,47 @@ const CreateOrderModal = ({
 
     // Nếu đã có order, chuyển sang xác nhận (move to processing status)
     if (createdOrder) {
-      setOrderStatus("processing");
+      try {
+        setSubmitting(true);
+        const response = await orderApi.updateDineInOrderItems(
+          accessToken,
+          createdOrder._id,
+          selectedItems.map((item) => ({
+            dish_id: item._id,
+            quantity: item.quantity,
+            variant: item.variant || {},
+          })),
+        );
+        const updatedOrder = response?.data?.order || createdOrder;
+        const nextInitialQuantities = {};
+        updatedOrder.items?.forEach((item) => {
+          const dishId =
+            typeof item.dish_id === "object" ? item.dish_id?._id : item.dish_id;
+          if (dishId) nextInitialQuantities[dishId] = item.quantity;
+        });
+        setCreatedOrder(updatedOrder);
+        setInitialQuantities(nextInitialQuantities);
+        setQuantities(nextInitialQuantities);
+        setOrderStatus("processing");
+        setMomoPaymentUrl("");
+        setMomoQrUrl("");
+        setMomoQrCreatedAt(null);
+        setZalopayPaymentUrl("");
+        setZalopayQrUrl("");
+        setZalopayAppTransId("");
+        setZalopayQrCreatedAt(null);
+        setVnpayPaymentUrl("");
+        toast.success("Đã xác nhận thêm món");
+        onOrderCreated?.(updatedOrder);
+      } catch (error) {
+        toast.error(
+          error?.response?.data?.message ||
+            error?.message ||
+            "Không thể xác nhận thêm món",
+        );
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
 
@@ -196,7 +529,15 @@ const CreateOrderModal = ({
 
       const response = await orderApi.createOrder(accessToken, payload);
       const order = response?.data?.order;
+      const nextInitialQuantities = {};
+      order?.items?.forEach((item) => {
+        const dishId =
+          typeof item.dish_id === "object" ? item.dish_id?._id : item.dish_id;
+        if (dishId) nextInitialQuantities[dishId] = item.quantity;
+      });
       setCreatedOrder(order || null);
+      setInitialQuantities(nextInitialQuantities);
+      setQuantities(nextInitialQuantities);
       setOrderStatus("processing");
       toast.success("Đơn hàng đã được xác nhận và đang xử lý");
       onOrderCreated?.(order);
@@ -212,10 +553,28 @@ const CreateOrderModal = ({
   };
 
   const handlePayment = async (paymentMethod = "cod") => {
-    if (!validateSelectedItems() || submitting) return;
+    if (payableTotalQuantity === 0 || submitting) {
+      toast.error("Chưa có món đã xác nhận để thanh toán");
+      return;
+    }
 
     if (!createdOrder?._id) {
       toast.error("Vui lòng xác nhận đơn hàng trước khi thanh toán");
+      return;
+    }
+
+    if (paymentMethod === "momo") {
+      toast.info("Vui lòng quét QR MoMo để thanh toán");
+      return;
+    }
+
+    if (paymentMethod === "zalopay") {
+      toast.info("Vui lòng quét QR ZaloPay để thanh toán");
+      return;
+    }
+
+    if (paymentMethod === "vnpay") {
+      toast.info("Vui lòng thanh toán bằng link VNPay");
       return;
     }
 
@@ -226,10 +585,12 @@ const CreateOrderModal = ({
         createdOrder._id,
         paymentMethod,
       );
-      setCreatedOrder(response?.data?.order || createdOrder);
+      const completedOrder = response?.data?.order || createdOrder;
+      setCreatedOrder(completedOrder);
       setOrderStatus("completed");
       toast.success("Đơn hàng đã hoàn thành");
-      onOrderCreated?.(response?.data?.order || createdOrder);
+      onOrderCreated?.(completedOrder);
+      navigateToBill(completedOrder);
     } catch (error) {
       toast.error(
         error?.response?.data?.message ||
@@ -247,6 +608,8 @@ const CreateOrderModal = ({
       : orderStatus === "processing"
         ? "Thanh toán"
         : "Hoàn thành";
+  const secondaryActionLabel =
+    orderStatus === "processing" && hasUnconfirmedChanges ? "Xác nhận" : "";
 
   const handlePrimaryAction = () => {
     if (orderStatus === "selecting") {
@@ -275,6 +638,10 @@ const CreateOrderModal = ({
     }
 
     setShowOrderDetail(false);
+  };
+
+  const handleOrderDetailSecondaryAction = () => {
+    handleConfirmOrder();
   };
 
   return (
@@ -408,14 +775,29 @@ const CreateOrderModal = ({
               </div>
             </button>
 
-            <Button
-              type="button"
-              onClick={handlePrimaryAction}
-              disabled={totalQuantity === 0 || submitting}
-              className="h-14 min-w-56 shrink-0 rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0]"
-            >
-              {submitting ? "Đang xác nhận..." : primaryActionLabel}
-            </Button>
+            <div className="flex shrink-0 items-center gap-3">
+              {secondaryActionLabel && (
+                <Button
+                  type="button"
+                  onClick={() => handleConfirmOrder()}
+                  disabled={submitting}
+                  className="h-14 min-w-40 rounded-lg bg-sky-600 text-lg font-bold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-sky-200"
+                >
+                  {submitting ? "Đang xác nhận..." : secondaryActionLabel}
+                </Button>
+              )}
+              <Button
+                type="button"
+                onClick={handlePrimaryAction}
+                disabled={
+                  (orderStatus === "selecting" ? totalQuantity : payableTotalQuantity) ===
+                    0 || submitting
+                }
+                className="h-14 min-w-56 rounded-lg bg-[#34ad54] text-lg font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0] disabled:hover:bg-[#bbf7d0]"
+              >
+                {submitting ? "Đang xác nhận..." : primaryActionLabel}
+              </Button>
+            </div>
           </div>
         </footer>
       </div>
@@ -424,16 +806,40 @@ const CreateOrderModal = ({
         open={showOrderDetail}
         table={table}
         items={selectedItems}
+        paymentItems={payableItems}
         order={createdOrder}
         totalQuantity={totalQuantity}
         totalAmount={totalAmount}
+        paymentTotalQuantity={payableTotalQuantity}
+        paymentTotalAmount={payableTotalAmount}
         primaryActionLabel={
           submitting ? "Đang xác nhận..." : primaryActionLabel
+        }
+        secondaryActionLabel={
+          submitting ? "Đang xác nhận..." : secondaryActionLabel
         }
         onClose={() => setShowOrderDetail(false)}
         onAddMore={() => setShowOrderDetail(false)}
         onPrimaryAction={handleOrderDetailPrimaryAction}
+        onSecondaryAction={handleOrderDetailSecondaryAction}
+        momoPaymentUrl={momoPaymentUrl}
+        momoQrUrl={momoQrUrl}
+        momoQrCreatedAt={momoQrCreatedAt}
+        momoLoading={momoLoading}
+        momoError={momoError}
+        onRequestMomoPayment={handleRequestMomoPayment}
+        zalopayPaymentUrl={zalopayPaymentUrl}
+        zalopayQrUrl={zalopayQrUrl}
+        zalopayQrCreatedAt={zalopayQrCreatedAt}
+        zalopayLoading={zalopayLoading}
+        zalopayError={zalopayError}
+        onRequestZalopayPayment={handleRequestZalopayPayment}
+        vnpayPaymentUrl={vnpayPaymentUrl}
+        vnpayLoading={vnpayLoading}
+        vnpayError={vnpayError}
+        onRequestVnpayPayment={handleRequestVnpayPayment}
       />
+
     </div>
   );
 };

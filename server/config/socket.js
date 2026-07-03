@@ -8,7 +8,7 @@ let io;
 const initSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || "http://localhost:5173",
+      origin: process.env.CLIENT_URL,
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -29,7 +29,7 @@ const initSocket = (httpServer) => {
       // Kiểm tra user có tồn tại và active không (tương tự authenticateToken)
       const user = await User.findById(decoded.userId);
 
-      if (!user || !user.active) {
+      if (!user || !user.active || user.disabled) {
         return next(new Error("User không hợp lệ hoặc đã bị khóa"));
       }
 

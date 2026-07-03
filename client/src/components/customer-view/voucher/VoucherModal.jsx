@@ -255,7 +255,7 @@ const VoucherModal = ({ isOpen, onClose, onApply, options = {}, subtotal }) => {
                           expireText={
                             v.endDate
                               ? new Date(v.endDate).toLocaleDateString()
-                              : "N/A"
+                              : ""
                           }
                           checked={selectedFreeship === key}
                           onCheck={() => toggleFreeship(key)}
@@ -319,7 +319,7 @@ const VoucherModal = ({ isOpen, onClose, onApply, options = {}, subtotal }) => {
                           expireText={
                             v.endDate
                               ? new Date(v.endDate).toLocaleDateString()
-                              : "N/A"
+                              : ""
                           }
                           checked={selectedDiscount === key}
                           onCheck={() => toggleDiscount(key)}

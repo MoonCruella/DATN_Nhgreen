@@ -1,4 +1,4 @@
-import { Clock3, Star, UserCircle, X } from "lucide-react";
+import { Clock3, X } from "lucide-react";
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
@@ -30,12 +30,6 @@ const getPaymentMethodText = (method) => {
   return methods[method] || "Tiền mặt";
 };
 
-const getCustomerName = (order) =>
-  order?.guest_info?.name ||
-  order?.shipping_info?.name ||
-  order?.user_id?.name ||
-  "Khách vãng lai";
-
 const getTableName = (order) =>
   order?.table_info?.name || order?.table_id?.name || "Bàn";
 
@@ -50,7 +44,6 @@ const DineInOrderDetailModal = ({
 
   const items = order.items || [];
   const totalAmount = order.total_amount || 0;
-  const earnedPoint = Math.floor(totalAmount / 10);
   const isPaid =
     order.status === "completed" || order.payment_status === "paid";
   const isProcessing = order.status === "processing";
@@ -132,14 +125,6 @@ const DineInOrderDetailModal = ({
 
         <div className="mt-4 space-y-5 text-base font-bold">
           <div className="flex items-center justify-between">
-            <span className="text-gray-500">Điểm:</span>
-            <span className="inline-flex items-center gap-2 text-[#06183a]">
-              <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
-              {formatCurrency(earnedPoint)}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between">
             <span className="text-gray-500">Thành tiền:</span>
             <span className="text-[#06183a]">
               {formatCurrency(totalAmount)} VND
@@ -151,12 +136,6 @@ const DineInOrderDetailModal = ({
           <div className="grid grid-cols-[1fr_auto] gap-y-6 px-8 py-6 text-base font-bold text-black">
             <div>Bàn:</div>
             <div className="text-right">{getTableName(order)}</div>
-
-            <div>Khách hàng:</div>
-            <div className="inline-flex items-center justify-center rounded-full bg-[#34ad54] px-4 py-1.5 text-sm font-bold text-white">
-              <UserCircle className="mr-2 h-4 w-4" />
-              {getCustomerName(order)}
-            </div>
 
             <div>Thời gian tạo đơn:</div>
             <div className="inline-flex items-center justify-center rounded-full border border-sky-300 bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-500">

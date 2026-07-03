@@ -1,19 +1,19 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
-import Layout from "./components/auth/Layout";
-import Login from "./pages/auth/Login";
-import Register from "./pages/auth/Register";
+import Layout from "./components/auth/layout";
+import Login from "./pages/auth/login";
+import Register from "./pages/auth/register";
 import AdminLayout from "./components/admin-view/AdminLayout";
 import AdminDashboard from "./pages/admin-view/AdDashboard";
 import AdminProducts from "./pages/admin-view/dish/AdDishes";
 import AdminOrders from "./pages/admin-view/AdOrders";
-import CustomerLayout from "./components/customer-view/Layout";
-import NotFound from "./pages/not-found/Index";
+import CustomerLayout from "./components/customer-view/layout";
+import NotFound from "./pages/not-found/index";
 import CustomerHome from "./pages/customer-view/CusHome";
 import ManagerLayout from "./components/manager-view/ManagerLayout";
 import ManagerDashboard from "./pages/manager-view/MaDashboard";
 import CheckAuth from "./components/common/CheckAuth";
-import UnauthPage from "./pages/unauth-page/Index";
+import UnauthPage from "./pages/unauth-page/index";
 import { useDispatch, useSelector } from "react-redux";
 import { useEffect } from "react";
 import { refreshAccessToken } from "./store/auth-slice";
@@ -58,11 +58,11 @@ import DineInMenu from "./pages/customer-view/DineInMenu";
 import MaNotifications from "./pages/manager-view/MaNotifications";
 import ManagerRating from "./pages/manager-view/MaRatings";
 import MaManageTables from "./pages/manager-view/MaManageTables";
-import MaCustomers from "./pages/manager-view/MaCustomers";
+import MaDineInBill from "./pages/manager-view/MaDineInBill";
 
 function App() {
   const { user, isAuthenticated, isLoading } = useSelector(
-    (state) => state.auth
+    (state) => state.auth,
   );
   const dispatch = useDispatch();
   // Mount interceptor once for the whole app so axiosPrivate handles auth/refresh
@@ -171,7 +171,7 @@ function App() {
           <Route path="orders/online" element={<MaManageOrder />} />
           <Route path="orders/dine-in" element={<MaDineInOrders />} />
           <Route path="tables" element={<MaManageTables />} />
-          <Route path="customers" element={<MaCustomers />} />
+          <Route path="tables/bill/:orderId" element={<MaDineInBill />} />
           <Route path="notifications" element={<MaNotifications />} />
           <Route path="orders/:orderId" element={<MaOrderDetail />} />
           <Route path="ratings" element={<ManagerRating />} />

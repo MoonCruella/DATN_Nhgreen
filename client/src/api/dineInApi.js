@@ -21,6 +21,27 @@ const dineInApi = {
     return response.data;
   },
 
+  getActiveOrder: async (sessionToken) => {
+    const response = await axiosPublic.get(
+      `/api/dine-in/sessions/${sessionToken}/active-order`,
+    );
+    return response.data;
+  },
+
+  getOrderStatus: async (sessionToken, orderId) => {
+    const response = await axiosPublic.get(
+      `/api/dine-in/sessions/${sessionToken}/orders/${orderId}/status`,
+    );
+    return response.data;
+  },
+
+  requestCashPayment: async (sessionToken, orderId) => {
+    const response = await axiosPublic.post(
+      `/api/dine-in/sessions/${sessionToken}/orders/${orderId}/request-cash-payment`,
+    );
+    return response.data;
+  },
+
   updateCart: async (sessionToken, cartItems) => {
     const response = await axiosPublic.put(
       `/api/dine-in/sessions/${sessionToken}/cart`,
@@ -44,6 +65,32 @@ const dineInApi = {
         quantity: item.quantity,
         variant: item.variant || {},
       })),
+    });
+    return response.data;
+  },
+
+  createMomoPayment: async ({ orderId, amount, orderInfo }) => {
+    const response = await axiosPublic.post("/api/momo/payment", {
+      orderId,
+      amount,
+      orderInfo,
+    });
+    return response.data;
+  },
+
+  createZalopayPayment: async ({ orderId, amount, description }) => {
+    const response = await axiosPublic.post("/api/zalopay/payment", {
+      orderId,
+      amount,
+      description,
+    });
+    return response.data;
+  },
+
+  createVnpayPayment: async ({ orderId, amount }) => {
+    const response = await axiosPublic.post("/api/vnpay/payment", {
+      orderId,
+      amount,
     });
     return response.data;
   },

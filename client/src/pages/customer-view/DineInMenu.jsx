@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Banknote,
   ChevronLeft,
+  Copy,
+  CreditCard,
   Edit3,
+  Info,
   Menu,
   Minus,
+  QrCode,
   RefreshCw,
   Search,
   ShoppingBag,
   Star,
+  Smartphone,
   UserCircle,
   X,
 } from "lucide-react";
@@ -28,7 +34,52 @@ const getDishImage = (dish) =>
 
 const getDishPrice = (dish) => dish?.sale_price || dish?.price || 0;
 
+const formatNutrition = (value = 0, suffix = "g") => {
+  const number = Number(value) || 0;
+  const formatted =
+    suffix === "kcal" ? Math.round(number) : Math.round(number * 10) / 10;
+  return `${formatted}${suffix === "kcal" ? " kcal" : suffix}`;
+};
+
+const getDishNutrition = (dish) => ({
+  calories: dish?.totalEnergyKcal || 0,
+  protein: dish?.totalProtein || 0,
+  carbs: dish?.totalCarbs || 0,
+  fat: dish?.totalFat || 0,
+});
+
 const getStoredSessionKey = (qrToken) => `nhgreen_dine_in_session_${qrToken}`;
+
+const QR_TTL_MS = 15 * 60 * 1000;
+
+const PAYMENT_METHODS = [
+  { value: "cod", label: "Tiền mặt", icon: Banknote },
+  { value: "momo", label: "MoMo", icon: QrCode },
+  { value: "zalopay", label: "ZaloPay", icon: Smartphone },
+  { value: "vnpay", label: "VNPay", icon: CreditCard },
+];
+
+const formatCountdown = (milliseconds = 0) => {
+  const totalSeconds = Math.max(Math.ceil(milliseconds / 1000), 0);
+  const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `${minutes}:${seconds}`;
+};
+
+const getPaymentTabClass = (method, active) => {
+  if (!active) {
+    if (method === "momo") return "border-[#a50064]/20 text-[#a50064]";
+    if (method === "zalopay") return "border-[#0068ff]/20 text-[#0068ff]";
+    if (method === "vnpay") return "border-[#25358f]/20 text-[#25358f]";
+    return "border-emerald-200 text-emerald-600";
+  }
+
+  if (method === "momo") return "border-[#a50064] bg-[#fff5fb] text-[#a50064]";
+  if (method === "zalopay")
+    return "border-[#0068ff] bg-[#f3f8ff] text-[#0068ff]";
+  if (method === "vnpay") return "border-[#25358f] bg-blue-50 text-[#25358f]";
+  return "border-emerald-600 bg-emerald-50 text-emerald-600";
+};
 
 const DineInMenu = () => {
   const { qrToken } = useParams();
@@ -43,7 +94,15 @@ const DineInMenu = () => {
   const [showCart, setShowCart] = useState(false);
   const [showOrderDetail, setShowOrderDetail] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [showPaymentSuccessPopup, setShowPaymentSuccessPopup] = useState(false);
   const [lastOrder, setLastOrder] = useState(null);
+  const [completedOrderId, setCompletedOrderId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cod");
+  const [paymentLoading, setPaymentLoading] = useState("");
+  const [paymentError, setPaymentError] = useState("");
+  const [paymentData, setPaymentData] = useState({});
+  const [selectedNutritionDish, setSelectedNutritionDish] = useState(null);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     if (!qrToken) return;
@@ -77,10 +136,25 @@ const DineInMenu = () => {
           }
         }
 
-        const dishResponse = await branchApi.getBranchDishes(scannedBranch._id, {
-          limit: 100,
-          isAvailable: true,
-        });
+        let activeOrder = null;
+        if (activeSession?.session_token) {
+          try {
+            const activeOrderResponse = await dineInApi.getActiveOrder(
+              activeSession.session_token,
+            );
+            activeOrder = activeOrderResponse?.data?.order || null;
+          } catch {
+            activeOrder = null;
+          }
+        }
+
+        const dishResponse = await branchApi.getBranchDishes(
+          scannedBranch._id,
+          {
+            limit: 100,
+            isAvailable: true,
+          },
+        );
 
         setTable(scannedTable);
         setBranch(scannedBranch);
@@ -89,11 +163,17 @@ const DineInMenu = () => {
         setQuantities(
           (activeSession?.cart_items || []).reduce((result, item) => {
             const dishId =
-              typeof item.dish_id === "object" ? item.dish_id?._id : item.dish_id;
+              typeof item.dish_id === "object"
+                ? item.dish_id?._id
+                : item.dish_id;
             if (dishId) result[dishId] = item.quantity;
             return result;
           }, {}),
         );
+        setLastOrder(activeOrder);
+        setPaymentMethod("cod");
+        setPaymentData({});
+        setPaymentError("");
       } catch (error) {
         toast.error(
           error?.response?.data?.message ||
@@ -220,14 +300,16 @@ const DineInMenu = () => {
       });
 
       setLastOrder(response?.data?.order || null);
+      setCompletedOrderId("");
+      setPaymentMethod("cod");
+      setPaymentData({});
+      setPaymentError("");
       setQuantities({});
       setShowSuccessPopup(true);
       toast.success("Đã gửi đơn đến quầy");
     } catch (error) {
       toast.error(
-        error?.response?.data?.message ||
-          error?.message ||
-          "Không thể gửi đơn",
+        error?.response?.data?.message || error?.message || "Không thể gửi đơn",
       );
     } finally {
       setSubmitting(false);
@@ -237,6 +319,17 @@ const DineInMenu = () => {
   const handleBackToMenu = () => {
     setShowSuccessPopup(false);
     setShowCart(false);
+  };
+
+  const handleBackAfterPayment = () => {
+    setShowPaymentSuccessPopup(false);
+    setShowOrderDetail(false);
+    setShowCart(false);
+    setLastOrder(null);
+    setCompletedOrderId("");
+    setPaymentMethod("cod");
+    setPaymentData({});
+    setPaymentError("");
   };
 
   const handleOpenOrderDetail = () => {
@@ -253,10 +346,227 @@ const DineInMenu = () => {
     toast.error("Chưa có đơn hàng để kiểm tra");
   };
 
-  const handleRequestPayment = () => {
-    toast.success("Đã gọi thanh toán. Nhân viên sẽ hỗ trợ bạn.");
-    setShowOrderDetail(false);
+  useEffect(() => {
+    if (!showOrderDetail || !["momo", "zalopay"].includes(paymentMethod)) {
+      return undefined;
+    }
+
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [showOrderDetail, paymentMethod]);
+
+  useEffect(() => {
+    if (!selectedNutritionDish) return undefined;
+
+    const scrollY = window.scrollY;
+    const originalStyle = {
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+    };
+
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+
+    return () => {
+      document.body.style.overflow = originalStyle.overflow;
+      document.body.style.position = originalStyle.position;
+      document.body.style.top = originalStyle.top;
+      document.body.style.width = originalStyle.width;
+      window.scrollTo(0, scrollY);
+    };
+  }, [selectedNutritionDish]);
+
+  const requestGatewayPayment = async (method, force = false) => {
+    if (!lastOrder?._id || paymentLoading) return;
+    if (method === "cod") return;
+    if (!force && paymentData[method]?.createdAt) return;
+
+    try {
+      setPaymentLoading(method);
+      setPaymentError("");
+
+      let response;
+      if (method === "momo") {
+        response = await dineInApi.createMomoPayment({
+          orderId: lastOrder._id,
+          amount: orderDetailTotal,
+          orderInfo: `Thanh toan don tai ban ${table?.name || ""}`,
+        });
+      } else if (method === "zalopay") {
+        response = await dineInApi.createZalopayPayment({
+          orderId: lastOrder._id,
+          amount: orderDetailTotal,
+          description: `Thanh toan don tai ban ${table?.name || ""}`,
+        });
+      } else if (method === "vnpay") {
+        response = await dineInApi.createVnpayPayment({
+          orderId: lastOrder._id,
+          amount: orderDetailTotal,
+        });
+      }
+
+      if (!response?.success) {
+        throw new Error(response?.message || "Không tạo được thanh toán");
+      }
+
+      setPaymentData((prev) => ({
+        ...prev,
+        [method]: {
+          ...(response.data || {}),
+          createdAt: Date.now(),
+        },
+      }));
+    } catch (error) {
+      setPaymentError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Không tạo được thanh toán",
+      );
+    } finally {
+      setPaymentLoading("");
+    }
   };
+
+  const handleSelectPaymentMethod = (method) => {
+    setPaymentMethod(method);
+    setPaymentError("");
+    requestGatewayPayment(method);
+  };
+
+  const handleRequestPayment = async () => {
+    if (!session?.session_token || !lastOrder?._id || paymentLoading) return;
+
+    try {
+      setPaymentLoading("cod");
+      await dineInApi.requestCashPayment(session.session_token, lastOrder._id);
+      toast.success("Đã gọi thanh toán. Nhân viên sẽ hỗ trợ bạn.");
+      setShowOrderDetail(false);
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Không thể gọi thanh toán",
+      );
+    } finally {
+      setPaymentLoading("");
+    }
+  };
+
+  const handleCopyPaymentLink = async (value) => {
+    if (!value) return;
+
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success("Đã sao chép link thanh toán");
+    } catch {
+      toast.error("Không thể sao chép link thanh toán");
+    }
+  };
+
+  const activePayment = paymentData[paymentMethod] || {};
+  const activeQrUrl = ["momo", "zalopay"].includes(paymentMethod)
+    ? activePayment.qrDataUrl
+    : "";
+  const activePaymentUrl =
+    activePayment.paymentUrl ||
+    activePayment.payUrl ||
+    activePayment.deeplink ||
+    activePayment.orderUrl ||
+    "";
+  const activeLogo =
+    paymentMethod === "momo"
+      ? assets.momo_icon
+      : paymentMethod === "zalopay"
+        ? assets.zalo_pay
+        : assets.vnpay_icon;
+  const activeFrameClass =
+    paymentMethod === "momo"
+      ? "border-[#a50064]"
+      : paymentMethod === "zalopay"
+        ? "border-[#0068ff]"
+        : "border-[#25358f]";
+  const activeRemainingMs = activePayment.createdAt
+    ? Math.max(QR_TTL_MS - (now - Number(activePayment.createdAt)), 0)
+    : 0;
+  const activeQrExpired = Boolean(
+    ["momo", "zalopay"].includes(paymentMethod) &&
+    activeQrUrl &&
+    activePayment.createdAt &&
+    activeRemainingMs <= 0,
+  );
+  const vnpayQrUrl = activePaymentUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encodeURIComponent(
+        activePaymentUrl,
+      )}`
+    : "";
+  const latestPaymentCreatedAt = Math.max(
+    0,
+    ...Object.values(paymentData).map((payment) =>
+      Number(payment?.createdAt || 0),
+    ),
+  );
+
+  useEffect(() => {
+    if (
+      !session?.session_token ||
+      !lastOrder?._id ||
+      !latestPaymentCreatedAt ||
+      completedOrderId === lastOrder._id
+    ) {
+      return undefined;
+    }
+
+    let stopped = false;
+
+    const checkOrderStatus = async () => {
+      try {
+        const response = await dineInApi.getOrderStatus(
+          session.session_token,
+          lastOrder._id,
+        );
+        const updatedOrder = response?.data?.order;
+        if (!updatedOrder || stopped) return;
+
+        setLastOrder((currentOrder) =>
+          currentOrder?._id === updatedOrder._id ? updatedOrder : currentOrder,
+        );
+
+        if (
+          updatedOrder.payment_status === "paid" ||
+          updatedOrder.status === "completed"
+        ) {
+          setCompletedOrderId(updatedOrder._id);
+          setPaymentData({});
+          setPaymentError("");
+          setPaymentMethod("cod");
+          setShowOrderDetail(false);
+          setShowCart(false);
+          setShowPaymentSuccessPopup(true);
+          toast.success("Thanh toán thành công");
+        }
+      } catch {
+        // Cho phép lần poll tiếp theo thử lại, tránh làm gián đoạn khách đang thanh toán.
+      }
+    };
+
+    checkOrderStatus();
+    const timer = setInterval(checkOrderStatus, 3000);
+
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [
+    completedOrderId,
+    lastOrder?._id,
+    latestPaymentCreatedAt,
+    session?.session_token,
+  ]);
 
   if (loading) {
     return (
@@ -358,24 +668,37 @@ const DineInMenu = () => {
                   <div className="mt-1 text-sm font-black text-red-500">
                     {formatCurrency(price)} VND
                   </div>
-                  <div className="mt-auto flex items-center gap-4">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <div className="flex h-9 shrink-0 items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(dish._id, -1)}
+                        disabled={quantity === 0}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-white disabled:opacity-35"
+                      >
+                        <Minus className="h-5 w-5" />
+                      </button>
+                      <span className="min-w-6 text-center text-lg font-bold text-gray-600">
+                        {quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateQuantity(dish._id, 1)}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-2xl font-medium leading-none text-white"
+                      >
+                        +
+                      </button>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => updateQuantity(dish._id, -1)}
-                      disabled={quantity === 0}
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-900 text-white disabled:opacity-35"
+                      onClick={() => setSelectedNutritionDish(dish)}
+                      className="flex h-9 min-w-[104px] shrink-0 items-center justify-center gap-1 rounded-full bg-emerald-50 px-3 text-[11px] font-black leading-none text-emerald-600"
+                      title="Dinh dưỡng"
                     >
-                      <Minus className="h-5 w-5" />
-                    </button>
-                    <span className="min-w-6 text-center text-lg font-bold text-gray-600">
-                      {quantity}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => updateQuantity(dish._id, 1)}
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-2xl font-medium leading-none text-white"
-                    >
-                      +
+                      <Info className="h-4 w-4 shrink-0" />
+                      <span className="whitespace-nowrap">
+                        Thông tin dinh dưỡng
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -425,6 +748,105 @@ const DineInMenu = () => {
           </span>
         )}
       </button>
+
+      {selectedNutritionDish && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto overscroll-contain bg-black/70 px-4 py-6">
+          <div className="relative max-h-[calc(100vh-48px)] w-full max-w-md overflow-y-auto overscroll-contain rounded-2xl bg-white p-5 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setSelectedNutritionDish(null)}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-700"
+              title="Đóng"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-3 pr-10">
+              <img
+                src={getDishImage(selectedNutritionDish)}
+                alt={selectedNutritionDish.name}
+                className="h-20 w-20 rounded-xl object-cover"
+              />
+              <div className="min-w-0">
+                <h3 className="line-clamp-2 text-lg font-black leading-snug text-gray-950">
+                  {selectedNutritionDish.name}
+                </h3>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              {(() => {
+                const nutrition = getDishNutrition(selectedNutritionDish);
+                const values = [
+                  {
+                    label: "Calo",
+                    value: formatNutrition(nutrition.calories, "kcal"),
+                    className: "bg-orange-50 text-orange-600",
+                  },
+                  {
+                    label: "Protein",
+                    value: formatNutrition(nutrition.protein),
+                    className: "bg-sky-50 text-sky-600",
+                  },
+                  {
+                    label: "Carb",
+                    value: formatNutrition(nutrition.carbs),
+                    className: "bg-emerald-50 text-emerald-600",
+                  },
+                  {
+                    label: "Chất béo",
+                    value: formatNutrition(nutrition.fat),
+                    className: "bg-rose-50 text-rose-600",
+                  },
+                ];
+
+                return values.map((item) => (
+                  <div
+                    key={item.label}
+                    className={`rounded-xl px-4 py-3 ${item.className}`}
+                  >
+                    <div className="text-sm font-bold opacity-80">
+                      {item.label}
+                    </div>
+                    <div className="mt-1 text-2xl font-black">{item.value}</div>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedNutritionDish(null)}
+              className="mt-5 h-12 w-full rounded-xl bg-emerald-600 text-base font-black text-white"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showPaymentSuccessPopup && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/75 px-3">
+          <div className="w-full max-w-md rounded-lg bg-white px-7 py-11 text-center shadow-2xl">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500 text-white">
+              <span className="text-4xl font-black leading-none">✓</span>
+            </div>
+            <h3 className="mt-9 text-2xl font-black text-black">
+              Thanh toán thành công
+            </h3>
+            <p className="mt-3 text-sm font-bold text-gray-500">
+              Đơn hàng đã được cập nhật. Cảm ơn bạn đã dùng bữa tại NHGREEN.
+            </p>
+            <Button
+              type="button"
+              onClick={handleBackAfterPayment}
+              className="mt-9 h-14 w-full rounded-lg bg-emerald-600 text-base font-black text-white hover:bg-emerald-700"
+            >
+              Trở về màn hình chính
+            </Button>
+          </div>
+        </div>
+      )}
 
       {showCart && (
         <div className="fixed inset-0 z-40 bg-[#f7f7f8] text-slate-950">
@@ -607,7 +1029,9 @@ const DineInMenu = () => {
 
             <main className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-9">
               <div className="mb-5 flex items-center justify-between">
-                <h3 className="text-xl font-black text-black">Tóm tắt đơn hàng</h3>
+                <h3 className="text-xl font-black text-black">
+                  Tóm tắt đơn hàng
+                </h3>
                 <button
                   type="button"
                   onClick={() => setShowOrderDetail(false)}
@@ -666,16 +1090,172 @@ const DineInMenu = () => {
             </main>
 
             <footer className="space-y-4 bg-[#f7f7f8] px-4 pb-5 pt-4 shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-gray-500">Khách hàng</span>
-                <button
-                  type="button"
-                  className="flex h-10 items-center gap-2 rounded-lg border border-emerald-500 px-4 text-sm font-black text-emerald-600"
-                >
-                  <UserCircle className="h-5 w-5" />
-                  Khách vãng lai
-                </button>
+              <div className="grid grid-cols-4 gap-2">
+                {PAYMENT_METHODS.map((method) => {
+                  const Icon = method.icon;
+                  const active = paymentMethod === method.value;
+
+                  return (
+                    <button
+                      key={method.value}
+                      type="button"
+                      onClick={() => handleSelectPaymentMethod(method.value)}
+                      disabled={orderDetailItems.length === 0}
+                      className={`flex h-11 items-center justify-center gap-1 rounded-lg border bg-white px-1 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${getPaymentTabClass(
+                        method.value,
+                        active,
+                      )}`}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{method.label}</span>
+                    </button>
+                  );
+                })}
               </div>
+
+              {paymentMethod === "cod" && (
+                <div className="rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm font-bold text-gray-600">
+                  Thanh toán tiền mặt tại quầy hoặc gọi nhân viên đến bàn.
+                </div>
+              )}
+
+              {["momo", "zalopay"].includes(paymentMethod) && (
+                <div className="rounded-xl bg-white px-4 py-4">
+                  <div className="flex flex-col items-center">
+                    {paymentLoading === paymentMethod ? (
+                      <div className="flex h-56 w-56 items-center justify-center rounded-xl border border-gray-200 text-sm font-bold text-gray-500">
+                        Đang tạo QR...
+                      </div>
+                    ) : activeQrExpired ? (
+                      <div className="flex h-56 w-56 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-4 text-center text-sm font-bold text-red-500">
+                        QR đã hết hiệu lực
+                      </div>
+                    ) : activeQrUrl ? (
+                      <div
+                        className={`relative rounded-2xl border-[3px] bg-white p-2 ${activeFrameClass}`}
+                      >
+                        <img
+                          src={activeQrUrl}
+                          alt={`${paymentMethod} QR`}
+                          className="h-52 w-52 rounded-lg bg-white"
+                        />
+                        <div className="absolute left-1/2 top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-lg bg-white p-1 shadow-sm">
+                          <img
+                            src={activeLogo}
+                            alt=""
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-56 w-56 items-center justify-center rounded-xl border border-gray-200 px-4 text-center text-sm font-bold text-gray-500">
+                        {paymentError || "Chưa có QR"}
+                      </div>
+                    )}
+
+                    {activeQrUrl && activePayment.createdAt && (
+                      <div
+                        className={`mt-3 text-sm font-black ${
+                          activeQrExpired ? "text-red-500" : "text-gray-800"
+                        }`}
+                      >
+                        {activeQrExpired
+                          ? "QR đã hết hiệu lực"
+                          : `Còn hiệu lực ${formatCountdown(activeRemainingMs)}`}
+                      </div>
+                    )}
+
+                    {paymentError && (
+                      <div className="mt-3 text-center text-sm font-bold text-red-500">
+                        {paymentError}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => requestGatewayPayment(paymentMethod, true)}
+                      disabled={paymentLoading === paymentMethod}
+                      className="mt-4 h-10 rounded-lg border border-emerald-500 px-5 text-sm font-black text-emerald-600 disabled:opacity-60"
+                    >
+                      Tạo QR mới
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {paymentMethod === "vnpay" && (
+                <div className="rounded-xl bg-white px-4 py-4">
+                  <div className="flex flex-col items-center">
+                    {paymentLoading === "vnpay" ? (
+                      <div className="flex h-56 w-56 items-center justify-center rounded-xl border border-gray-200 text-sm font-bold text-gray-500">
+                        Đang tạo link...
+                      </div>
+                    ) : vnpayQrUrl ? (
+                      <div
+                        className={`relative rounded-2xl border-[3px] bg-white p-2 ${activeFrameClass}`}
+                      >
+                        <img
+                          src={vnpayQrUrl}
+                          alt="VNPay QR"
+                          className="h-52 w-52 rounded-lg bg-white"
+                        />
+                        <div className="absolute left-1/2 top-1/2 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-lg bg-white p-1 shadow-sm">
+                          <img
+                            src={activeLogo}
+                            alt=""
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-56 w-56 items-center justify-center rounded-xl border border-gray-200 px-4 text-center text-sm font-bold text-gray-500">
+                        {paymentError || "Chưa có link VNPay"}
+                      </div>
+                    )}
+
+                    {paymentError && (
+                      <div className="mt-3 text-center text-sm font-bold text-red-500">
+                        {paymentError}
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex w-full items-center gap-2 rounded-xl border-[4px] border-[#25358f] bg-white p-2">
+                      <div className="min-w-0 flex-1 truncate px-2 text-xs font-semibold text-gray-700">
+                        {activePaymentUrl || "Đang chờ link thanh toán..."}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyPaymentLink(activePaymentUrl)}
+                        disabled={!activePaymentUrl}
+                        className="flex h-10 shrink-0 items-center gap-1 rounded-lg bg-[#25358f] px-3 text-xs font-black text-white disabled:opacity-60"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Sao chép
+                      </button>
+                    </div>
+
+                    {activePaymentUrl && (
+                      <a
+                        href={activePaymentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 text-sm font-black text-[#25358f]"
+                      >
+                        Mở link thanh toán
+                      </a>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => requestGatewayPayment("vnpay", true)}
+                      disabled={paymentLoading === "vnpay"}
+                      className="mt-3 h-10 rounded-lg border border-[#25358f] px-5 text-sm font-black text-[#25358f] disabled:opacity-60"
+                    >
+                      Tạo link mới
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-[48px_1fr_auto] items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white">
@@ -689,14 +1269,20 @@ const DineInMenu = () => {
                     {formatCurrency(orderDetailTotal)} VND
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  onClick={handleRequestPayment}
-                  disabled={orderDetailItems.length === 0}
-                  className="h-14 rounded-lg bg-emerald-600 px-6 text-base font-black text-white hover:bg-emerald-700 disabled:bg-gray-300"
-                >
-                  Thanh toán
-                </Button>
+                {paymentMethod === "cod" && (
+                  <Button
+                    type="button"
+                    onClick={handleRequestPayment}
+                    disabled={
+                      orderDetailItems.length === 0 || paymentLoading === "cod"
+                    }
+                    className="h-14 rounded-lg bg-emerald-600 px-5 text-base font-black text-white hover:bg-emerald-700 disabled:bg-gray-300"
+                  >
+                    {paymentLoading === "cod"
+                      ? "Đang gọi..."
+                      : "Gọi thanh toán"}
+                  </Button>
+                )}
               </div>
             </footer>
           </div>

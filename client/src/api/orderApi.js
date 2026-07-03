@@ -287,6 +287,27 @@ const orderApi = {
     }
   },
 
+  updateDineInOrderItems: async (accessToken, orderId, items) => {
+    const response = await axiosPrivate.put(
+      `/api/orders/${orderId}/dine-in/items`,
+      { items },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || "Xác nhận thêm món thành công",
+      };
+    }
+    throw new Error(response.data.message || "Không thể xác nhận thêm món");
+  },
+
   // Manager: Cập nhật trạng thái đơn hàng
   updateOrderStatus: async (accessToken, orderId, status, note = "") => {
     const response = await axiosPrivate.put(
@@ -310,6 +331,27 @@ const orderApi = {
         response.data.message || "Không thể cập nhật trạng thái đơn hàng"
       );
     }
+  },
+
+  syncGhnShippingStatus: async (accessToken, orderId) => {
+    const response = await axiosPrivate.put(
+      `/api/orders/${orderId}/ghn-sync`,
+      {},
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    if (response.data.success) {
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message || "Đồng bộ GHN thành công",
+      };
+    }
+    throw new Error(response.data.message || "Không thể đồng bộ trạng thái GHN");
   },
 
   // Customer: Xác nhận đã nhận hàng

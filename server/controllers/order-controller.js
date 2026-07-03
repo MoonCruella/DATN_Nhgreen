@@ -1,4 +1,5 @@
 import Order from "../models/order-model.js";
+import "../models/dinein-customer-model.js";
 import Branch from "../models/branch-model.js";
 import Dish from "../models/dish-model.js";
 import User from "../models/user-model.js";
@@ -6,13 +7,22 @@ import Voucher from "../models/voucher-model.js";
 import FlashSale from "../models/flashsale-model.js";
 import StoreTable from "../models/store-table-model.js";
 import DineInSession from "../models/dinein-session-model.js";
+import OrderCounter from "../models/order-counter-model.js";
 import mongoose from "mongoose";
 import response from "../helpers/response.js";
 import * as notificationService from "../services/notification-service.js";
 import * as orderSchedulerService from "../services/order-scheduler-service.js";
+import { awardOrderRewardCoins } from "../services/reward-service.js";
 import CartItem from "../models/cart-model.js";
 import Rating from "../models/rating-model.js";
 import { getIO } from "../config/socket.js";
+import { requestVnpayRefund } from "./vnpay-controller.js";
+import { requestZalopayRefund } from "./zalopay-controller.js";
+import { requestMomoRefund } from "./momo-controller.js";
+import {
+  createGhnShippingOrder,
+  getGhnShippingOrderDetail,
+} from "../services/ghn-service.js";
 import {
   createFuzzyMongoQuery,
   sortByRelevance,
@@ -61,6 +71,272 @@ const checkOrderRatingStatus = async (orderId, userId) => {
     console.error("Error checking rating status:", error);
     return { all_rated: false, rated_count: 0, total_items: 0 };
   }
+};
+
+const getVnpayRefundMissingFields = (order) => {
+  const missing = [];
+  if (!order.vnpay_txn_ref) missing.push("vnpay_txn_ref");
+  if (!order.vnpay_transaction_no || order.vnpay_transaction_no === "0") {
+    missing.push("vnpay_transaction_no");
+  }
+  const transactionDate = order.vnpay_create_date || order.vnpay_pay_date;
+  if (!transactionDate || String(transactionDate).length !== 14) {
+    missing.push("vnpay_create_date");
+  }
+  const amountValue = Number(order.vnpay_amount || 0);
+  if (amountValue <= 0 && !order.total_amount) missing.push("amount");
+  return missing;
+};
+
+const getZalopayRefundTransId = (order = {}) =>
+  order.zalopay_zp_trans_id ||
+  (order.payment_gateway_ref?.gateway === "zalopay"
+    ? order.payment_gateway_ref?.transaction_id
+    : "");
+
+const getZalopayRefundMissingFields = (order) => {
+  const missing = [];
+  if (!getZalopayRefundTransId(order)) missing.push("zalopay_zp_trans_id");
+  const amountValue = Number(order.zalopay_amount || order.total_amount || 0);
+  if (amountValue <= 0) missing.push("amount");
+  return missing;
+};
+
+const getMomoRefundMissingFields = (order) => {
+  const missing = [];
+  if (!order.momo_trans_id) missing.push("momo_trans_id");
+  const amountValue = Number(order.momo_amount || order.total_amount || 0);
+  if (amountValue <= 0) missing.push("amount");
+  return missing;
+};
+
+const resolveGatewayPaymentMethod = ({
+  payment_method,
+  vnpay_txn_ref,
+  vnpay_transaction_no,
+  momo_request_id,
+  momo_trans_id,
+  zalopay_app_trans_id,
+  zalopay_zp_trans_id,
+} = {}) => {
+  if (zalopay_zp_trans_id || zalopay_app_trans_id) return "zalopay";
+  if (momo_trans_id || momo_request_id) return "momo";
+  if (vnpay_transaction_no || vnpay_txn_ref) return "vnpay";
+  return payment_method;
+};
+
+const getRefundPaymentMethod = (order = {}) => {
+  if (getZalopayRefundTransId(order) || order.zalopay_app_trans_id) {
+    return "zalopay";
+  }
+  if (order.momo_trans_id || order.momo_request_id) return "momo";
+  if (order.vnpay_transaction_no || order.vnpay_txn_ref) return "vnpay";
+
+  const gateway = order.payment_gateway_ref?.gateway;
+  if (["zalopay", "momo", "vnpay"].includes(gateway)) return gateway;
+  return order.payment_method;
+};
+
+const getManagerBranchId = async (userId) => {
+  const manager = await User.findById(userId).select("branch_id").lean();
+  return manager?.branch_id || null;
+};
+
+const getAddressRegion = (value, codeType = "number") => {
+  if (!value) return {};
+  if (typeof value === "object") {
+    const hasCode = value.code !== "" && value.code != null;
+    const code =
+      codeType === "string"
+        ? hasCode
+          ? String(value.code)
+          : undefined
+        : hasCode
+        ? Number(value.code)
+        : undefined;
+    return {
+      code:
+        codeType === "string" || Number.isFinite(code) ? code : undefined,
+      name: value.name || "",
+    };
+  }
+  return { name: String(value) };
+};
+
+const normalizeShippingInfo = (shippingInfo = {}) => {
+  const ward = getAddressRegion(shippingInfo.ward, "string");
+  const district = getAddressRegion(shippingInfo.district);
+  const province = getAddressRegion(shippingInfo.province);
+  const fullAddress =
+    shippingInfo.full_address ||
+    shippingInfo.address ||
+    [shippingInfo.street, ward.name, district.name, province.name]
+      .filter(Boolean)
+      .join(", ");
+
+  return {
+    name: shippingInfo.name || shippingInfo.full_name || "",
+    phone: shippingInfo.phone || "",
+    address: fullAddress,
+    full_name: shippingInfo.full_name || shippingInfo.name || "",
+    street: shippingInfo.street || "",
+    full_address: fullAddress,
+    ward,
+    district,
+    province,
+    coordinates: shippingInfo.coordinates || {},
+  };
+};
+
+const getOrderNumberPrefix = (orderType) =>
+  orderType === "dine_in" ? "IN" : "ON";
+
+const generateOrderNumber = async (orderType) => {
+  const counterKey = orderType === "dine_in" ? "offline" : "online";
+  const prefix = getOrderNumberPrefix(orderType);
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const counter = await OrderCounter.findOneAndUpdate(
+      { key: counterKey },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    ).lean();
+    const orderNumber = `${prefix}${counter.seq}`;
+    const existed = await Order.exists({ order_number: orderNumber });
+
+    if (!existed) return orderNumber;
+  }
+
+  throw new Error("Không thể tạo mã đơn hàng");
+};
+
+const GHN_TO_ORDER_STATUS = {
+  delivered: "delivered",
+  cancel: "cancelled",
+};
+
+const getOrderStatusFromGhnStatus = (ghnStatus, currentStatus) => {
+  if (!ghnStatus) return currentStatus;
+  if (GHN_TO_ORDER_STATUS[ghnStatus]) return GHN_TO_ORDER_STATUS[ghnStatus];
+  if (["pending", "confirmed", "processing"].includes(currentStatus)) {
+    return "shipped";
+  }
+  return currentStatus;
+};
+
+const getGhnWebhookValue = (payload, ...keys) => {
+  for (const key of keys) {
+    if (payload?.[key] != null && payload[key] !== "") return payload[key];
+  }
+  return undefined;
+};
+
+const getOrderGhnShopId = (order) =>
+  order?.branch_info?.shop_id || order?.branch_id?.shop_id;
+
+const getEntityId = (value) => value?._id || value;
+
+const emitOrderStatusUpdated = (order) => {
+  try {
+    const io = getIO();
+    if (!io) return;
+    const branchId = getEntityId(order.branch_id);
+    const userId = getEntityId(order.user_id);
+
+    const payload = {
+      order_id: order._id,
+      order_number: order.order_number,
+      status: order.status,
+      branch_id: branchId,
+      updates: {
+        shipped_at: order.shipped_at,
+        delivered_at: order.delivered_at,
+        cancelled_at: order.cancelled_at,
+        tracking_number: order.tracking_number,
+        shipping_order_code: order.shipping_order_code,
+        shipping_status: order.shipping_status,
+      },
+    };
+
+    if (branchId) {
+      io.to(`branch:${branchId}`).emit("order_status_updated", payload);
+      if (order.status === "cancelled" && order.shipping_provider === "ghn") {
+        io.to(`branch:${branchId}`).emit("ghn_order_cancelled", {
+          order_id: order._id,
+          order_number: order.order_number,
+          branch_id: branchId,
+          tracking_number: order.tracking_number,
+          shipping_order_code: order.shipping_order_code,
+          shipping_status: order.shipping_status,
+          cancel_reason: order.cancel_reason,
+          cancelled_at: order.cancelled_at,
+        });
+      }
+    }
+    if (userId) {
+      io.to(`user:${userId.toString()}`).emit("order_status_updated", payload);
+    }
+  } catch (socketError) {
+    console.error("Socket GHN status update error:", socketError);
+  }
+};
+
+const applyGhnStatusToOrder = async (order, ghnPayload = {}) => {
+  const rawStatus = getGhnWebhookValue(
+    ghnPayload,
+    "Status",
+    "status",
+    "status_id",
+    "OrderStatus",
+    "order_status",
+  );
+  const ghnStatus = rawStatus ? String(rawStatus).trim() : "";
+  if (!ghnStatus) return { order, statusChanged: false };
+
+  const previousStatus = order.status;
+  const nextStatus = getOrderStatusFromGhnStatus(ghnStatus, order.status);
+  const now = new Date();
+  const description =
+    getGhnWebhookValue(ghnPayload, "Description", "description") ||
+    `GHN cập nhật trạng thái ${ghnStatus}`;
+
+  order.shipping_provider = "ghn";
+  order.shipping_status = ghnStatus;
+  order.shipping_raw_response = ghnPayload;
+
+  if (nextStatus !== order.status) {
+    order.status = nextStatus;
+    if (nextStatus === "shipped" && !order.shipped_at) order.shipped_at = now;
+    if (nextStatus === "delivered" && !order.delivered_at) order.delivered_at = now;
+    if (nextStatus === "cancelled") {
+      if (!order.cancelled_at) order.cancelled_at = now;
+      order.cancel_reason =
+        order.cancel_reason || description || "GHN hủy vận đơn";
+    }
+
+    order.history = order.history || [];
+    order.history.push({
+      status: nextStatus,
+      date: now,
+      note: description,
+    });
+  }
+
+  await order.save();
+
+  if (nextStatus !== previousStatus) {
+    try {
+      await notificationService.notifyOrderStatusUpdate(order, previousStatus);
+      if (nextStatus === "cancelled") {
+        await notificationService.notifyOrderCancelledManagers(order);
+      }
+    } catch (notifyError) {
+      console.error("Không thể gửi thông báo cập nhật GHN:", notifyError);
+    }
+    emitOrderStatusUpdated(order);
+  }
+
+  return { order, statusChanged: nextStatus !== previousStatus };
 };
 
 //Get user orders with filter and pagination
@@ -344,6 +620,10 @@ export const getOrderById = async (req, res) => {
         select: "name email phone",
       })
       .populate({
+        path: "customer_id",
+        select: "name phone address linked_user_id",
+      })
+      .populate({
         path: "branch_id",
         select: "name phone address code",
       })
@@ -477,6 +757,7 @@ export const cancelOrder = async (req, res) => {
     }
 
     const now = new Date();
+    const refundPaymentMethod = getRefundPaymentMethod(order);
 
     // Logic:
     // 1. Pending/Confirmed: Cho phép hủy trực tiếp
@@ -484,6 +765,171 @@ export const cancelOrder = async (req, res) => {
     // 3. Các trạng thái khác: không cho phép hủy
 
     if (["pending", "confirmed"].includes(order.status)) {
+      if (refundPaymentMethod === "vnpay" && order.payment_status === "paid") {
+        const missingFields = getVnpayRefundMissingFields(order);
+        if (missingFields.length > 0) {
+          return response.sendError(
+            res,
+            `Thiếu thông tin giao dịch VNPay để hoàn tiền: ${missingFields.join(
+              ", "
+            )}`,
+            400,
+            missingFields.join(", ")
+          );
+        }
+        try {
+          const refundResult = await requestVnpayRefund({
+            txnRef: order.vnpay_txn_ref,
+            amount: order.vnpay_amount || order.total_amount * 100,
+            transactionNo: order.vnpay_transaction_no,
+            transactionDate: order.vnpay_create_date || order.vnpay_pay_date,
+            ipAddr: req.ip,
+            orderInfo: `Hoan tien don hang ${order.order_number}`,
+          });
+
+          if (!refundResult.success) {
+            return response.sendError(
+              res,
+              `Hoàn tiền VNPay thất bại: ${refundResult.message}`,
+              400,
+              refundResult.message
+            );
+          }
+
+          order.payment_status = "refunded";
+          order.refund_status = "success";
+          order.refund_amount = order.total_amount;
+          order.refund_date = now;
+          order.refund_response_code = refundResult.data?.vnp_ResponseCode;
+          order.refund_message = refundResult.data?.vnp_Message;
+
+          order.history = order.history || [];
+          order.history.push({
+            status: "hoan_tien",
+            date: now,
+            note: "Hoàn tiền VNPay thành công",
+          });
+        } catch (refundError) {
+          return response.sendError(
+            res,
+            `Không thể hoàn tiền VNPay: ${refundError.message}`,
+            400,
+            refundError.message
+          );
+        }
+      }
+
+      if (
+        refundPaymentMethod === "momo" &&
+        order.payment_status === "paid"
+      ) {
+        const missingFields = getMomoRefundMissingFields(order);
+        if (missingFields.length > 0) {
+          return response.sendError(
+            res,
+            `Thiếu thông tin giao dịch MoMo để hoàn tiền: ${missingFields.join(
+              ", "
+            )}`,
+            400,
+            missingFields.join(", ")
+          );
+        }
+        try {
+          const refundResult = await requestMomoRefund({
+            transId: order.momo_trans_id,
+            amount: order.momo_amount || order.total_amount,
+            description: `Hoan tien don hang ${order.order_number}`,
+          });
+
+          if (!refundResult.success) {
+            return response.sendError(
+              res,
+              `Hoàn tiền MoMo thất bại: ${refundResult.message}`,
+              400,
+              refundResult.message
+            );
+          }
+
+          order.payment_status = "refunded";
+          order.refund_status = "success";
+          order.refund_amount = order.total_amount;
+          order.refund_date = now;
+          order.refund_response_code = refundResult.data?.resultCode;
+          order.refund_message = refundResult.data?.message;
+
+          order.history = order.history || [];
+          order.history.push({
+            status: "hoan_tien",
+            date: now,
+            note: "Hoàn tiền MoMo thành công",
+          });
+        } catch (refundError) {
+          return response.sendError(
+            res,
+            `Không thể hoàn tiền MoMo: ${refundError.message}`,
+            400,
+            refundError.message
+          );
+        }
+      }
+
+      if (
+        refundPaymentMethod === "zalopay" &&
+        order.payment_status === "paid"
+      ) {
+        const missingFields = getZalopayRefundMissingFields(order);
+        if (missingFields.length > 0) {
+          return response.sendError(
+            res,
+            `Thiếu thông tin giao dịch ZaloPay để hoàn tiền: ${missingFields.join(
+              ", "
+            )}`,
+            400,
+            missingFields.join(", ")
+          );
+        }
+        try {
+          const refundResult = await requestZalopayRefund({
+            zpTransId: getZalopayRefundTransId(order),
+            amount: order.zalopay_amount || order.total_amount,
+            description: `Hoan tien don hang ${order.order_number}`,
+          });
+
+          if (!refundResult.success) {
+            return response.sendError(
+              res,
+              `Hoàn tiền ZaloPay thất bại: ${refundResult.message}`,
+              400,
+              refundResult.message
+            );
+          }
+
+          order.payment_status = "refunded";
+          order.refund_status = "success";
+          order.refund_amount = order.total_amount;
+          order.refund_date = now;
+          order.refund_response_code =
+            refundResult.data?.return_code || refundResult.data?.sub_return_code;
+          order.refund_message =
+            refundResult.data?.return_message ||
+            refundResult.data?.sub_return_message;
+
+          order.history = order.history || [];
+          order.history.push({
+            status: "hoan_tien",
+            date: now,
+            note: "Hoàn tiền ZaloPay thành công",
+          });
+        } catch (refundError) {
+          return response.sendError(
+            res,
+            `Không thể hoàn tiền ZaloPay: ${refundError.message}`,
+            400,
+            refundError.message
+          );
+        }
+      }
+
       // Hủy trực tiếp cho pending/confirmed
       order.status = "cancelled";
       order.cancelled_at = now;
@@ -797,7 +1243,17 @@ export const createOrder = async (req, res) => {
       table_id,
       dine_in_session_id,
       dine_in_session_token,
-      guest_info = {},
+      vnpay_txn_ref,
+      vnpay_transaction_no,
+      vnpay_create_date,
+      vnpay_pay_date,
+      vnpay_amount,
+      momo_request_id,
+      momo_trans_id,
+      momo_amount,
+      zalopay_app_trans_id,
+      zalopay_zp_trans_id,
+      zalopay_amount,
     } = req.body;
     const { freeship, discount } = voucherCodes;
     const normalizedOrderChannel =
@@ -812,6 +1268,18 @@ export const createOrder = async (req, res) => {
         : "online";
     const isDineInQr = order_channel === "dine_in_qr";
     const isDineIn = normalizedOrderType === "dine_in";
+    const resolvedPaymentMethod = resolveGatewayPaymentMethod({
+      payment_method,
+      vnpay_txn_ref,
+      vnpay_transaction_no,
+      momo_request_id,
+      momo_trans_id,
+      zalopay_app_trans_id,
+      zalopay_zp_trans_id,
+    });
+    const normalizedShippingInfo = isDineIn
+      ? undefined
+      : normalizeShippingInfo(shipping_info);
 
     // Validate required fields
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -832,15 +1300,15 @@ export const createOrder = async (req, res) => {
 
     if (
       !isDineIn &&
-      (!shipping_info ||
-        !shipping_info.name ||
-        !shipping_info.phone ||
-        !shipping_info.address)
+      (!normalizedShippingInfo ||
+        !normalizedShippingInfo.name ||
+        !normalizedShippingInfo.phone ||
+        !normalizedShippingInfo.address)
     ) {
       return response.sendError(res, "Thông tin giao hàng không đầy đủ", 400);
     }
 
-    if (!payment_method) {
+    if (!resolvedPaymentMethod) {
       return response.sendError(
         res,
         "Phương thức thanh toán không được để trống",
@@ -937,11 +1405,32 @@ export const createOrder = async (req, res) => {
       );
     }
 
-    // Generate order number
-    const orderNumber = `ORD${Date.now()}${Math.random()
-      .toString(36)
-      .substr(2, 4)
-      .toUpperCase()}`;
+    if (normalizedOrderChannel === "dine_in") {
+      const userRole = req.user?.role;
+      if (!["admin", "manager"].includes(userRole)) {
+        return response.sendError(
+          res,
+          "Vui long dang nhap bang tai khoan quan ly de tao don tai ban",
+          403
+        );
+      }
+
+      if (userRole === "manager") {
+        const managerBranchId = await getManagerBranchId(req.user?.userId);
+        if (
+          !managerBranchId ||
+          managerBranchId.toString() !== branch._id.toString()
+        ) {
+          return response.sendError(
+            res,
+            "Ban khong co quyen tao don tai ban cho chi nhanh nay",
+            403
+          );
+        }
+      }
+    }
+
+    const orderNumber = await generateOrderNumber(normalizedOrderType);
 
     let subtotal = 0; // Tổng tiền sản phẩm
     const orderItems = [];
@@ -1154,7 +1643,7 @@ export const createOrder = async (req, res) => {
 
     // Sử dụng shipping_fee từ frontend, fallback về 30000 nếu không có
     const shippingFeeFromFrontend = isDineIn ? 0 : shipping_fee || 30000;
-    const coinDiscount = coin_discount || 0;
+    const coinDiscount = isDineIn ? 0 : coin_discount || 0;
 
     // Tính total_amount = subtotal + shipping_fee - discount - freeship - coin_discount
     const totalAmount =
@@ -1163,6 +1652,101 @@ export const createOrder = async (req, res) => {
       (discount_value || 0) -
       (freeship_value || 0) -
       coinDiscount;
+
+    if (isDineInQr) {
+      const activeDineInOrder = await Order.findOne({
+        table_id: selectedTable._id,
+        branch_id: branch._id,
+        order_type: "dine_in",
+        status: { $in: ["pending", "confirmed", "processing"] },
+        payment_status: { $ne: "paid" },
+      }).sort({ created_at: -1 });
+
+      if (activeDineInOrder) {
+        const itemKey = (item) =>
+          `${item.dish_id?.toString() || ""}:${JSON.stringify(item.variant || {})}`;
+        const itemMap = new Map();
+
+        for (const item of activeDineInOrder.items || []) {
+          itemMap.set(itemKey(item), item);
+        }
+
+        for (const newItem of orderItems) {
+          const key = itemKey(newItem);
+          const existingItem = itemMap.get(key);
+
+          if (existingItem) {
+            existingItem.quantity += newItem.quantity;
+            existingItem.total =
+              (existingItem.sale_price || existingItem.price || 0) *
+              existingItem.quantity;
+          } else {
+            activeDineInOrder.items.push(newItem);
+            itemMap.set(
+              key,
+              activeDineInOrder.items[activeDineInOrder.items.length - 1]
+            );
+          }
+        }
+
+        activeDineInOrder.subtotal = (activeDineInOrder.items || []).reduce(
+          (sum, item) => sum + (item.total || 0),
+          0
+        );
+        activeDineInOrder.total_amount =
+          activeDineInOrder.subtotal +
+          (activeDineInOrder.shipping_fee || 0) -
+          (activeDineInOrder.discount_value || 0) -
+          (activeDineInOrder.freeship_value || 0) -
+          0;
+        activeDineInOrder.notes = [activeDineInOrder.notes, notes]
+          .filter(Boolean)
+          .join("\n");
+        activeDineInOrder.history = activeDineInOrder.history || [];
+        activeDineInOrder.history.push({
+          status: activeDineInOrder.status,
+          date: new Date(),
+          note: "KhÃ¡ch gá»i thÃªm mÃ³n tá»« E-menu",
+        });
+
+        await activeDineInOrder.save();
+
+        await DineInSession.findByIdAndUpdate(dineInSession._id, {
+          last_order_id: activeDineInOrder._id,
+          cart_items: [],
+        });
+
+        const updatedOrder = await Order.findById(activeDineInOrder._id)
+          .populate("user_id", "name email phone")
+          .populate("customer_id", "name phone address linked_user_id")
+          .populate("branch_id", "name phone address code")
+          .lean();
+
+        try {
+          const io = getIO();
+          io.to(`branch:${branch._id}`).emit("order_status_updated", {
+            order_id: updatedOrder._id,
+            order_number: updatedOrder.order_number,
+            branch_id: branch._id,
+            status: updatedOrder.status,
+            updates: {
+              items: updatedOrder.items,
+              subtotal: updatedOrder.subtotal,
+              total_amount: updatedOrder.total_amount,
+            },
+          });
+        } catch (socketError) {
+          console.error("Socket dine-in QR add items error:", socketError);
+        }
+
+        return response.sendSuccess(
+          res,
+          { order: updatedOrder },
+          "ÄÃ£ thÃªm mÃ³n vÃ o Ä‘Æ¡n Ä‘ang má»Ÿ",
+          200
+        );
+      }
+    }
 
     // Deduct coins from user if coin_discount is used
     if (coinDiscount > 0) {
@@ -1196,17 +1780,13 @@ export const createOrder = async (req, res) => {
             code: selectedTable.code,
           }
         : undefined,
-      guest_info: isDineIn
-        ? {
-            name: guest_info.name || dineInSession?.guest_info?.name || "",
-            phone: guest_info.phone || dineInSession?.guest_info?.phone || "",
-          }
-        : undefined,
+      customer_id: null,
       dine_in_session_id: isDineInQr ? dineInSession._id : null,
       branch_id: branch._id,
       branch_info: {
         name: branch.name,
         phone: branch.phone,
+        shop_id: branch.shop_id,
         address: {
           full_address: branch.address?.full_address || "",
           street: branch.address?.street || "",
@@ -1224,14 +1804,31 @@ export const createOrder = async (req, res) => {
       freeship_value: freeship_value || 0,
       discount_value: discount_value || 0,
       coin_discount: coinDiscount,
-      payment_method,
-      payment_status: ["vnpay", "zalopay"].includes(payment_method)
+      payment_method: resolvedPaymentMethod,
+      payment_status: ["vnpay", "momo", "zalopay"].includes(resolvedPaymentMethod)
         ? "paid"
         : "pending",
-      payment_date: ["vnpay", "zalopay"].includes(payment_method)
+      payment_date: ["vnpay", "momo", "zalopay"].includes(resolvedPaymentMethod)
         ? now
         : undefined,
-      shipping_info: isDineIn ? undefined : shipping_info,
+      vnpay_txn_ref: resolvedPaymentMethod === "vnpay" ? vnpay_txn_ref : undefined,
+      vnpay_transaction_no:
+        resolvedPaymentMethod === "vnpay" ? vnpay_transaction_no : undefined,
+      vnpay_create_date:
+        resolvedPaymentMethod === "vnpay" ? vnpay_create_date : undefined,
+      vnpay_pay_date: resolvedPaymentMethod === "vnpay" ? vnpay_pay_date : undefined,
+      vnpay_amount: resolvedPaymentMethod === "vnpay" ? vnpay_amount : undefined,
+      momo_request_id:
+        resolvedPaymentMethod === "momo" ? momo_request_id : undefined,
+      momo_trans_id: resolvedPaymentMethod === "momo" ? momo_trans_id : undefined,
+      momo_amount: resolvedPaymentMethod === "momo" ? momo_amount : undefined,
+      zalopay_app_trans_id:
+        resolvedPaymentMethod === "zalopay" ? zalopay_app_trans_id : undefined,
+      zalopay_zp_trans_id:
+        resolvedPaymentMethod === "zalopay" ? zalopay_zp_trans_id : undefined,
+      zalopay_amount:
+        resolvedPaymentMethod === "zalopay" ? zalopay_amount : undefined,
+      shipping_info: normalizedShippingInfo,
       notes,
       status: initialStatus,
       processing_at: isDineIn ? now : undefined,
@@ -1243,14 +1840,16 @@ export const createOrder = async (req, res) => {
             ? "Đơn ăn tại quán được xác nhận"
             : "Đơn hàng được tạo",
         },
-        ...(["vnpay", "zalopay"].includes(payment_method)
+        ...(["vnpay", "momo", "zalopay"].includes(resolvedPaymentMethod)
           ? [
               {
                 status: "payment",
                 date: now,
                 note:
-                  payment_method === "vnpay"
+                  resolvedPaymentMethod === "vnpay"
                     ? "Thanh toán VNPay thành công"
+                    : resolvedPaymentMethod === "momo"
+                    ? "Thanh toán MoMo thành công"
                     : "Thanh toán ZaloPay thành công",
               },
             ]
@@ -1260,11 +1859,14 @@ export const createOrder = async (req, res) => {
 
     await newOrder.save();
 
+    if (!isDineIn && newOrder.payment_status === "paid") {
+      await awardOrderRewardCoins(newOrder);
+    }
+
     if (isDineInQr) {
       await DineInSession.findByIdAndUpdate(dineInSession._id, {
         last_order_id: newOrder._id,
         cart_items: [],
-        guest_info: newOrder.guest_info,
       });
     }
 
@@ -1291,6 +1893,7 @@ export const createOrder = async (req, res) => {
     // Không populate nữa, dùng hardcoded data
     const createdOrder = await Order.findById(newOrder._id)
       .populate("user_id", "name email phone")
+      .populate("customer_id", "name phone address linked_user_id")
       .populate("branch_id", "name phone address code")
       .lean();
 
@@ -1415,12 +2018,181 @@ export const updateShippingInfo = async (req, res) => {
     if (order.status === "cancel_request") {
       // Manager chấp nhận hủy: cancel_request → cancelled
       if (shipping_status === "cancelled") {
+        const now = new Date();
+        const refundPaymentMethod = getRefundPaymentMethod(order);
+
+        if (refundPaymentMethod === "vnpay" && order.payment_status === "paid") {
+          const missingFields = getVnpayRefundMissingFields(order);
+          if (missingFields.length > 0) {
+            return response.sendError(
+              res,
+              `Thiếu thông tin giao dịch VNPay để hoàn tiền: ${missingFields.join(
+                ", "
+              )}`,
+              400,
+              missingFields.join(", ")
+            );
+          }
+          try {
+            const refundResult = await requestVnpayRefund({
+              txnRef: order.vnpay_txn_ref,
+              amount: order.vnpay_amount || order.total_amount * 100,
+              transactionNo: order.vnpay_transaction_no,
+              transactionDate: order.vnpay_create_date || order.vnpay_pay_date,
+              ipAddr: req.ip,
+              orderInfo: `Hoan tien don hang ${order.order_number}`,
+            });
+
+            if (!refundResult.success) {
+              return response.sendError(
+                res,
+                `Hoàn tiền VNPay thất bại: ${refundResult.message}`,
+                400,
+                refundResult.message
+              );
+            }
+
+            order.payment_status = "refunded";
+            order.refund_status = "success";
+            order.refund_amount = order.total_amount;
+            order.refund_date = now;
+            order.refund_response_code = refundResult.data?.vnp_ResponseCode;
+            order.refund_message = refundResult.data?.vnp_Message;
+
+            order.history = order.history || [];
+            order.history.push({
+              status: "hoan_tien",
+              date: now,
+              note: "Hoàn tiền VNPay thành công",
+            });
+          } catch (refundError) {
+            return response.sendError(
+              res,
+              `Không thể hoàn tiền VNPay: ${refundError.message}`,
+              400,
+              refundError.message
+            );
+          }
+        }
+
+        if (
+          refundPaymentMethod === "momo" &&
+          order.payment_status === "paid"
+        ) {
+          const missingFields = getMomoRefundMissingFields(order);
+          if (missingFields.length > 0) {
+            return response.sendError(
+              res,
+              `Thiếu thông tin giao dịch MoMo để hoàn tiền: ${missingFields.join(
+                ", "
+              )}`,
+              400,
+              missingFields.join(", ")
+            );
+          }
+          try {
+            const refundResult = await requestMomoRefund({
+              transId: order.momo_trans_id,
+              amount: order.momo_amount || order.total_amount,
+              description: `Hoan tien don hang ${order.order_number}`,
+            });
+
+            if (!refundResult.success) {
+              return response.sendError(
+                res,
+                `Hoàn tiền MoMo thất bại: ${refundResult.message}`,
+                400,
+                refundResult.message
+              );
+            }
+
+            order.payment_status = "refunded";
+            order.refund_status = "success";
+            order.refund_amount = order.total_amount;
+            order.refund_date = now;
+            order.refund_response_code = refundResult.data?.resultCode;
+            order.refund_message = refundResult.data?.message;
+
+            order.history = order.history || [];
+            order.history.push({
+              status: "hoan_tien",
+              date: now,
+              note: "Hoàn tiền MoMo thành công",
+            });
+          } catch (refundError) {
+            return response.sendError(
+              res,
+              `Không thể hoàn tiền MoMo: ${refundError.message}`,
+              400,
+              refundError.message
+            );
+          }
+        }
+
+        if (
+          refundPaymentMethod === "zalopay" &&
+          order.payment_status === "paid"
+        ) {
+          const missingFields = getZalopayRefundMissingFields(order);
+          if (missingFields.length > 0) {
+            return response.sendError(
+              res,
+              `Thiếu thông tin giao dịch ZaloPay để hoàn tiền: ${missingFields.join(
+                ", "
+              )}`,
+              400,
+              missingFields.join(", ")
+            );
+          }
+          try {
+            const refundResult = await requestZalopayRefund({
+              zpTransId: getZalopayRefundTransId(order),
+              amount: order.zalopay_amount || order.total_amount,
+              description: `Hoan tien don hang ${order.order_number}`,
+            });
+
+            if (!refundResult.success) {
+              return response.sendError(
+                res,
+                `Hoàn tiền ZaloPay thất bại: ${refundResult.message}`,
+                400,
+                refundResult.message
+              );
+            }
+
+            order.payment_status = "refunded";
+            order.refund_status = "success";
+            order.refund_amount = order.total_amount;
+            order.refund_date = now;
+            order.refund_response_code =
+              refundResult.data?.return_code ||
+              refundResult.data?.sub_return_code;
+            order.refund_message =
+              refundResult.data?.return_message ||
+              refundResult.data?.sub_return_message;
+
+            order.history = order.history || [];
+            order.history.push({
+              status: "hoan_tien",
+              date: now,
+              note: "Hoàn tiền ZaloPay thành công",
+            });
+          } catch (refundError) {
+            return response.sendError(
+              res,
+              `Không thể hoàn tiền ZaloPay: ${refundError.message}`,
+              400,
+              refundError.message
+            );
+          }
+        }
+
         order.status = "cancelled";
-        order.cancelled_at = new Date();
+        order.cancelled_at = now;
         order.history = order.history || [];
         order.history.push({
           status: "cancelled",
-          date: new Date(),
+          date: now,
           note: note || "Shop đã chấp nhận yêu cầu hủy đơn",
         });
         await order.save();
@@ -1541,32 +2313,62 @@ export const updateShippingInfo = async (req, res) => {
       );
     }
 
-    // Quy định thứ tự trạng thái
-    const statusOrder = [
-      "pending",
-      "confirmed",
-      "processing",
-      "shipped",
-      "delivered",
-      "completed",
-      "cancelled",
-      "cancel_request",
-    ];
-    const currentIndex = statusOrder.indexOf(order.status);
-    const nextIndex = statusOrder.indexOf(shipping_status);
+    const allowedStatusTransitions = {
+      pending: ["processing"],
+      confirmed: ["processing"], // Legacy orders created before the new manager flow
+      processing: ["shipped"],
+      shipped: [],
+      delivered: [],
+      completed: [],
+      cancelled: [],
+      cancel_request: [],
+    };
+    const validStatuses = Object.keys(allowedStatusTransitions);
 
-    if (shipping_status && !statusOrder.includes(shipping_status)) {
+    if (shipping_status && !validStatuses.includes(shipping_status)) {
       return response.sendError(res, "Trạng thái không hợp lệ", 400);
     }
 
     // Biến để theo dõi xem trạng thái có thay đổi không
     let statusChanged = false;
 
-    // Chỉ cho phép chuyển sang trạng thái tiếp theo
+    const isAllowedTransition =
+      shipping_status === order.status ||
+      allowedStatusTransitions[order.status]?.includes(shipping_status);
+
+    // Chỉ cho phép chuyển sang trạng thái tiếp theo trong luồng nghiệp vụ
     if (
       shipping_status &&
-      (nextIndex === currentIndex + 1 || shipping_status === order.status)
+      isAllowedTransition
     ) {
+      let ghnResult = null;
+      if (
+        shipping_status === "shipped" &&
+        order.status !== "shipped" &&
+        order.order_type !== "dine_in" &&
+        !order.shipping_order_code
+      ) {
+        const orderForGhn = await Order.findById(order._id).populate(
+          "branch_id",
+          "name phone address shop_id"
+        );
+        ghnResult = await createGhnShippingOrder(orderForGhn);
+        order.carrier = "GHN";
+        order.shipping_provider = "ghn";
+        order.shipping_order_code = ghnResult.orderCode;
+        order.tracking_number = ghnResult.orderCode;
+        order.shipping_status = "ready_to_pick";
+        order.shipping_raw_response = ghnResult.raw;
+        if (ghnResult.fee) {
+          order.shipping_fee = ghnResult.fee;
+        }
+        if (ghnResult.expectedDeliveryTime) {
+          order.shipping_expected_delivery_time = new Date(
+            ghnResult.expectedDeliveryTime
+          );
+        }
+      }
+
       statusChanged = shipping_status !== order.status;
       order.status = shipping_status;
 
@@ -1575,6 +2377,13 @@ export const updateShippingInfo = async (req, res) => {
       if (shipping_status === "processing") order.processing_at = new Date();
       if (shipping_status === "shipped") order.shipped_at = new Date();
       if (shipping_status === "delivered") order.delivered_at = new Date();
+      if (
+        shipping_status === "delivered" &&
+        order.shipping_provider === "ghn" &&
+        order.shipping_order_code
+      ) {
+        order.shipping_status = "delivered";
+      }
       // Chỉ tăng soldCount khi completed
       if (shipping_status === "completed") {
         try {
@@ -1597,18 +2406,16 @@ export const updateShippingInfo = async (req, res) => {
       order.history.push({
         status: shipping_status,
         date: new Date(),
-        note,
+        note:
+          note ||
+          (ghnResult?.orderCode
+            ? `Đã tạo vận đơn GHN ${ghnResult.orderCode}`
+            : ""),
       });
-    } else if (shipping_status && nextIndex > currentIndex + 1) {
+    } else if (shipping_status) {
       return response.sendError(
         res,
-        "Không thể bỏ qua các bước trạng thái",
-        400
-      );
-    } else if (shipping_status && nextIndex < currentIndex) {
-      return response.sendError(
-        res,
-        "Không thể quay lại trạng thái trước",
+        "Không thể chuyển trạng thái theo luồng hiện tại",
         400
       );
     }
@@ -1659,6 +2466,8 @@ export const updateShippingInfo = async (req, res) => {
               delivered_at: order.delivered_at,
               carrier: order.carrier,
               tracking_number: order.tracking_number,
+              shipping_order_code: order.shipping_order_code,
+              shipping_status: order.shipping_status,
             },
           });
         }
@@ -1717,16 +2526,18 @@ export const completeDineInOrder = async (req, res) => {
 
     const userRole = req.user?.role;
     if (userRole === "manager") {
-      const tokenBranchId = req.user.branch_id?.toString();
-      if (tokenBranchId && tokenBranchId !== order.branch_id.toString()) {
+      const managerBranchId = await getManagerBranchId(req.user?.userId);
+      if (
+        !managerBranchId ||
+        managerBranchId.toString() !== order.branch_id.toString()
+      ) {
         return response.sendError(
           res,
-          "Bạn không có quyền cập nhật đơn hàng của chi nhánh này",
+          "Ban khong co quyen cap nhat don hang cua chi nhanh nay",
           403
         );
       }
     }
-
     const now = new Date();
 
     try {
@@ -1788,6 +2599,190 @@ export const completeDineInOrder = async (req, res) => {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi thanh toán đơn ăn tại quán",
+      500,
+      error.message
+    );
+  }
+};
+
+export const updateDineInOrderItems = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { items } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return response.sendError(res, "Danh sách món không hợp lệ", 400);
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return response.sendError(res, "Không tìm thấy đơn hàng", 404);
+    }
+
+    if (order.order_type !== "dine_in") {
+      return response.sendError(res, "Chỉ áp dụng cho đơn ăn tại quán", 400);
+    }
+
+    if (["completed", "cancelled"].includes(order.status)) {
+      return response.sendError(
+        res,
+        "Đơn hàng đã hoàn thành hoặc đã hủy",
+        400
+      );
+    }
+
+    const userRole = req.user?.role;
+    if (userRole === "manager") {
+      const managerBranchId = await getManagerBranchId(req.user?.userId);
+      if (
+        !managerBranchId ||
+        managerBranchId.toString() !== order.branch_id.toString()
+      ) {
+        return response.sendError(
+          res,
+          "Ban khong co quyen cap nhat don hang cua chi nhanh nay",
+          403
+        );
+      }
+    }
+    const currentQuantityByDish = (order.items || []).reduce((result, item) => {
+      const dishId = item.dish_id?.toString();
+      if (dishId) result[dishId] = (result[dishId] || 0) + item.quantity;
+      return result;
+    }, {});
+
+    let subtotal = 0;
+    const orderItems = [];
+
+    for (const item of items) {
+      if (!mongoose.Types.ObjectId.isValid(item.dish_id)) {
+        return response.sendError(
+          res,
+          `ID sản phẩm ${item.dish_id} không hợp lệ`,
+          400
+        );
+      }
+
+      const quantity = Number(item.quantity || 0);
+      if (!quantity || quantity < 1) {
+        return response.sendError(res, "Số lượng món ăn không hợp lệ", 400);
+      }
+
+      const dishId = item.dish_id.toString();
+      if (quantity < (currentQuantityByDish[dishId] || 0)) {
+        return response.sendError(
+          res,
+          "Không thể giảm món đã xác nhận trong đơn tại bàn",
+          400
+        );
+      }
+
+      const dish = await Dish.findById(item.dish_id)
+        .populate("category", "name")
+        .lean();
+
+      if (!dish || dish.status !== "active") {
+        return response.sendError(
+          res,
+          `Món ăn với ID ${item.dish_id} không tồn tại hoặc không còn bán`,
+          400
+        );
+      }
+
+      const finalPrice = dish.sale_price || dish.price || 0;
+      const itemTotal = finalPrice * quantity;
+      const discountAmount = Math.max((dish.price || 0) - finalPrice, 0);
+      const discountPercent =
+        discountAmount > 0 && dish.price
+          ? Math.round((discountAmount / dish.price) * 100)
+          : 0;
+      const dishImage =
+        dish.imageUrls?.[dish.defaultImageIndex || 0] ||
+        dish.imageUrls?.[0] ||
+        "";
+
+      subtotal += itemTotal;
+      orderItems.push({
+        dish_id: dish._id,
+        dish_name: dish.name,
+        dish_slug: dish.slug,
+        dish_image: dishImage,
+        dish_description: dish.description || dish.short_description || "",
+        category_name: dish.category?.name || "",
+        category_id: dish.category?._id,
+        quantity,
+        price: dish.price,
+        sale_price: finalPrice,
+        original_price: dish.price,
+        total: itemTotal,
+        sku: dish.sku,
+        weight: dish.weight,
+        unit: dish.unit || "sản phẩm",
+        variant: item.variant || {},
+        discount_percent: discountPercent,
+        discount_amount: discountAmount,
+        was_on_sale: dish.sale_price > 0 && dish.sale_price < dish.price,
+        was_featured: dish.featured || false,
+        hometown_origin: dish.hometown_origin || {},
+        created_at: new Date(),
+      });
+    }
+
+    order.items = orderItems;
+    order.subtotal = subtotal;
+    order.total_amount =
+      subtotal +
+      (order.shipping_fee || 0) -
+      (order.discount_value || 0) -
+      (order.freeship_value || 0) -
+      (order.coin_discount || 0);
+    order.history = order.history || [];
+    order.history.push({
+      status: order.status,
+      date: new Date(),
+      note: "Cập nhật món đã xác nhận cho đơn tại bàn",
+    });
+
+    await order.save();
+
+    const updatedOrder = await Order.findById(order._id)
+      .populate("user_id", "name email phone")
+      .populate("customer_id", "name phone address linked_user_id")
+      .populate("branch_id", "name phone address code")
+      .lean();
+
+    try {
+      const io = getIO();
+      io.to(`branch:${order.branch_id}`).emit("order_status_updated", {
+        order_id: order._id,
+        order_number: order.order_number,
+        branch_id: order.branch_id,
+        status: order.status,
+        updates: {
+          items: order.items,
+          total_amount: order.total_amount,
+          subtotal: order.subtotal,
+        },
+      });
+    } catch (socketError) {
+      console.error("Socket dine-in items update error:", socketError);
+    }
+
+    return response.sendSuccess(
+      res,
+      { order: updatedOrder },
+      "Xác nhận thêm món thành công",
+      200
+    );
+  } catch (error) {
+    console.error("Update dine-in order items error:", error);
+    return response.sendError(
+      res,
+      "Có lỗi xảy ra khi xác nhận thêm món",
       500,
       error.message
     );
@@ -1890,6 +2885,156 @@ export const getAllOrders = async (req, res) => {
   }
 };
 
+export const ghnWebhook = async (req, res) => {
+  try {
+    const webhookSecret = process.env.GHN_WEBHOOK_SECRET || "";
+    if (webhookSecret) {
+      const receivedSecret =
+        req.headers["x-ghn-webhook-secret"] ||
+        req.headers["x-webhook-secret"] ||
+        req.query?.secret;
+      if (String(receivedSecret || "") !== webhookSecret) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+      }
+    }
+
+    const payload = req.body || {};
+    const orderCode = getGhnWebhookValue(
+      payload,
+      "OrderCode",
+      "order_code",
+      "orderCode",
+      "TrackingCode",
+      "tracking_code",
+    );
+    const clientOrderCode = getGhnWebhookValue(
+      payload,
+      "ClientOrderCode",
+      "client_order_code",
+      "clientOrderCode",
+    );
+
+    if (!orderCode && !clientOrderCode) {
+      return res.status(200).json({
+        success: true,
+        message: "Missing GHN order code, ignored",
+      });
+    }
+
+    const order = await Order.findOne({
+      $or: [
+        ...(orderCode
+          ? [
+              { shipping_order_code: orderCode },
+              { tracking_number: orderCode },
+            ]
+          : []),
+        ...(clientOrderCode ? [{ order_number: clientOrderCode }] : []),
+      ],
+    });
+
+    if (!order) {
+      return res.status(200).json({
+        success: true,
+        message: "Order not found, ignored",
+      });
+    }
+
+    if (orderCode) {
+      order.shipping_order_code = order.shipping_order_code || orderCode;
+      order.tracking_number = order.tracking_number || orderCode;
+    }
+
+    await applyGhnStatusToOrder(order, payload);
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("GHN webhook error:", error);
+    return res.status(200).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+export const syncGhnShippingStatus = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
+    }
+
+    const order = await Order.findById(orderId).populate(
+      "branch_id",
+      "shop_id"
+    );
+    if (!order) {
+      return response.sendError(res, "Không tìm thấy đơn hàng", 404);
+    }
+
+    const orderCode = order.shipping_order_code || order.tracking_number;
+    if (!orderCode) {
+      return response.sendError(res, "Đơn hàng chưa có mã vận đơn GHN", 400);
+    }
+
+    const ghnShopId = getOrderGhnShopId(order);
+    const ghnDetail = await getGhnShippingOrderDetail(orderCode, ghnShopId);
+    const result = await applyGhnStatusToOrder(order, ghnDetail);
+
+    return response.sendSuccess(
+      res,
+      {
+        order: result.order,
+        ghn: ghnDetail,
+      },
+      "Đồng bộ trạng thái GHN thành công",
+      200,
+    );
+  } catch (error) {
+    console.error("Sync GHN shipping status error:", error);
+    return response.sendError(
+      res,
+      "Có lỗi xảy ra khi đồng bộ trạng thái GHN",
+      500,
+      error.message,
+    );
+  }
+};
+
+export const syncPendingGhnOrders = async () => {
+  const orders = await Order.find({
+    shipping_provider: "ghn",
+    shipping_order_code: { $exists: true, $ne: "" },
+    status: { $nin: ["delivered", "completed", "cancelled"] },
+  })
+    .populate("branch_id", "shop_id")
+    .sort({ updated_at: 1 })
+    .limit(Number(process.env.GHN_AUTO_SYNC_LIMIT || 50));
+
+  if (orders.length === 0) return { checked: 0, updated: 0 };
+
+  let updated = 0;
+  for (const order of orders) {
+    try {
+      const orderCode = order.shipping_order_code || order.tracking_number;
+      if (!orderCode) continue;
+
+      const ghnShopId = getOrderGhnShopId(order);
+      const ghnDetail = await getGhnShippingOrderDetail(orderCode, ghnShopId);
+      const result = await applyGhnStatusToOrder(order, ghnDetail);
+      if (result.statusChanged) updated += 1;
+    } catch (error) {
+      console.error(
+        `Không thể tự đồng bộ GHN cho đơn ${order.order_number}:`,
+        error.message,
+      );
+    }
+  }
+
+  return { checked: orders.length, updated };
+};
+
 // Manager: Get orders by branch
 export const getOrdersByBranch = async (req, res) => {
   try {
@@ -1910,17 +3055,16 @@ export const getOrdersByBranch = async (req, res) => {
     }
 
     // If user is manager, verify they manage this branch
-    if (
-      req.user.role === "manager" &&
-      req.user.branch_id?.toString() !== branchId
-    ) {
-      return response.sendError(
-        res,
-        "Bạn không có quyền truy cập chi nhánh này",
-        403
-      );
+    if (req.user.role === "manager") {
+      const managerBranchId = await getManagerBranchId(req.user.userId);
+      if (!managerBranchId || managerBranchId.toString() !== branchId) {
+        return response.sendError(
+          res,
+          "Ban khong co quyen truy cap chi nhanh nay",
+          403
+        );
+      }
     }
-
     const filter = { branch_id: branchId };
 
     if (order_type === "dine_in") {
@@ -1972,9 +3116,9 @@ export const getOrdersByBranch = async (req, res) => {
       const searchConditions = [
         { order_number: { $regex: search, $options: "i" } },
         {
-          "shipping_address.recipient_name": { $regex: search, $options: "i" },
+          "shipping_info.name": { $regex: search, $options: "i" },
         },
-        { "shipping_address.phone": { $regex: search, $options: "i" } },
+        { "shipping_info.phone": { $regex: search, $options: "i" } },
       ];
 
       if (filter.$or) {
@@ -1989,6 +3133,7 @@ export const getOrdersByBranch = async (req, res) => {
 
     const orders = await Order.find(filter)
       .populate("user_id", "name email phone")
+      .populate("customer_id", "name phone address linked_user_id")
       .sort({ created_at: -1 })
       .skip(skip)
       .limit(parseInt(limit))
@@ -2097,6 +3242,8 @@ export const confirmReceived = async (req, res) => {
     await order.save();
 
     // Reset cancel order streak khi đơn hàng hoàn thành thành công
+    await awardOrderRewardCoins(order);
+
     try {
       const user = await User.findById(userId);
       if (user) {
@@ -2337,6 +3484,8 @@ export const autoCompleteOrder = async (orderId) => {
     });
 
     await order.save();
+
+    await awardOrderRewardCoins(order);
 
     // Send socket notification
     try {

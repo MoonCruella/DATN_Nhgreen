@@ -22,6 +22,20 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
   const [socket, setSocket] = useState(null);
   const [creatingChat, setCreatingChat] = useState(false);
 
+  const getAddressPart = (value) =>
+    value && typeof value === "object" ? value.name : value;
+
+  const getShippingAddress = (shippingInfo = {}) =>
+    shippingInfo.full_address ||
+    [
+      shippingInfo.address,
+      getAddressPart(shippingInfo.ward),
+      getAddressPart(shippingInfo.district),
+      getAddressPart(shippingInfo.province),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
   const handleChatWithBranch = async () => {
     if (!order?.branch_info?.manager_id) {
       toast.error("Không tìm thấy quản lý chi nhánh");
@@ -75,7 +89,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
     if (!accessToken || !user?._id || !orderId) return;
 
     const newSocket = io(
-      import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+      import.meta.env.VITE_API_BASE_URL,
       {
         auth: { token: accessToken },
         transports: ["websocket", "polling"],
@@ -141,6 +155,11 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
         text: "text-green-800",
         label: "Đã thanh toán",
       },
+      hoan_tien: {
+        bg: "bg-purple-100",
+        text: "text-purple-800",
+        label: "Đã hoàn tiền",
+      },
       confirmed: {
         bg: "bg-blue-100",
         text: "text-blue-800",
@@ -174,7 +193,8 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
       },
     };
 
-    const config = statusConfig[status] || {
+    const normalizedStatus = status === "refund" ? "hoan_tien" : status;
+    const config = statusConfig[normalizedStatus] || {
       bg: "bg-gray-100",
       text: "text-gray-800",
       label: status,
@@ -213,7 +233,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
           <span className="font-medium cursor-pointer">Quay lại danh sách</span>
         </button>
         <div>
-          <h2 className="text-2xl font-bold mb-2">Chi Tiết Đơn Hàng</h2>
+          <h2 className="text-2xl font-bold mb-2">Chi tiết đơn hàng</h2>
           <p className="text-green-100">
             Mã đơn hàng: #{order.order_number || order._id?.slice(-8)}
           </p>
@@ -272,9 +292,11 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
                 {order.payment_method === "cod"
                   ? "Thanh toán khi nhận hàng (COD)"
                   : order.payment_method === "vnpay"
-                  ? "Thanh toán VNPAY"
+                  ? "VNPay"
+                  : order.payment_method === "momo"
+                  ? "MoMo"
                   : order.payment_method === "zalopay"
-                  ? "Thanh toán ZaloPay"
+                  ? "ZaloPay"
                   : "Khác"}
               </p>
             </div>
@@ -329,7 +351,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
 
         <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-4">
-            Thông Tin Giao Hàng
+            Thông tin giao hàng
           </h3>
           <div className="space-y-3">
             <div className="flex items-start gap-3">
@@ -353,7 +375,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
                 Địa chỉ:
               </div>
               <div className="flex-1 font-semibold text-gray-800">
-                {order.shipping_info?.address}
+                {getShippingAddress(order.shipping_info)}
               </div>
             </div>
             {order.note && (
@@ -371,7 +393,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
 
         <div className="bg-white rounded-xl p-6 shadow-md border border-gray-100">
           <h3 className="text-lg font-bold text-gray-800 mb-4">
-            Sản Phẩm Đã Đặt ({order.items?.length || 0} món)
+            Sản phẩm đã đặt ({order.items?.length || 0} món)
           </h3>
           {/* Branch info */}
           {order.branch_info && (
@@ -465,7 +487,7 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
 
         <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 shadow-md border border-green-200">
           <h3 className="text-lg font-bold text-gray-800 mb-4">
-            Tổng Kết Đơn Hàng
+            Tổng kết đơn hàng
           </h3>
           <div className="space-y-3">
             <div className="flex justify-between items-center text-base">

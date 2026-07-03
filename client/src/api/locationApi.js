@@ -1,11 +1,12 @@
 import axios from "axios";
+import { axiosPublic } from "./axios";
 
 /**
  * API để lấy danh sách tỉnh/thành phố, quận/huyện, xã/phường
- * Nguồn: https://provinces.open-api.vn/api/
+ * Nguồn: GHN master-data qua backend proxy.
  */
 
-const PROVINCES_API_BASE = "https://provinces.open-api.vn/api";
+const GHN_LOCATION_API_BASE = "/api/geocoding/ghn";
 
 /**
  * Lấy danh sách tất cả tỉnh/thành phố kèm quận/huyện và xã/phường
@@ -13,7 +14,7 @@ const PROVINCES_API_BASE = "https://provinces.open-api.vn/api";
  */
 export const getAllProvinces = async () => {
   try {
-    const response = await axios.get(`${PROVINCES_API_BASE}/?depth=3`);
+    const response = await axiosPublic.get(`${GHN_LOCATION_API_BASE}/provinces`);
     return response.data;
   } catch (error) {
     console.error("Error fetching provinces:", error);
@@ -28,8 +29,8 @@ export const getAllProvinces = async () => {
  */
 export const getProvinceByCode = async (provinceCode) => {
   try {
-    const response = await axios.get(
-      `${PROVINCES_API_BASE}/p/${provinceCode}?depth=2`
+    const response = await axiosPublic.get(
+      `${GHN_LOCATION_API_BASE}/provinces/${provinceCode}`
     );
     return response.data;
   } catch (error) {
@@ -45,8 +46,8 @@ export const getProvinceByCode = async (provinceCode) => {
  */
 export const getDistrictByCode = async (districtCode) => {
   try {
-    const response = await axios.get(
-      `${PROVINCES_API_BASE}/d/${districtCode}?depth=2`
+    const response = await axiosPublic.get(
+      `${GHN_LOCATION_API_BASE}/districts/${districtCode}`
     );
     return response.data;
   } catch (error) {

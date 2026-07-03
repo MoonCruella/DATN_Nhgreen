@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useAddressContext } from "@/context/AddressContext";
-import { getAllProvinces, getCoordinatesFromAddress } from "@/api/locationApi";
+import {
+  getAllProvinces,
+  getCoordinatesFromAddress,
+  getDistrictByCode,
+  getProvinceByCode,
+} from "@/api/locationApi";
 import AddressAutocomplete from "./AddressAutocomplete";
 
 const AddressForm = ({ addressToEdit, onCancel }) => {
@@ -35,7 +40,9 @@ const AddressForm = ({ addressToEdit, onCancel }) => {
 
   // Nếu edit thì load dữ liệu cũ
   useEffect(() => {
-    if (addressToEdit && provinces.length > 0) {
+    const loadAddressForEdit = async () => {
+      if (!addressToEdit || provinces.length === 0) return;
+
       setFullName(addressToEdit.full_name || "");
       setPhone(addressToEdit.phone || "");
       setStreet(addressToEdit.street || "");
@@ -51,40 +58,46 @@ const AddressForm = ({ addressToEdit, onCancel }) => {
       );
       if (provinceObj) {
         setProvince(provinceObj.code);
-        setDistricts(provinceObj.districts);
-        const districtObj = provinceObj.districts.find(
+        const provinceDetail = await getProvinceByCode(provinceObj.code);
+        const provinceDistricts = provinceDetail?.districts || [];
+        setDistricts(provinceDistricts);
+        const districtObj = provinceDistricts.find(
           (d) => d.code === addressToEdit.district?.code
         );
         if (districtObj) {
           setDistrict(districtObj.code);
-          setWards(districtObj.wards);
-          const wardObj = districtObj.wards.find(
-            (w) => w.code === addressToEdit.ward?.code
+          const districtDetail = await getDistrictByCode(districtObj.code);
+          const districtWards = districtDetail?.wards || [];
+          setWards(districtWards);
+          const wardObj = districtWards.find(
+            (w) => String(w.code) === String(addressToEdit.ward?.code)
           );
           if (wardObj) {
             setWard(wardObj.code);
           }
         }
       }
-    }
+    };
+
+    loadAddressForEdit();
   }, [addressToEdit, provinces]);
 
-  const handleProvinceChange = (e) => {
+  const handleProvinceChange = async (e) => {
     const code = parseInt(e.target.value);
     setProvince(code);
     setDistrict("");
     setWard("");
-    const selectedProvince = provinces.find((p) => p.code === code);
-    setDistricts(selectedProvince ? selectedProvince.districts : []);
+    const selectedProvince = code ? await getProvinceByCode(code) : null;
+    setDistricts(selectedProvince ? selectedProvince.districts || [] : []);
     setWards([]);
   };
 
-  const handleDistrictChange = (e) => {
+  const handleDistrictChange = async (e) => {
     const code = parseInt(e.target.value);
     setDistrict(code);
     setWard("");
-    const selectedDistrict = districts.find((d) => d.code === code);
-    setWards(selectedDistrict ? selectedDistrict.wards : []);
+    const selectedDistrict = code ? await getDistrictByCode(code) : null;
+    setWards(selectedDistrict ? selectedDistrict.wards || [] : []);
   };
 
   // Handle chọn địa chỉ từ autocomplete
@@ -298,7 +311,7 @@ const AddressForm = ({ addressToEdit, onCancel }) => {
           </label>
           <select
             value={ward}
-            onChange={(e) => setWard(parseInt(e.target.value))}
+            onChange={(e) => setWard(e.target.value)}
             disabled={!wards.length}
             className="w-full border rounded-lg px-3 py-2"
           >

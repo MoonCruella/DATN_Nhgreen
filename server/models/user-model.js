@@ -29,7 +29,7 @@ const userSchema = new mongoose.Schema(
         phone: { type: String, required: true },
         street: String,
         ward: {
-          code: { type: Number },
+          code: { type: String },
           name: { type: String },
         },
         district: {
@@ -72,6 +72,11 @@ const userSchema = new mongoose.Schema(
     active: {
       type: Boolean,
       default: false,
+    },
+    disabled: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     ban_info: {
       status: {

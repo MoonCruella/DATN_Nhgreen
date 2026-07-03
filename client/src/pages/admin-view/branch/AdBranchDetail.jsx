@@ -17,6 +17,8 @@ const AdminBranchDetail = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [branch, setBranch] = useState(null);
   const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
   const [saving, setSaving] = useState(false);
   const [loadingCoords, setLoadingCoords] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState([]);
@@ -47,16 +49,6 @@ const AdminBranchDetail = () => {
     password: "",
     phone: "",
   });
-
-  // Derived lists
-  const selectedProvince = provinces.find(
-    (p) => p.code === Number(formData.provinceCode)
-  );
-  const districts = selectedProvince ? selectedProvince.districts || [] : [];
-  const selectedDistrict = districts.find(
-    (d) => d.code === Number(formData.districtCode)
-  );
-  const wards = selectedDistrict ? selectedDistrict.wards || [] : [];
 
   // Fetch branch detail
   const fetchBranchDetail = async () => {
@@ -103,6 +95,42 @@ const AdminBranchDetail = () => {
     fetchProvinces();
   }, []);
 
+  useEffect(() => {
+    const loadDistricts = async () => {
+      if (!formData.provinceCode) {
+        setDistricts([]);
+        setWards([]);
+        return;
+      }
+
+      const province = await locationApi.getProvinceByCode(formData.provinceCode);
+      setDistricts(province?.districts || []);
+    };
+
+    loadDistricts().catch((error) => {
+      console.error("Error fetching GHN districts:", error);
+      setDistricts([]);
+      setWards([]);
+    });
+  }, [formData.provinceCode]);
+
+  useEffect(() => {
+    const loadWards = async () => {
+      if (!formData.districtCode) {
+        setWards([]);
+        return;
+      }
+
+      const district = await locationApi.getDistrictByCode(formData.districtCode);
+      setWards(district?.wards || []);
+    };
+
+    loadWards().catch((error) => {
+      console.error("Error fetching GHN wards:", error);
+      setWards([]);
+    });
+  }, [formData.districtCode]);
+
   // Fetch branch detail after provinces loaded
   useEffect(() => {
     if (id && provinces.length > 0) {
@@ -131,11 +159,11 @@ const AdminBranchDetail = () => {
         const prov = provinces.find(
           (p) => p.code === Number(formData.provinceCode)
         );
-        const dist = prov?.districts?.find(
+        const dist = districts.find(
           (d) => d.code === Number(formData.districtCode)
         );
-        const ward = dist?.wards?.find(
-          (w) => w.code === Number(formData.wardCode)
+        const ward = wards.find(
+          (w) => String(w.code) === String(formData.wardCode)
         );
 
         if (!prov || !dist || !ward) return;
@@ -161,6 +189,8 @@ const AdminBranchDetail = () => {
     formData.wardCode,
     isEditing,
     provinces,
+    districts,
+    wards,
   ]);
 
   const handleFetchCoordinates = async () => {
@@ -180,11 +210,11 @@ const AdminBranchDetail = () => {
       const prov = provinces.find(
         (p) => p.code === Number(formData.provinceCode)
       );
-      const dist = prov?.districts?.find(
+      const dist = districts.find(
         (d) => d.code === Number(formData.districtCode)
       );
-      const ward = dist?.wards?.find(
-        (w) => w.code === Number(formData.wardCode)
+      const ward = wards.find(
+        (w) => String(w.code) === String(formData.wardCode)
       );
 
       if (!prov || !dist || !ward) return;
@@ -232,10 +262,12 @@ const AdminBranchDetail = () => {
     const prov = provinces.find(
       (p) => p.code === Number(formData.provinceCode)
     );
-    const dist = prov?.districts?.find(
+    const dist = districts.find(
       (d) => d.code === Number(formData.districtCode)
     );
-    const ward = dist?.wards?.find((w) => w.code === Number(formData.wardCode));
+    const ward = wards.find(
+      (w) => String(w.code) === String(formData.wardCode)
+    );
 
     if (!formData.name || !formData.name.trim()) {
       toast.error("Vui lòng nhập tên chi nhánh");
@@ -265,7 +297,7 @@ const AdminBranchDetail = () => {
           name: dist?.name || "",
         },
         ward: {
-          code: Number(formData.wardCode),
+          code: String(formData.wardCode),
           name: ward?.name || "",
         },
         coordinates: {
@@ -290,17 +322,20 @@ const AdminBranchDetail = () => {
     }
   };
 
-  // Handle delete
-  const handleDelete = async () => {
-    if (!window.confirm("Bạn có chắc muốn xóa chi nhánh này?")) return;
+  // Handle deactivate
+  const handleDeactivate = async () => {
+    if (!window.confirm("Bạn có chắc muốn ngừng kinh doanh chi nhánh này?"))
+      return;
 
     try {
-      await branchApi.remove(accessToken, id);
-      toast.success("Xóa chi nhánh thành công");
-      navigate("/admin/branches");
+      await branchApi.deactivate(accessToken, id);
+      toast.success("Ngừng kinh doanh chi nhánh thành công");
+      fetchBranchDetail();
     } catch (error) {
-      console.error("Error deleting branch:", error);
-      toast.error("Lỗi xóa chi nhánh");
+      console.error("Error deactivating branch:", error);
+      toast.error(
+        error?.response?.data?.message || "Không thể ngừng kinh doanh chi nhánh"
+      );
     }
   };
 
@@ -354,13 +389,13 @@ const AdminBranchDetail = () => {
         name: branch.name || "",
         phone: branch.phone || "",
         street: branch.address?.street || "",
-        provinceCode: branch.address?.provinceCode || null,
-        districtCode: branch.address?.districtCode || null,
-        wardCode: branch.address?.wardCode || null,
+        provinceCode: branch.address?.province?.code || null,
+        districtCode: branch.address?.district?.code || null,
+        wardCode: branch.address?.ward?.code || null,
         active: branch.active ?? true,
         coordinates: {
-          latitude: branch.coordinates?.latitude || null,
-          longitude: branch.coordinates?.longitude || null,
+          latitude: branch.address?.coordinates?.latitude || null,
+          longitude: branch.address?.coordinates?.longitude || null,
         },
       });
     }
@@ -380,12 +415,8 @@ const AdminBranchDetail = () => {
 
   const getFullAddress = () => {
     if (!branch?.address) return "-";
-    const { street, provinceCode, districtCode, wardCode } = branch.address;
-    const prov = provinces.find((p) => p.code === Number(provinceCode));
-    const dist = prov?.districts?.find((d) => d.code === Number(districtCode));
-    const ward = dist?.wards?.find((w) => w.code === Number(wardCode));
-
-    const parts = [street, ward?.name, dist?.name, prov?.name].filter(Boolean);
+    const { street, ward, district, province } = branch.address;
+    const parts = [street, ward?.name, district?.name, province?.name].filter(Boolean);
     return parts.join(", ");
   };
 
@@ -422,6 +453,9 @@ const AdminBranchDetail = () => {
               <span className="text-sm text-gray-500">
                 Mã: {branch.code || branch.branchId || branch._id}
               </span>
+              <span className="text-sm text-gray-500">
+                Shop ID GHN: {branch.shop_id || "-"}
+              </span>
             </div>
           </div>
           <div className="flex gap-3">
@@ -450,10 +484,11 @@ const AdminBranchDetail = () => {
                 </Button>
                 <Button
                   variant="destructive"
-                  onClick={handleDelete}
+                  onClick={handleDeactivate}
                   className="cursor-pointer"
+                  disabled={!branch.active}
                 >
-                  Xóa chi nhánh
+                  {branch.active ? "Ngừng kinh doanh" : "Đã ngừng kinh doanh"}
                 </Button>
               </>
             ) : (
@@ -515,6 +550,17 @@ const AdminBranchDetail = () => {
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-100"
                 />
               </div>
+
+              {!isEditing && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Shop ID GHN
+                  </label>
+                  <div className="w-full px-3 py-2 border rounded-lg bg-gray-100 font-mono text-gray-700">
+                    {branch.shop_id || "-"}
+                  </div>
+                </div>
+              )}
 
               <div className="pt-4 border-t">
                 <h3 className="text-base font-medium mb-3">Địa chỉ</h3>
@@ -833,5 +879,3 @@ const AdminBranchDetail = () => {
 };
 
 export default AdminBranchDetail;
-
-

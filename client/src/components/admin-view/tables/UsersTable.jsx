@@ -39,36 +39,44 @@ const UsersTable = ({ users = [], onRowClick, isLoading }) => {
       );
     }
 
+    if (user.disabled) {
+      return (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+          Vô hiệu hóa
+        </span>
+      );
+    }
+
     return user.active ? (
       <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
         Đã kích hoạt
       </span>
     ) : (
       <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-        Chưa kích hoạt
+        Chưa xác thực email
       </span>
     );
   };
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
         <TableSkeleton rows={10} columns={5} />
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto shadow rounded-xl bg-white">
+    <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
       <table className="w-full text-left">
-        <thead className="bg-gray-200">
+        <thead className="border-b border-gray-200 bg-white">
           <tr>
-            <th className="py-3 px-4 text-gray-700">Tên</th>
-            <th className="py-3 px-4 text-gray-700">Email</th>
-            <th className="py-3 px-4 text-gray-700">Số điện thoại</th>
-            <th className="py-3 px-4 text-gray-700 text-center">Vai trò</th>
-            <th className="py-3 px-4 text-gray-700 text-center">Trạng thái</th>
-            <th className="py-3 px-4 text-gray-700">Ngày tạo</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Tên</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Email</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Số điện thoại</th>
+            <th className="px-5 py-3 text-center text-base font-bold text-slate-600">Vai trò</th>
+            <th className="px-5 py-3 text-center text-base font-bold text-slate-600">Trạng thái</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Ngày tạo</th>
           </tr>
         </thead>
         <tbody className="bg-white">
@@ -76,28 +84,28 @@ const UsersTable = ({ users = [], onRowClick, isLoading }) => {
             users.map((user) => (
               <tr
                 key={user._id}
-                className="border-b hover:bg-gray-50 cursor-pointer transition"
+                className="cursor-pointer border-b border-gray-100 text-base font-medium text-[#444] transition hover:bg-gray-50 last:border-b-0"
                 onClick={() => onRowClick && onRowClick(user)}
               >
-                <td className="py-3 px-4 text-gray-700 font-medium">
-                  {user.name || "N/A"}
+                <td className="px-5 py-3 font-bold text-gray-800">
+                  {user.name || ""}
                 </td>
-                <td className="py-3 px-4 text-gray-700">{user.email}</td>
-                <td className="py-3 px-4 text-gray-700">
-                  {user.phone || "N/A"}
+                <td className="px-5 py-3 text-gray-700">{user.email}</td>
+                <td className="px-5 py-3 text-gray-700">
+                  {user.phone || ""}
                 </td>
-                <td className="py-3 px-4 text-center">
+                <td className="px-5 py-3 text-center">
                   {getRoleBadge(user.role)}
                 </td>
-                <td className="py-3 px-4 text-center">
+                <td className="px-5 py-3 text-center">
                   {getStatusBadge(user)}
                 </td>
-                <td className="py-3 px-4 text-gray-700">
+                <td className="px-5 py-3 text-gray-700">
                   {user.createdAt
                     ? format(new Date(user.createdAt), "dd/MM/yyyy", {
                         locale: vi,
                       })
-                    : "N/A"}
+                    : ""}
                 </td>
               </tr>
             ))

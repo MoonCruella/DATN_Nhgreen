@@ -24,10 +24,11 @@ import recommendationRouter from "./routes/recommendation-routes.js";
 import storeTableRouter from "./routes/store-table-routes.js";
 import dineInSessionRouter from "./routes/dinein-session-routes.js";
 import dineInCustomerRouter from "./routes/dinein-customer-routes.js";
+import momoRouter from "./routes/momo-routes.js";
 const app = express();
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://192.168.0.80:5173"],
+    origin: [process.env.CLIENT_URL],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     allowedHeaders: [
       "Content-Type",
@@ -84,8 +85,9 @@ app.use("/api/store-tables", storeTableRouter);
 // Dine-in QR
 app.use("/api/dine-in", dineInSessionRouter);
 
-// Dine-in Customers
+// Dine-in customers
 app.use("/api/dine-in-customers", dineInCustomerRouter);
+
 
 // Users
 app.use("/api/users", userRoutes);
@@ -95,6 +97,9 @@ app.use("/api/vnpay", vnpayRouter);
 
 // ZaloPay
 app.use("/api/zalopay", zalopayRouter);
+
+// MoMo
+app.use("/api/momo", momoRouter);
 
 // Geocoding (Proxy cho Nominatim OSM)
 app.use("/api/geocoding", geocodingRouter);

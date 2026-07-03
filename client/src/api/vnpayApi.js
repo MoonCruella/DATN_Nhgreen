@@ -14,8 +14,13 @@ const vnpayApi = {
           },
         }
       );
-      if (response.data?.data?.paymentUrl) {
-        return { success: true, url: response.data.data.paymentUrl };
+      const data = response.data?.data;
+      if (data?.paymentUrl) {
+        return {
+          success: true,
+          url: data.paymentUrl,
+          vnpCreateDate: data.vnpCreateDate,
+        };
       } else {
         throw new Error("Không nhận được URL thanh toán từ VNPay");
       }

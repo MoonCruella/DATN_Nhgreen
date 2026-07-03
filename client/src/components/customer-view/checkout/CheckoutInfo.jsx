@@ -68,7 +68,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
     return distance;
   };
 
-  // Lọc và sắp xếp chi nhánh: chỉ hiển thị cùng tỉnh và < 20km
+  // Lọc và sắp xếp chi nhánh: chỉ hiển thị cùng tỉnh, ưu tiên chi nhánh gần hơn
   useEffect(() => {
     if (branches.length === 0) {
       setSortedBranches([]);
@@ -90,7 +90,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
       return branch.address.province.code === selectedAddress.province.code;
     });
 
-    // Tính khoảng cách và lọc < 20km
+    // Tính khoảng cách để sắp xếp, không giới hạn bán kính
     const branchesWithDistance = sameCityBranches
       .map((branch) => {
         const distance = calculateDistance(
@@ -104,10 +104,6 @@ const CheckoutInfo = ({ cartItems = [] }) => {
           ...branch,
           distance: distance !== null ? distance : 999, // Gán 999 nếu không có tọa độ để đẩy xuống cuối
         };
-      })
-      .filter((branch) => {
-        // Chỉ hiển thị chi nhánh < 20km (hoặc không có tọa độ)
-        return branch.distance === 999 || branch.distance < 20;
       })
       .sort((a, b) => {
         // Sắp xếp theo khoảng cách (gần nhất lên đầu, không có tọa độ xuống cuối)
@@ -389,7 +385,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
           Chọn chi nhánh
           {selectedAddress && (
             <span className="text-sm font-normal text-gray-600 ml-2">
-              (Cùng tỉnh và trong bán kính 20km)
+              (Cùng tỉnh)
             </span>
           )}
         </h4>
@@ -404,7 +400,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
         ) : sortedBranches.length === 0 ? (
           <p className="text-red-600 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
             <XCircle className="w-5 h-5" /> Không có chi nhánh nào trong khu vực
-            của bạn (cùng tỉnh và trong bán kính 20km)
+            của bạn (cùng tỉnh)
           </p>
         ) : (
           <div className="relative">
@@ -424,7 +420,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
                       {selectedBranch.name}
                       <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                         {!selectedBranch.distance
-                          ? "N/A"
+                          ? ""
                           : `${selectedBranch.distance.toFixed(1)} km`}
                       </span>
                     </p>
@@ -508,7 +504,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
                           {branch.name}
                           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                             {!distance || distance === 999
-                              ? "N/A"
+                              ? ""
                               : `${distance.toFixed(1)} km`}
                           </span>
                         </p>
@@ -534,7 +530,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
       {/* Payment Method */}
       <div>
         <h4 className="text-lg font-semibold mb-3">Phương thức thanh toán</h4>
-        <div className="grid sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {[
             {
               value: "cod",
@@ -542,6 +538,7 @@ const CheckoutInfo = ({ cartItems = [] }) => {
               icon: assets.cod_icon,
             },
             { value: "vnpay", label: "VNPAY", icon: assets.vnpay_icon },
+            { value: "momo", label: "MoMo", icon: assets.momo_icon },
             { value: "zalopay", label: "ZaloPay", icon: assets.zalo_pay },
           ].map((method) => {
             const isSelected = paymentMethod === method.value;

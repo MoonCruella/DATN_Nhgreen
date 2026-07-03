@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Dish from "../models/dish-model.js";
 import FlashSale from "../models/flashsale-model.js";
 import BranchDishStatus from "../models/branch-dish-status-model.js";
@@ -136,7 +137,19 @@ export const getDishes = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Support both 'search' and 'q' params for compatibility
-    const { category, minPrice, maxPrice, search, q, sort, status } = req.query;
+    const {
+      category,
+      minPrice,
+      maxPrice,
+      minKcal,
+      maxKcal,
+      ingredient,
+      ingredientIds,
+      search,
+      q,
+      sort,
+      status,
+    } = req.query;
     const searchTerm = search || q;
     console.log(`   → search param: "${searchTerm}"`);
 
@@ -160,6 +173,26 @@ export const getDishes = async (req, res) => {
       if (maxPrice) filter.price.$lte = parseFloat(maxPrice);
     }
 
+    const parsedMinKcal = Number(minKcal);
+    const parsedMaxKcal = Number(maxKcal);
+    const hasMinKcal = Number.isFinite(parsedMinKcal) && parsedMinKcal >= 0;
+    const hasMaxKcal = Number.isFinite(parsedMaxKcal) && parsedMaxKcal >= 0;
+
+    if (hasMinKcal || hasMaxKcal) {
+      filter.totalEnergyKcal = {};
+      if (hasMinKcal) filter.totalEnergyKcal.$gte = parsedMinKcal;
+      if (hasMaxKcal) filter.totalEnergyKcal.$lte = parsedMaxKcal;
+    }
+
+    const selectedIngredientIds = String(ingredientIds || ingredient || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    if (selectedIngredientIds.length > 0) {
+      filter["ingredients.ingredient"] = { $all: selectedIngredientIds };
+    }
     if (searchTerm) {
       console.log(`\n🔍 getDishes: Searching for "${searchTerm}"`);
       const searchQuery = createVietnameseSearchQuery(searchTerm, [
@@ -269,7 +302,7 @@ export const getDishById = async (req, res) => {
       .populate("category", "name status")
       .populate(
         "ingredients.ingredient",
-        "name protein fat carbs imageUrl status"
+        "name origin protein fat carbs imageUrl status"
       )
       .lean();
 

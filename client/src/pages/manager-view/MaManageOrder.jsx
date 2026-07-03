@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { io } from "socket.io-client";
 import { toast } from "sonner";
 import {
   ChevronDown,
@@ -8,12 +9,14 @@ import {
   ChevronRight,
   Eye,
   Search,
-  SlidersHorizontal,
   Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import orderApi from "@/api/orderApi";
 import FilterSelect from "@/components/common/FilterSelect";
+
+const getEntityId = (value) =>
+  value && typeof value === "object" ? value._id || value.id : value;
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
@@ -31,16 +34,36 @@ const formatDateTime = (value) => {
 };
 
 const compactOrderCode = (orderNumber = "") =>
-  orderNumber.replace(/^[A-Z]+/i, "").slice(0, 6) || orderNumber;
+  orderNumber || "--";
 
-const getCustomerName = (order) =>
-  order.shipping_info?.recipient_name ||
-  order.shipping_info?.name ||
-  order.guest_info?.name ||
-  "--";
+const getTextValue = (value) =>
+  typeof value === "string" ? value.trim() : value;
 
-const getCustomerPhone = (order) =>
-  order.shipping_info?.phone || order.guest_info?.phone || "--";
+const getDineInCustomer = (order) => {
+  const customer = order?.customer_id;
+  return customer && typeof customer === "object" ? customer : null;
+};
+
+const getCustomerName = (order) => {
+  const dineInCustomer = getDineInCustomer(order);
+
+  return (
+    getTextValue(order.shipping_info?.recipient_name) ||
+    getTextValue(order.shipping_info?.name) ||
+    getTextValue(dineInCustomer?.name) ||
+    "--"
+  );
+};
+
+const getCustomerPhone = (order) => {
+  const dineInCustomer = getDineInCustomer(order);
+
+  return (
+    getTextValue(order.shipping_info?.phone) ||
+    getTextValue(dineInCustomer?.phone) ||
+    "--"
+  );
+};
 
 const getItemCount = (order) =>
   order.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
@@ -62,7 +85,7 @@ const statusConfig = {
     dot: "bg-green-600",
   },
   shipped: {
-    label: "Đang giao",
+    label: "Delivering",
     className: "bg-orange-100 text-orange-800",
     dot: "bg-orange-500",
   },
@@ -91,9 +114,8 @@ const statusConfig = {
 const statusOptions = [
   { value: "all", label: "Tất cả" },
   { value: "pending", label: "Chờ xác nhận" },
-  { value: "confirmed", label: "Đã xác nhận" },
   { value: "processing", label: "Đang chuẩn bị" },
-  { value: "shipped", label: "Đang giao" },
+  { value: "shipped", label: "Delivering" },
   { value: "delivered", label: "Đã giao" },
   { value: "completed", label: "Hoàn thành" },
   { value: "cancelled", label: "Đã hủy" },
@@ -111,13 +133,11 @@ const dateOptions = [
 const getNextAction = (status) => {
   switch (status) {
     case "pending":
-      return { label: "Xác nhận", status: "confirmed" };
+      return { label: "Xác nhận", status: "processing" };
     case "confirmed":
-      return { label: "Chuẩn bị", status: "processing" };
+      return { label: "Xác nhận", status: "processing" };
     case "processing":
-      return { label: "Giao hàng", status: "shipped" };
-    case "shipped":
-      return { label: "Đã giao", status: "delivered" };
+      return { label: "Sẵn sàng giao", status: "shipped" };
     default:
       return null;
   }
@@ -127,7 +147,7 @@ const MaManageOrder = () => {
   const navigate = useNavigate();
   const accessToken = useSelector((state) => state.auth.accessToken);
   const user = useSelector((state) => state.auth.user);
-  const branchId = user?.branch_id;
+  const branchId = getEntityId(user?.branch_id);
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -137,7 +157,6 @@ const MaManageOrder = () => {
   const [dateFilter, setDateFilter] = useState("today");
   const [appliedDate, setAppliedDate] = useState("today");
   const [searchTerm, setSearchTerm] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -169,8 +188,41 @@ const MaManageOrder = () => {
     fetchOrders();
   }, [accessToken, branchId, appliedStatus, appliedDate]);
 
+  useEffect(() => {
+    if (!accessToken || !branchId) return;
+
+    const socket = io(import.meta.env.VITE_API_BASE_URL, {
+      auth: { token: accessToken },
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("connect", () => {
+      socket.emit("join_branch_room", branchId);
+    });
+
+    const handleOrderStatusUpdated = (data) => {
+      if (String(data.branch_id) !== String(branchId)) return;
+
+      setOrders((prev) =>
+        prev.map((order) =>
+          String(order._id) === String(data.order_id)
+            ? { ...order, status: data.status, ...(data.updates || {}) }
+            : order,
+        ),
+      );
+    };
+
+    socket.on("order_status_updated", handleOrderStatusUpdated);
+
+    return () => {
+      socket.off("order_status_updated", handleOrderStatusUpdated);
+      socket.emit("leave_branch_room", branchId);
+      socket.disconnect();
+    };
+  }, [accessToken, branchId]);
+
   const filteredOrders = useMemo(() => {
-    const keyword = appliedSearch.trim().toLowerCase();
+    const keyword = searchTerm.trim().toLowerCase();
     if (!keyword) return orders;
 
     return orders.filter((order) =>
@@ -183,18 +235,17 @@ const MaManageOrder = () => {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(keyword)),
     );
-  }, [orders, appliedSearch]);
+  }, [orders, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedOrders = filteredOrders.slice(startIndex, startIndex + pageSize);
   const hasActiveFilters =
-    Boolean(appliedSearch.trim()) ||
+    Boolean(searchTerm.trim()) ||
     appliedStatus !== "all" ||
     appliedDate !== "today";
 
   const applyFilters = () => {
-    setAppliedSearch(searchTerm);
     setAppliedStatus(status);
     setAppliedDate(dateFilter);
     setCurrentPage(1);
@@ -202,7 +253,6 @@ const MaManageOrder = () => {
 
   const resetFilters = () => {
     setSearchTerm("");
-    setAppliedSearch("");
     setStatus("all");
     setAppliedStatus("all");
     setDateFilter("today");
@@ -213,11 +263,24 @@ const MaManageOrder = () => {
   const updateStatus = async (order, nextStatus) => {
     try {
       setUpdatingOrderId(order._id);
-      await orderApi.updateOrderStatus(accessToken, order._id, nextStatus);
-      toast.success("Cập nhật trạng thái thành công");
+      const result = await orderApi.updateOrderStatus(
+        accessToken,
+        order._id,
+        nextStatus,
+      );
+      const updatedOrder = result?.data?.shipping || null;
+      const ghnOrderCode =
+        updatedOrder?.shipping_order_code || updatedOrder?.tracking_number || "";
+      toast.success(
+        ghnOrderCode
+          ? `Đã tạo vận đơn GHN ${ghnOrderCode}`
+          : "Cập nhật trạng thái thành công",
+      );
       setOrders((prev) =>
         prev.map((item) =>
-          item._id === order._id ? { ...item, status: nextStatus } : item,
+          item._id === order._id
+            ? { ...item, ...(updatedOrder || {}), status: nextStatus }
+            : item,
         ),
       );
     } catch (error) {
@@ -225,6 +288,48 @@ const MaManageOrder = () => {
     } finally {
       setUpdatingOrderId(null);
     }
+  };
+
+  const syncGhnStatus = async (order) => {
+    try {
+      setUpdatingOrderId(order._id);
+      const result = await orderApi.syncGhnShippingStatus(accessToken, order._id);
+      const updatedOrder = result?.data?.order || null;
+      toast.success(
+        updatedOrder?.status === "delivered"
+          ? "GHN đã giao hàng thành công"
+          : "Đã đồng bộ trạng thái GHN",
+      );
+      if (updatedOrder) {
+        setOrders((prev) =>
+          prev.map((item) => (item._id === updatedOrder._id ? updatedOrder : item)),
+        );
+      }
+    } catch (error) {
+      console.error("Sync GHN status error:", error);
+      toast.error(error.message || "Không thể đồng bộ trạng thái GHN");
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
+  const getGhnStatusLabel = (status) => {
+    const statusMap = {
+      ready_to_pick: "Chờ GHN lấy hàng",
+      picking: "GHN đang lấy hàng",
+      picked: "GHN đã lấy hàng",
+      storing: "Đang lưu kho",
+      transporting: "Đang vận chuyển",
+      sorting: "Đang phân loại",
+      delivering: "Đang giao",
+      delivered: "Đã giao",
+      delivery_fail: "Giao thất bại",
+      waiting_to_return: "Chờ hoàn hàng",
+      return: "Đang hoàn hàng",
+      returned: "Đã hoàn hàng",
+      cancel: "Đã hủy",
+    };
+    return statusMap[status] || status;
   };
 
   return (
@@ -243,9 +348,9 @@ const MaManageOrder = () => {
           <div className="relative w-full lg:w-[300px]">
             <input
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") applyFilters();
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setCurrentPage(1);
               }}
               className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
               placeholder="Mã đơn, khách hàng, SĐT"
@@ -292,7 +397,7 @@ const MaManageOrder = () => {
       </div>
 
       <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
-        <div className="grid grid-cols-[64px_0.95fr_1.2fr_1.25fr_1.1fr_0.9fr_1.05fr_56px] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
+        <div className="grid grid-cols-[52px_0.85fr_1.05fr_1.15fr_1.05fr_0.9fr_minmax(190px,1fr)] items-center border-b border-gray-200 px-5 py-3 text-base font-bold text-slate-600">
           <div>STT</div>
           <div>Mã đơn</div>
           <div>Thời gian</div>
@@ -300,9 +405,6 @@ const MaManageOrder = () => {
           <div>Trạng thái</div>
           <div>Tổng tiền</div>
           <div>Hành động</div>
-          <div className="flex justify-end">
-            <SlidersHorizontal className="h-5 w-5" />
-          </div>
         </div>
 
         {loading ? (
@@ -317,11 +419,19 @@ const MaManageOrder = () => {
           paginatedOrders.map((order, index) => {
             const config = statusConfig[order.status] || statusConfig.pending;
             const nextAction = getNextAction(order.status);
+            const hasGhnTracking =
+              order.shipping_order_code || order.tracking_number;
+            const canSyncGhn =
+              hasGhnTracking &&
+              !["delivered", "completed", "cancelled"].includes(order.status) &&
+              !["delivered", "cancel", "returned"].includes(
+                order.shipping_status,
+              );
 
             return (
               <div
                 key={order._id}
-                className="grid min-h-14 grid-cols-[64px_0.95fr_1.2fr_1.25fr_1.1fr_0.9fr_1.05fr_56px] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
+                className="grid min-h-14 grid-cols-[52px_0.85fr_1.05fr_1.15fr_1.05fr_0.9fr_minmax(190px,1fr)] items-center border-b border-gray-100 px-5 text-base font-medium text-[#444] last:border-b-0"
               >
                 <div>{startIndex + index + 1}</div>
                 <div>{compactOrderCode(order.order_number)}</div>
@@ -341,13 +451,23 @@ const MaManageOrder = () => {
                     <span className={`h-2 w-2 rounded-full ${config.dot}`} />
                     {config.label}
                   </span>
+                  {hasGhnTracking && (
+                    <div className="mt-1 text-xs font-bold text-gray-500">
+                      GHN: {order.shipping_order_code || order.tracking_number}
+                      {order.shipping_status && (
+                        <span className="ml-2 text-[#34ad54]">
+                          {getGhnStatusLabel(order.shipping_status)}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>{formatCurrency(order.total_amount)} VND</div>
-                <div className="flex items-center gap-4 text-gray-400">
+                <div className="flex min-w-0 items-center justify-start gap-2 text-gray-400">
                   <button
                     type="button"
                     onClick={() => navigate(`/manager/orders/${order._id}`)}
-                    className="transition hover:text-[#34ad54]"
+                    className="transition hover:text-[#34ad54] cursor-pointer"
                     title="Xem chi tiết"
                   >
                     <Eye className="h-5 w-5" strokeWidth={2.2} />
@@ -357,15 +477,24 @@ const MaManageOrder = () => {
                       type="button"
                       onClick={() => updateStatus(order, nextAction.status)}
                       disabled={updatingOrderId === order._id}
-                      className="rounded-md bg-[#34ad54] px-3 py-1.5 text-sm font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="whitespace-nowrap rounded-md bg-[#34ad54] px-3 py-1.5 text-sm font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                     >
                       {updatingOrderId === order._id
                         ? "..."
                         : nextAction.label}
                     </button>
                   )}
+                  {canSyncGhn && (
+                    <button
+                      type="button"
+                      onClick={() => syncGhnStatus(order)}
+                      disabled={updatingOrderId === order._id}
+                      className="whitespace-nowrap rounded-md border border-[#34ad54] px-3 py-1.5 text-sm font-bold text-[#34ad54] hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                    >
+                      {updatingOrderId === order._id ? "..." : "Đồng bộ GHN"}
+                    </button>
+                  )}
                 </div>
-                <div />
               </div>
             );
           })

@@ -1,20 +1,17 @@
 import response from "../helpers/response.js";
 import DineInCustomer from "../models/dinein-customer-model.js";
-import User from "../models/user-model.js";
 
-const normalizePhone = (phone = "") => String(phone).replace(/\D/g, "");
+const normalizePhone = (phone = "") => {
+  let normalizedPhone = String(phone || "").replace(/\D/g, "");
+  if (normalizedPhone.startsWith("84") && normalizedPhone.length >= 11) {
+    normalizedPhone = `0${normalizedPhone.slice(2)}`;
+  }
+  return normalizedPhone;
+};
 
 const isValidPhone = (phone = "") => {
   const normalizedPhone = normalizePhone(phone);
   return normalizedPhone.length >= 9 && normalizedPhone.length <= 11;
-};
-
-const findOnlineUserByPhone = async (normalizedPhone) => {
-  const users = await User.find({ role: "customer" })
-    .select("_id name email phone coin")
-    .lean();
-
-  return users.find((user) => normalizePhone(user.phone) === normalizedPhone) || null;
 };
 
 const serializeCustomer = (customer, linkedUser = null) => {
@@ -35,10 +32,8 @@ const serializeCustomer = (customer, linkedUser = null) => {
           name: linkedUser.name,
           email: linkedUser.email,
           phone: linkedUser.phone,
-          coin: linkedUser.coin || 0,
         }
       : null,
-    reward_points: linkedUser?.coin || 0,
     source: customer ? "dine_in_customer" : "online_user",
     created_at: customer?.created_at || linkedUser?.createdAt,
   };
@@ -52,17 +47,12 @@ export const getDineInCustomerByPhone = async (req, res) => {
       return response.sendError(res, "Số điện thoại không hợp lệ", 400);
     }
 
-    const [dineInCustomer, linkedUser] = await Promise.all([
-      DineInCustomer.findOne({ normalized_phone: normalizedPhone, active: true })
-        .populate("linked_user_id", "_id name email phone coin")
-        .lean(),
-      findOnlineUserByPhone(normalizedPhone),
-    ]);
+    const dineInCustomer = await DineInCustomer.findOne({
+      normalized_phone: normalizedPhone,
+      active: true,
+    }).lean();
 
-    const customer = serializeCustomer(
-      dineInCustomer,
-      dineInCustomer?.linked_user_id || linkedUser
-    );
+    const customer = serializeCustomer(dineInCustomer);
 
     return response.sendSuccess(
       res,
@@ -98,19 +88,18 @@ export const createDineInCustomer = async (req, res) => {
       normalized_phone: normalizedPhone,
       active: true,
     })
-      .populate("linked_user_id", "_id name email phone coin")
+      .populate("linked_user_id", "_id name email phone")
       .lean();
 
     if (existedCustomer) {
       return response.sendError(res, "Số điện thoại đã có khách hàng", 409);
     }
 
-    const linkedUser = await findOnlineUserByPhone(normalizedPhone);
     const customer = await DineInCustomer.create({
       name: name.trim(),
       phone: String(phone).trim(),
       normalized_phone: normalizedPhone,
-      linked_user_id: linkedUser?._id || null,
+      linked_user_id: null,
       address: {
         province: address.province || "",
         ward: address.ward || "",
@@ -122,7 +111,7 @@ export const createDineInCustomer = async (req, res) => {
     return response.sendSuccess(
       res,
       {
-        customer: serializeCustomer(customer.toObject(), linkedUser),
+        customer: serializeCustomer(customer.toObject()),
         existed: false,
       },
       "Tạo khách hàng tại quán thành công",

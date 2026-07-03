@@ -7,7 +7,6 @@ import { dashboardApi } from "@/api/dashboardApi";
 import branchApi from "@/api/branchApi";
 import { toast } from "react-toastify";
 import TopSellingDishes from "@/components/admin-view/dashboard/TopSellingDishes";
-import AIModelManager from "@/components/admin-view/ai/AIModelManager";
 import {
   AreaChart,
   Area,
@@ -569,8 +568,6 @@ const AdminDashboard = () => {
       <TopSellingDishes branchId={selectedBranchId} branchName={selectedBranchName} />
       </div>
 
-      {/* AI Model Manager - Outside print area */}
-      <AIModelManager />
     </div>
   );
 };

@@ -7,6 +7,7 @@ import { useCartContext } from "@/context/CartContext";
 import { useAddressContext } from "@/context/AddressContext";
 import vnpayApi from "@/api/vnpayApi";
 import zalopayApi from "@/api/zalopayApi";
+import momoApi from "@/api/momoApi";
 import flashsaleApi from "@/api/flashsaleApi";
 import VoucherModal from "../voucher/VoucherModal";
 import voucherApi from "@/api/voucherApi";
@@ -27,6 +28,9 @@ const CheckoutSummary = ({
   const [loading, setLoading] = useState(false);
   const [useCoin, setUseCoin] = useState(false);
   const [note, setNote] = useState("");
+  const [ghnShippingFee, setGhnShippingFee] = useState(0);
+  const [shippingFeeLoading, setShippingFeeLoading] = useState(false);
+  const [shippingFeeError, setShippingFeeError] = useState("");
   const { removeMultipleItems, removeFromCart } = useCartContext();
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,68 +51,7 @@ const CheckoutSummary = ({
   const [voucherPreviewDiscount, setVoucherPreviewDiscount] = useState(null);
   const [applyingVoucher, setApplyingVoucher] = useState(false);
 
-  // Calculate distance between two coordinates using Haversine formula (returns km)
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * (Math.PI / 180)) *
-        Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  // Calculate shipping fee based on distance
-  // Under 3km: 20,000 VND flat rate
-  // From 3km onwards: 500 VND per 100m
-  const calculateShippingFee = (distanceKm) => {
-    const baseRate = 20000; // 20k for under 3km
-    const baseDistance = 3; // 3km
-    const additionalRatePer100m = 500; // 500 VND per 100m
-
-    if (distanceKm <= baseDistance) {
-      return baseRate;
-    }
-
-    // Distance beyond 3km in meters
-    const extraDistanceMeters = (distanceKm - baseDistance) * 1000;
-    // Calculate additional fee (500 VND per 100m)
-    const additionalFee =
-      Math.ceil(extraDistanceMeters / 100) * additionalRatePer100m;
-
-    return baseRate + additionalFee;
-  };
-
-  // Calculate base shipping fee based on distance
-  const defaultShippingFee = (() => {
-    // Check if both branch and delivery address have coordinates
-    if (
-      selectedBranch?.address?.coordinates?.latitude &&
-      selectedBranch?.address?.coordinates?.longitude &&
-      selectedAddress?.coordinates?.latitude &&
-      selectedAddress?.coordinates?.longitude
-    ) {
-      const distance = calculateDistance(
-        selectedBranch.address.coordinates.latitude,
-        selectedBranch.address.coordinates.longitude,
-        selectedAddress.coordinates.latitude,
-        selectedAddress.coordinates.longitude
-      );
-      const fee = calculateShippingFee(distance);
-      console.log(
-        `📍 Khoảng cách: ${distance.toFixed(
-          2
-        )}km, Phí ship: ${fee.toLocaleString("vi-VN")}₫`
-      );
-      return fee;
-    }
-    // Default fallback if no coordinates
-    return 30000;
-  })();
+  const defaultShippingFee = ghnShippingFee;
 
   const shippingFee = (() => {
     if (!selectedFreeship) return defaultShippingFee;
@@ -131,6 +74,98 @@ const CheckoutSummary = ({
   const total = Math.max(0, beforeCoinTotal - coinDiscount);
 
   const selectedItemsCount = Array.isArray(cartItems) ? cartItems.length : 0;
+  const shippingFeeReady =
+    Boolean(selectedBranch?._id) &&
+    Boolean(selectedAddress?.district?.code) &&
+    Boolean(selectedAddress?.ward?.code) &&
+    !shippingFeeLoading &&
+    !shippingFeeError &&
+    defaultShippingFee > 0;
+
+  useEffect(() => {
+    let ignore = false;
+
+    const calculateGhnFee = async () => {
+      if (
+        !selectedBranch?._id ||
+        !selectedAddress?.district?.code ||
+        !selectedAddress?.ward?.code ||
+        selectedItemsCount === 0
+      ) {
+        setGhnShippingFee(0);
+        setShippingFeeError("");
+        return;
+      }
+
+      try {
+        setShippingFeeLoading(true);
+        setShippingFeeError("");
+
+        const items = cartItems.map((item) => {
+          const dish = item.dish_id || item.product_id || {};
+          return {
+            name: dish.name || item.name || item.dish_name || "Sản phẩm",
+            quantity: item.quantity || 1,
+            weight: dish.weight || item.weight,
+          };
+        });
+
+        const res = await branchApi.calculateShippingFee(selectedBranch._id, {
+          shipping_info: {
+            district: selectedAddress.district,
+            ward: selectedAddress.ward,
+          },
+          items,
+          insurance_value: subtotal,
+        });
+
+        if (ignore) return;
+
+        const fee = Number(res?.data?.total || 0);
+        if (!res?.success || fee <= 0) {
+          throw new Error(res?.message || "Không thể tính phí GHN");
+        }
+
+        setGhnShippingFee(fee);
+      } catch (error) {
+        if (ignore) return;
+        console.error("Calculate GHN shipping fee error:", error);
+        setGhnShippingFee(0);
+        setShippingFeeError(
+          error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            error?.message ||
+            "Không thể tính phí giao hàng GHN"
+        );
+      } finally {
+        if (!ignore) setShippingFeeLoading(false);
+      }
+    };
+
+    calculateGhnFee();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    selectedBranch?._id,
+    selectedAddress?.district?.code,
+    selectedAddress?.ward?.code,
+    cartItems,
+    selectedItemsCount,
+    subtotal,
+  ]);
+
+  const getSelectedAddressText = () =>
+    selectedAddress?.full_address ||
+    [
+      selectedAddress?.street,
+      selectedAddress?.ward?.name,
+      selectedAddress?.district?.name,
+      selectedAddress?.province?.name,
+    ]
+      .filter(Boolean)
+      .join(", ");
 
   // Helper: clear all temporary payment data stored in localStorage
   const clearTempPaymentData = () => {
@@ -213,15 +248,44 @@ const CheckoutSummary = ({
 
     try {
       if (method === "vnpay") {
-        const { success, url, message } = await vnpayApi.createPayment(
-          accessToken,
-          orderData.orderId,
-          totalAmount
-        );
+        const { success, url, vnpCreateDate, message } =
+          await vnpayApi.createPayment(
+            accessToken,
+            orderData.orderId,
+            totalAmount
+          );
         if (success) {
+          if (vnpCreateDate) {
+            const storedOrderData = {
+              ...orderData,
+              vnpay_create_date: vnpCreateDate,
+            };
+            localStorage.setItem(
+              "pendingOrderData",
+              JSON.stringify(storedOrderData)
+            );
+          }
           window.location.href = url;
         } else {
           toast.error("Tạo thanh toán VNPay thất bại: " + message);
+          setLoading(false);
+          localStorage.removeItem("pendingOrderData");
+          localStorage.removeItem("pendingCartItems");
+        }
+        return;
+      }
+      if (method === "momo") {
+        const { success, data, message } = await momoApi.createPayment(
+          accessToken,
+          orderData.orderId,
+          totalAmount,
+          "Thanh toan don hang qua MoMo",
+          { requestType: "payWithMethod" }
+        );
+        if (success) {
+          window.location.href = data.paymentUrl;
+        } else {
+          toast.error("Tạo thanh toán MoMo thất bại: " + message);
           setLoading(false);
           localStorage.removeItem("pendingOrderData");
           localStorage.removeItem("pendingCartItems");
@@ -261,26 +325,77 @@ const CheckoutSummary = ({
   useEffect(() => {
     const query = new URLSearchParams(location.search);
     const success = query.get("success");
+    const message = query.get("message");
     const orderId = query.get("orderId");
+    const vnpTransactionNo = query.get("vnp_TransactionNo");
+    const vnpPayDate = query.get("vnp_PayDate");
+    const vnpAmount = query.get("vnp_Amount");
+    const momoResultCode = query.get("resultCode");
+    const momoTransId = query.get("transId");
+    const momoRequestId = query.get("requestId");
+    const momoAmount = query.get("amount");
     const appTransId =
       query.get("apptransid") || localStorage.getItem("zaloAppTransId");
     const pendingOrderData = JSON.parse(
       localStorage.getItem("pendingOrderData") || "null"
     );
 
-    // VNPay return flow
-    if ((success === "false" || success === "true") && orderId) {
-      if (success === "false") {
-        toast.error("Thanh toán VNPay thất bại hoặc bị hủy!");
+    const paymentMethodFromStorage = pendingOrderData?.payment_method;
+
+    const resolvedSuccess =
+      success ??
+      (paymentMethodFromStorage === "momo" && momoResultCode
+        ? momoResultCode === "0"
+          ? "true"
+          : "false"
+        : null);
+
+    // Gateway return flow (VNPay / MoMo)
+    if (
+      (resolvedSuccess === "false" || resolvedSuccess === "true") &&
+      ["vnpay", "momo"].includes(paymentMethodFromStorage)
+    ) {
+      if (resolvedSuccess === "false") {
+        const failedLabel =
+          paymentMethodFromStorage === "momo" ? "MoMo" : "VNPay";
+        toast.error(
+          message || `Thanh toán ${failedLabel} thất bại hoặc bị hủy!`
+        );
+        clearTempPaymentData();
+        navigate("/checkout");
+        return;
+      }
+      if (!orderId) {
+        toast.error("Không nhận được mã giao dịch thanh toán");
         clearTempPaymentData();
         navigate("/checkout");
         return;
       }
       if (!accessToken || !pendingOrderData) return; // wait for token / data
       setLoading(true);
-      orderApi.createOrder(accessToken, pendingOrderData).then(async (res) => {
+      const orderPayload =
+        paymentMethodFromStorage === "vnpay"
+          ? {
+              ...pendingOrderData,
+              vnpay_txn_ref: orderId,
+              vnpay_transaction_no: vnpTransactionNo || undefined,
+              vnpay_pay_date: vnpPayDate || undefined,
+              vnpay_amount: vnpAmount ? Number(vnpAmount) : undefined,
+            }
+          : paymentMethodFromStorage === "momo"
+          ? {
+              ...pendingOrderData,
+              momo_request_id: momoRequestId || orderId,
+              momo_trans_id: momoTransId || undefined,
+              momo_amount: momoAmount ? Number(momoAmount) : undefined,
+            }
+          : pendingOrderData;
+
+      orderApi.createOrder(accessToken, orderPayload).then(async (res) => {
         if (res.success) {
-          toast.success("Thanh toán VNPay thành công!");
+          const successLabel =
+            paymentMethodFromStorage === "momo" ? "MoMo" : "VNPay";
+          toast.success(`Thanh toán ${successLabel} thành công!`);
           await updateFlashSaleSoldCounts();
           await removeCheckedOutItems();
           clearTempPaymentData();
@@ -301,10 +416,18 @@ const CheckoutSummary = ({
         .queryStatus(accessToken, appTransId)
         .then(async (statusRes) => {
           if (statusRes.success && statusRes.data?.return_code === 1) {
-            const res = await orderApi.createOrder(
-              accessToken,
-              pendingOrderData
-            );
+            const orderPayload = {
+              ...pendingOrderData,
+              zalopay_app_trans_id: appTransId,
+              zalopay_zp_trans_id:
+                statusRes.data?.zp_trans_id ||
+                statusRes.data?.zpTransId ||
+                undefined,
+              zalopay_amount: statusRes.data?.amount
+                ? Number(statusRes.data.amount)
+                : undefined,
+            };
+            const res = await orderApi.createOrder(accessToken, orderPayload);
             if (res.success) {
               toast.success("Thanh toán ZaloPay thành công!");
               await updateFlashSaleSoldCounts();
@@ -389,6 +512,13 @@ const CheckoutSummary = ({
         toast.error("Vui lòng chọn chi nhánh gần bạn trước khi thanh toán");
         return;
       }
+      if (!shippingFeeReady) {
+        toast.error(
+          shippingFeeError ||
+            "Đang tính phí giao hàng GHN. Vui lòng thử lại sau giây lát"
+        );
+        return;
+      }
 
       // Kiểm tra lại availability trước khi thanh toán
       const dishIds = cartItems
@@ -461,8 +591,14 @@ const CheckoutSummary = ({
         shipping_info: {
           name: selectedAddress.full_name,
           phone: selectedAddress.phone,
-          address: selectedAddress.full_address,
-          coordinates: selectedAddress.coordinates, // Truyền coordinates để backend lưu
+          address: getSelectedAddressText(),
+          full_name: selectedAddress.full_name,
+          street: selectedAddress.street || "",
+          full_address: getSelectedAddressText(),
+          ward: selectedAddress.ward || {},
+          district: selectedAddress.district || {},
+          province: selectedAddress.province || {},
+          coordinates: selectedAddress.coordinates || {}, // Truyền coordinates để backend lưu
         },
         payment_method: paymentMethod,
         notes: note || "",
@@ -479,7 +615,11 @@ const CheckoutSummary = ({
 
       // Chuẩn bị orderData xong
 
-      if (paymentMethod === "vnpay" || paymentMethod === "zalopay") {
+      if (
+        paymentMethod === "vnpay" ||
+        paymentMethod === "momo" ||
+        paymentMethod === "zalopay"
+      ) {
         await createGatewayPayment(paymentMethod, orderData, total);
       } else {
         // COD -> create order directly
@@ -617,9 +757,20 @@ const CheckoutSummary = ({
           <div className="flex justify-between">
             <span className="text-gray-600">Phí vận chuyển</span>
             <span className="font-medium">
-              {defaultShippingFee.toLocaleString("vi-VN")}₫
+              {shippingFeeLoading
+                ? "Đang tính..."
+                : `${defaultShippingFee.toLocaleString("vi-VN")}₫`}
             </span>
           </div>
+          <div className="flex items-center gap-1 text-xs italic text-gray-500">
+            <img src={assets.ghn_icon} alt="GHN" className="w-12 h-4" />
+            <span>Đơn hàng sẽ được giao đến bạn bởi đơn vị vận chuyển GHN.</span>
+          </div>
+          {shippingFeeError && (
+            <p className="text-xs font-medium text-red-600">
+              {shippingFeeError}
+            </p>
+          )}
 
           {freeshipAmount > 0 && (
             <div className="flex justify-between">
@@ -728,9 +879,14 @@ const CheckoutSummary = ({
         <button
           type="submit"
           onClick={handlePayNow}
-          disabled={!termsAccepted || loading || selectedItemsCount === 0}
+          disabled={
+            !termsAccepted ||
+            loading ||
+            selectedItemsCount === 0 ||
+            !shippingFeeReady
+          }
           className={`w-3/4 font-bold text-white py-3 rounded-xl transition ${
-            termsAccepted && selectedItemsCount > 0
+            termsAccepted && selectedItemsCount > 0 && shippingFeeReady
               ? "bg-green-600 hover:bg-green-700 active:scale-95"
               : "bg-gray-400 cursor-not-allowed"
           }`}

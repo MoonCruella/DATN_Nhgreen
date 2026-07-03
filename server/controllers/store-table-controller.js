@@ -8,11 +8,14 @@ import response from "../helpers/response.js";
 
 const getQrUrl = (req, qrToken) => {
   const baseUrl =
-    process.env.QR_CLIENT_BASE_URL ||
-    process.env.CLIENT_URL ||
-    "http://localhost:5173/dine-in";
+    process.env.QR_CLIENT_BASE_URL || process.env.CLIENT_DINE_IN_URL;
 
-  return `${baseUrl.replace(/\/$/, "")}/${qrToken}`;
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+  const dineInBaseUrl = normalizedBaseUrl.endsWith("/dine-in")
+    ? normalizedBaseUrl
+    : `${normalizedBaseUrl}/dine-in`;
+
+  return `${dineInBaseUrl}/${qrToken}`;
 };
 
 const generateQrCodeDataUrl = async (value) => {
@@ -35,15 +38,66 @@ const canManageBranch = async (req, branchId) => {
   const tokenBranchId = req.user.branch_id?.toString();
   if (tokenBranchId) return tokenBranchId === branchId.toString();
 
-  const manager = await User.findById(req.user.userId).select("branch_id").lean();
+  const manager = await User.findById(req.user.userId)
+    .select("branch_id")
+    .lean();
   return manager?.branch_id?.toString() === branchId.toString();
 };
 
 const parseBooleanFilter = (value) => {
   if (typeof value === "undefined" || value === "") return undefined;
   if (value === true || value === "true" || value === "active") return true;
-  if (value === false || value === "false" || value === "inactive") return false;
+  if (value === false || value === "false" || value === "inactive")
+    return false;
   return undefined;
+};
+
+const buildTableCode = (value = "") =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 24)
+    .toUpperCase();
+
+const getRequestedTableCode = ({ code, name }) => {
+  const rawCode = typeof code === "string" && code.trim() ? code : name;
+  return buildTableCode(rawCode || "");
+};
+
+const markDeletedCodeAsReusable = async (branchId, code) => {
+  if (!branchId || !code) return;
+
+  const deletedTable = await StoreTable.findOne({
+    branch_id: branchId,
+    code,
+    deleted: true,
+  });
+
+  if (!deletedTable) return;
+
+  const deletedSuffix = `DELETED-${deletedTable._id.toString().slice(-8)}`;
+  deletedTable.code = `${code}-${deletedSuffix}`.slice(0, 60);
+  deletedTable.name = `${deletedTable.name || "Bàn"} (${deletedSuffix})`;
+  deletedTable.qr_token = `${deletedTable.qr_token}-${deletedSuffix}`;
+  await deletedTable.save();
+};
+
+const findActiveCodeConflict = async (branchId, code, excludeId = null) => {
+  if (!branchId || !code) return null;
+
+  const filter = {
+    branch_id: branchId,
+    code,
+    deleted: { $ne: true },
+  };
+
+  if (excludeId) {
+    filter._id = { $ne: excludeId };
+  }
+
+  return StoreTable.findOne(filter).select("_id name code").lean();
 };
 
 const serializeTable = async (req, table) => {
@@ -79,7 +133,11 @@ export const createStoreTable = async (req, res) => {
     const { branch_id, name, code, active = true, sort_order = 0 } = req.body;
 
     if (!branch_id || !mongoose.Types.ObjectId.isValid(branch_id)) {
-      return response.sendError(res, "Chi nhánh không hợp lệ hoặc chưa chọn", 400);
+      return response.sendError(
+        res,
+        "Chi nhánh không hợp lệ hoặc chưa chọn",
+        400,
+      );
     }
 
     if (!name || !name.trim()) {
@@ -87,7 +145,11 @@ export const createStoreTable = async (req, res) => {
     }
 
     if (!(await canManageBranch(req, branch_id))) {
-      return response.sendError(res, "Không có quyền quản lý chi nhánh này", 403);
+      return response.sendError(
+        res,
+        "Không có quyền quản lý chi nhánh này",
+        403,
+      );
     }
 
     const branch = await Branch.findById(branch_id).lean();
@@ -95,8 +157,16 @@ export const createStoreTable = async (req, res) => {
       return response.sendError(
         res,
         "Chi nhánh không tồn tại hoặc không hoạt động",
-        400
+        400,
       );
+    }
+
+    const requestedCode = getRequestedTableCode({ code, name });
+    await markDeletedCodeAsReusable(branch_id, requestedCode);
+
+    const codeConflict = await findActiveCodeConflict(branch_id, requestedCode);
+    if (codeConflict) {
+      return response.sendError(res, "Mã bàn đã tồn tại trong chi nhánh", 409);
     }
 
     const table = new StoreTable({
@@ -113,7 +183,7 @@ export const createStoreTable = async (req, res) => {
       res,
       { table: await serializeTable(req, table) },
       "Tạo bàn thành công",
-      201
+      201,
     );
   } catch (error) {
     if (error.code === 11000) {
@@ -124,7 +194,7 @@ export const createStoreTable = async (req, res) => {
       res,
       "Có lỗi xảy ra khi tạo bàn",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -143,7 +213,7 @@ export const getStoreTables = async (req, res) => {
     } = req.query;
 
     const selectedBranchId = branch_id || branchId;
-    const filter = {};
+    const filter = { deleted: { $ne: true } };
 
     if (selectedBranchId) {
       if (!mongoose.Types.ObjectId.isValid(selectedBranchId)) {
@@ -156,13 +226,15 @@ export const getStoreTables = async (req, res) => {
 
       filter.branch_id = selectedBranchId;
     } else if (req.user.role === "manager") {
-      const manager = await User.findById(req.user.userId).select("branch_id").lean();
+      const manager = await User.findById(req.user.userId)
+        .select("branch_id")
+        .lean();
       const managerBranchId = req.user.branch_id || manager?.branch_id;
       if (!managerBranchId) {
         return response.sendError(
           res,
           "Tài khoản manager chưa được gán chi nhánh",
-          403
+          403,
         );
       }
       filter.branch_id = managerBranchId;
@@ -197,7 +269,7 @@ export const getStoreTables = async (req, res) => {
       res,
       {
         tables: await Promise.all(
-          tables.map((table) => serializeTable(req, table))
+          tables.map((table) => serializeTable(req, table)),
         ),
         pagination: {
           totalItems,
@@ -207,14 +279,14 @@ export const getStoreTables = async (req, res) => {
         },
       },
       "Lấy danh sách bàn thành công",
-      200
+      200,
     );
   } catch (error) {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi lấy danh sách bàn",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -229,7 +301,7 @@ export const getStoreTableById = async (req, res) => {
 
     const table = await StoreTable.findById(id).populate(
       "branch_id",
-      "name phone address code active"
+      "name phone address code active",
     );
 
     if (!table) {
@@ -245,14 +317,14 @@ export const getStoreTableById = async (req, res) => {
       res,
       { table: await serializeTable(req, table) },
       "Lấy thông tin bàn thành công",
-      200
+      200,
     );
   } catch (error) {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi lấy thông tin bàn",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -266,7 +338,10 @@ export const updateStoreTable = async (req, res) => {
       return response.sendError(res, "ID bàn không hợp lệ", 400);
     }
 
-    const table = await StoreTable.findById(id);
+    const table = await StoreTable.findOne({
+      _id: id,
+      deleted: { $ne: true },
+    });
     if (!table) {
       return response.sendError(res, "Không tìm thấy bàn", 404);
     }
@@ -282,7 +357,21 @@ export const updateStoreTable = async (req, res) => {
       table.name = name;
     }
 
-    if (typeof code !== "undefined") table.code = code;
+    if (typeof code !== "undefined") {
+      const requestedCode = getRequestedTableCode({ code, name: table.name });
+      await markDeletedCodeAsReusable(table.branch_id, requestedCode);
+
+      const codeConflict = await findActiveCodeConflict(
+        table.branch_id,
+        requestedCode,
+        table._id
+      );
+      if (codeConflict) {
+        return response.sendError(res, "Mã bàn đã tồn tại trong chi nhánh", 409);
+      }
+
+      table.code = code;
+    }
     if (typeof active !== "undefined") table.active = active;
     if (typeof sort_order !== "undefined") table.sort_order = sort_order;
 
@@ -293,7 +382,7 @@ export const updateStoreTable = async (req, res) => {
       res,
       { table: await serializeTable(req, table) },
       "Cập nhật bàn thành công",
-      200
+      200,
     );
   } catch (error) {
     if (error.code === 11000) {
@@ -304,7 +393,7 @@ export const updateStoreTable = async (req, res) => {
       res,
       "Có lỗi xảy ra khi cập nhật bàn",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -317,7 +406,10 @@ export const deleteStoreTable = async (req, res) => {
       return response.sendError(res, "ID bàn không hợp lệ", 400);
     }
 
-    const table = await StoreTable.findById(id);
+    const table = await StoreTable.findOne({
+      _id: id,
+      deleted: { $ne: true },
+    });
     if (!table) {
       return response.sendError(res, "Không tìm thấy bàn", 404);
     }
@@ -326,20 +418,29 @@ export const deleteStoreTable = async (req, res) => {
       return response.sendError(res, "Không có quyền xóa bàn này", 403);
     }
 
-    await StoreTable.deleteOne({ _id: table._id });
+    const deletedSuffix = `DELETED-${table._id.toString().slice(-8)}`;
+    table.active = false;
+    table.deleted = true;
+    table.deleted_at = new Date();
+    table.name = `${table.name || "Bàn"} (${deletedSuffix})`;
+    if (table.code) {
+      table.code = `${table.code}-${deletedSuffix}`.slice(0, 60);
+    }
+    table.qr_token = `${table.qr_token}-${deletedSuffix}`;
+    await table.save();
 
     return response.sendSuccess(
       res,
       { table_id: table._id },
       "Xóa bàn thành công",
-      200
+      200,
     );
   } catch (error) {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi xóa bàn",
       500,
-      error.message
+      error.message,
     );
   }
 };

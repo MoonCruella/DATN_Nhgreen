@@ -69,7 +69,7 @@ export const SocketProvider = ({ children }) => {
     prevAuthRef.current = { userId: currentUserId, token };
 
     // Tạo kết nối socket mới
-    const socketInstance = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000', {
+    const socketInstance = io(import.meta.env.VITE_API_BASE_URL, {
       auth: { token },
       withCredentials: true,
       transports: ['websocket'],
@@ -249,7 +249,7 @@ export const SocketProvider = ({ children }) => {
     }
     
     // Tạo socket mới với token được cung cấp
-    const socketInstance = io(import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000', {
+    const socketInstance = io(import.meta.env.VITE_API_BASE_URL, {
       auth: { token },
       withCredentials: true,
       transports: ['websocket'],

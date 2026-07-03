@@ -26,7 +26,7 @@ const RatingsTable = ({
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
         <TableSkeleton rows={10} columns={5} />
       </div>
     );
@@ -34,47 +34,47 @@ const RatingsTable = ({
 
   if (!ratings || ratings.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+      <div className="rounded-lg bg-white p-8 text-center shadow-sm ring-1 ring-gray-100">
         <p className="text-gray-500">Không có đánh giá nào</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+    <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b">
+          <thead className="border-b border-gray-200 bg-white">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                 Sản phẩm
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                 Người đánh giá
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                 Đánh giá
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                 Nội dung
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                 Đơn hàng
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-5 py-3 text-left text-base font-bold text-slate-600">
                 Ngày tạo
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white">
             {ratings.map((rating) => (
               <tr
                 key={rating._id}
-                className="hover:bg-gray-50 transition cursor-pointer"
+                className="cursor-pointer border-b border-gray-100 text-base font-medium text-[#444] transition hover:bg-gray-50 last:border-b-0"
               >
                 {/* Dish */}
                 <td
-                  className="px-4 py-4"
+                  className="px-5 py-3"
                   onClick={() => onRowClick(rating)}
                 >
                   <div className="flex items-center gap-3">
@@ -89,7 +89,7 @@ const RatingsTable = ({
                     />
                     <div>
                       <p className="font-medium text-sm">
-                        {rating.dishName || "N/A"}
+                        {rating.dishName || ""}
                       </p>
                       <p className="text-xs text-gray-500">
                         #{rating.dish_id?._id?.slice(-6)}
@@ -100,12 +100,12 @@ const RatingsTable = ({
 
                 {/* User */}
                 <td
-                  className="px-4 py-4"
+                  className="px-5 py-3"
                   onClick={() => onRowClick(rating)}
                 >
                   <div>
                     <p className="font-medium text-sm">
-                      {rating.userName || "N/A"}
+                      {rating.userName || ""}
                     </p>
                     <p className="text-xs text-gray-500">
                       {rating.userEmail || ""}
@@ -115,7 +115,7 @@ const RatingsTable = ({
 
                 {/* Rating */}
                 <td
-                  className="px-4 py-4"
+                  className="px-5 py-3"
                   onClick={() => onRowClick(rating)}
                 >
                   <div className="flex items-center gap-2">
@@ -128,7 +128,7 @@ const RatingsTable = ({
 
                 {/* Content */}
                 <td
-                  className="px-4 py-4"
+                  className="px-5 py-3"
                   onClick={() => onRowClick(rating)}
                 >
                   <p className="max-w-xs truncate text-sm text-gray-700">
@@ -138,17 +138,19 @@ const RatingsTable = ({
 
                 {/* Order ID */}
                 <td
-                  className="px-4 py-4"
+                  className="px-5 py-3"
                   onClick={() => onRowClick(rating)}
                 >
                   <p className="text-sm font-mono text-gray-700">
-                    #{rating.order_id?.order_number || "N/A"}
+                    {rating.order_id?.order_number
+                      ? `#${rating.order_id.order_number}`
+                      : ""}
                   </p>
                 </td>
 
                 {/* Date */}
                 <td
-                  className="px-4 py-4 text-sm text-gray-500"
+                  className="px-5 py-3 text-sm text-gray-500"
                   onClick={() => onRowClick(rating)}
                 >
                   {new Date(rating.created_at).toLocaleDateString("vi-VN")}

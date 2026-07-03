@@ -313,6 +313,21 @@ body {
   animation: fadeIn 0.3s ease-out;
 }
 
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-modal-pop {
+  animation: modalPop 180ms ease-out;
+}
+
 /* Slide-up reveal animation for hero/banner content */
 @keyframes slideUp {
   from {
@@ -514,9 +529,34 @@ button[role="combobox"]:focus {
   box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000) !important;
 }
 
+button,
+a,
+summary,
+label,
+select,
+[role="button"],
+[role="menuitem"],
+[role="option"],
+[role="tab"],
+[role="switch"],
+[role="checkbox"],
+[role="radio"],
+[data-clickable="true"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+input[type="file"] {
+  cursor: pointer;
+}
 
-
-
-
-
+button:disabled,
+select:disabled,
+input:disabled,
+textarea:disabled,
+[aria-disabled="true"],
+.disabled {
+  cursor: not-allowed;
+}
 

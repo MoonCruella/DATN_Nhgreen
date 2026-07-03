@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
+import { io } from "socket.io-client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,10 @@ import {
   CheckCircle,
 } from "lucide-react";
 import PrintableBill from "@/components/manager-view/PrintableBill";
+import { openPrintableBillWindow } from "@/utils/printBill";
+
+const getEntityId = (value) =>
+  value && typeof value === "object" ? value._id || value.id : value;
 
 const MaOrderDetail = () => {
   const navigate = useNavigate();
@@ -20,7 +25,7 @@ const MaOrderDetail = () => {
   const accessToken = useSelector((state) => state.auth.accessToken);
   const user = useSelector((state) => state.auth.user);
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
-  const branchId = user?.branch_id;
+  const branchId = getEntityId(user?.branch_id);
 
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -47,158 +52,28 @@ const MaOrderDetail = () => {
     });
   };
 
-  // In hóa đơn kiểu bill nhiệt 80mm
+  const getAddressPart = (value) =>
+    value && typeof value === "object" ? value.name : value;
+
+  const getShippingAddress = (shippingInfo = {}) =>
+    shippingInfo.full_address ||
+    [
+      shippingInfo.address,
+      getAddressPart(shippingInfo.ward),
+      getAddressPart(shippingInfo.district),
+      getAddressPart(shippingInfo.province),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+  // In hóa đơn theo mẫu bill thanh toán tại bàn
   const handlePrintBill = () => {
-    if (!printRef.current) return;
+    if (!order || !printRef.current) return;
 
-    // Tạo cửa sổ in mới
-    const printWindow = window.open("", "_blank", "width=800,height=600");
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Hóa đơn #${order.order_number}</title>
-          <style>
-            @media print {
-              @page {
-                size: 80mm auto;
-                margin: 0;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-              }
-            }
-            
-            body {
-              font-family: 'Courier New', monospace;
-              font-size: 11px;
-              line-height: 1.4;
-              color: #000;
-              background: #fff;
-              width: 80mm;
-              margin: 0 auto;
-              padding: 5mm;
-            }
-            
-            .header {
-              text-align: center;
-              margin-bottom: 10px;
-              border-bottom: 1px dashed #000;
-              padding-bottom: 10px;
-            }
-            
-            .header h2 {
-              margin: 0 0 5px 0;
-              font-size: 16px;
-              font-weight: bold;
-              text-transform: uppercase;
-            }
-            
-            .header p {
-              margin: 2px 0;
-              font-size: 10px;
-            }
-            
-            .info {
-              margin: 10px 0;
-              font-size: 10px;
-            }
-            
-            .info-row {
-              display: flex;
-              justify-content: space-between;
-              margin: 3px 0;
-            }
-            
-            .divider {
-              border-top: 1px dashed #000;
-              margin: 10px 0;
-            }
-            
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin: 10px 0;
-            }
-            
-            th {
-              text-align: left;
-              font-weight: bold;
-              border-bottom: 1px solid #000;
-              padding: 5px 0;
-              font-size: 10px;
-            }
-            
-            td {
-              padding: 5px 0;
-              font-size: 10px;
-              vertical-align: top;
-            }
-            
-            .item-name {
-              width: 50%;
-            }
-            
-            .item-qty {
-              width: 15%;
-              text-align: center;
-            }
-            
-            .item-price {
-              width: 35%;
-              text-align: right;
-            }
-            
-            .summary {
-              margin-top: 10px;
-              border-top: 1px solid #000;
-              padding-top: 10px;
-            }
-            
-            .summary-row {
-              display: flex;
-              justify-content: space-between;
-              margin: 5px 0;
-              font-size: 10px;
-            }
-            
-            .summary-row.total {
-              font-weight: bold;
-              font-size: 12px;
-              border-top: 1px solid #000;
-              padding-top: 8px;
-              margin-top: 8px;
-            }
-            
-            .footer {
-              text-align: center;
-              margin-top: 15px;
-              padding-top: 10px;
-              border-top: 1px dashed #000;
-              font-size: 10px;
-            }
-            
-            .footer p {
-              margin: 3px 0;
-            }
-          </style>
-        </head>
-        <body>
-          ${printRef.current.innerHTML}
-        </body>
-      </html>
-    `);
-
-    printWindow.document.close();
-
-    // Đợi load xong rồi in
-    printWindow.onload = () => {
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 250);
-    };
+    openPrintableBillWindow({
+      title: `Hóa đơn #${order.order_number}`,
+      content: printRef.current.innerHTML,
+    });
   };
 
   // Redirect if not authenticated
@@ -245,6 +120,45 @@ const MaOrderDetail = () => {
     fetchOrderDetail();
   }, [accessToken, orderId, navigate]);
 
+  useEffect(() => {
+    const socketBranchId = getEntityId(order?.branch_id) || branchId;
+    if (!accessToken || !socketBranchId || !orderId) return;
+
+    const socket = io(import.meta.env.VITE_API_BASE_URL, {
+      auth: { token: accessToken },
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("connect", () => {
+      socket.emit("join_branch_room", socketBranchId);
+    });
+
+    const handleOrderStatusUpdated = async (data) => {
+      if (String(data.order_id) !== String(orderId)) return;
+
+      try {
+        const response = await orderApi.getOrderById(accessToken, orderId);
+        if (response.success) {
+          setOrder(response.data.order);
+        }
+      } catch (error) {
+        setOrder((prev) =>
+          prev
+            ? { ...prev, status: data.status, ...(data.updates || {}) }
+            : prev,
+        );
+      }
+    };
+
+    socket.on("order_status_updated", handleOrderStatusUpdated);
+
+    return () => {
+      socket.off("order_status_updated", handleOrderStatusUpdated);
+      socket.emit("leave_branch_room", socketBranchId);
+      socket.disconnect();
+    };
+  }, [accessToken, branchId, order?.branch_id, orderId]);
+
   // Update order status
   const handleUpdateStatus = async (newStatus) => {
     try {
@@ -283,6 +197,10 @@ const MaOrderDetail = () => {
         label: "Đã thanh toán",
         className: "bg-green-100 text-green-800",
       },
+      hoan_tien: {
+        label: "Đã hoàn tiền",
+        className: "bg-purple-100 text-purple-800",
+      },
       confirmed: {
         label: "Đã xác nhận",
         className: "bg-green-100 text-green-800",
@@ -310,7 +228,8 @@ const MaOrderDetail = () => {
       },
     };
 
-    const config = statusConfig[status] || statusConfig.pending;
+    const normalizedStatus = status === "refund" ? "hoan_tien" : status;
+    const config = statusConfig[normalizedStatus] || statusConfig.pending;
     return (
       <Badge className={`${config.className} font-medium text-base px-3 py-1`}>
         {config.label}
@@ -323,12 +242,12 @@ const MaOrderDetail = () => {
     switch (status) {
       case "pending":
         return [
-          { label: "Xác nhận đơn", status: "confirmed", variant: "default" },
+          { label: "Xác nhận đơn", status: "processing", variant: "default" },
         ];
       case "confirmed":
         return [
           {
-            label: "Bắt đầu chuẩn bị",
+            label: "Xác nhận đơn",
             status: "processing",
             variant: "default",
           },
@@ -336,10 +255,6 @@ const MaOrderDetail = () => {
       case "processing":
         return [
           { label: "Sẵn sàng giao", status: "shipped", variant: "default" },
-        ];
-      case "shipped":
-        return [
-          { label: "Đã giao hàng", status: "delivered", variant: "default" },
         ];
       default:
         return [];
@@ -738,12 +653,7 @@ const MaOrderDetail = () => {
               <div>
                 <p className="text-sm text-gray-600">Địa chỉ giao hàng</p>
                 <p className="font-medium">
-                  {order.shipping_info?.address}
-                  {order.shipping_info?.ward && `, ${order.shipping_info.ward}`}
-                  {order.shipping_info?.district &&
-                    `, ${order.shipping_info.district}`}
-                  {order.shipping_info?.province &&
-                    `, ${order.shipping_info.province}`}
+                  {getShippingAddress(order.shipping_info)}
                 </p>
               </div>
             </div>
@@ -758,6 +668,8 @@ const MaOrderDetail = () => {
                 <p className="font-medium">
                   {order.payment_method === "vnpay"
                     ? "VNPay"
+                    : order.payment_method === "momo"
+                    ? "MoMo"
                     : order.payment_method === "zalopay"
                     ? "ZaloPay"
                     : "Thanh toán khi nhận hàng (COD)"}
@@ -768,6 +680,8 @@ const MaOrderDetail = () => {
                 <p className="font-medium">
                   {order.payment_status === "paid" ? (
                     <span className="text-green-600">✓ Đã thanh toán</span>
+                  ) : order.payment_status === "refunded" ? (
+                    <span className="text-purple-600">⟲ Đã hoàn tiền</span>
                   ) : (
                     <span className="text-yellow-600">⏳ Chưa thanh toán</span>
                   )}

@@ -4,6 +4,10 @@ import { useSelector } from "react-redux";
 import UsersTable from "@/components/admin-view/tables/UsersTable";
 import UserModal from "@/components/admin-view/modals/UserModal";
 import userApi from "@/api/userApi";
+import { ChevronRight, Search, Store } from "lucide-react";
+import FilterSelect from "@/components/common/FilterSelect";
+import AdminPagination from "@/components/admin-view/AdminPagination";
+import { Button } from "@/components/ui/button";
 
 const AdminUserAccount = () => {
   const { user, isAuthenticated, accessToken } = useSelector((s) => s.auth);
@@ -14,7 +18,9 @@ const AdminUserAccount = () => {
   const [qSearch, setQSearch] = useState("");
   const [debouncedQSearch, setDebouncedQSearch] = useState("");
   const [qRole, setQRole] = useState("all");
-  const [qBanStatus, setQBanStatus] = useState("all");
+  const [qActiveStatus, setQActiveStatus] = useState("all");
+  const [appliedRole, setAppliedRole] = useState("all");
+  const [appliedActiveStatus, setAppliedActiveStatus] = useState("all");
 
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
@@ -30,7 +36,8 @@ const AdminUserAccount = () => {
       const params = {
         page,
         limit,
-        role: qRole !== "all" ? qRole : undefined,
+        role: appliedRole !== "all" ? appliedRole : undefined,
+        status: appliedActiveStatus !== "all" ? appliedActiveStatus : undefined,
         search: debouncedQSearch || undefined,
       };
 
@@ -56,7 +63,14 @@ const AdminUserAccount = () => {
     if (isAuthenticated && user?.role === "admin") {
       loadUsers();
     }
-  }, [isAuthenticated, user, page, debouncedQSearch, qRole]);
+  }, [
+    isAuthenticated,
+    user,
+    page,
+    debouncedQSearch,
+    appliedRole,
+    appliedActiveStatus,
+  ]);
 
   const handleRowClick = (user) => {
     setSelectedUser(user);
@@ -66,9 +80,23 @@ const AdminUserAccount = () => {
   const handleResetFilters = () => {
     setQSearch("");
     setQRole("all");
-    setQBanStatus("all");
+    setQActiveStatus("all");
+    setAppliedRole("all");
+    setAppliedActiveStatus("all");
     setPage(1);
   };
+
+  const applyFilters = () => {
+    setAppliedRole(qRole);
+    setAppliedActiveStatus(qActiveStatus);
+    setPage(1);
+  };
+  const hasActiveFilters =
+    Boolean(qSearch.trim()) ||
+    qRole !== "all" ||
+    qActiveStatus !== "all" ||
+    appliedRole !== "all" ||
+    appliedActiveStatus !== "all";
 
   const handleBanUser = async (userId, data) => {
     try {
@@ -94,130 +122,117 @@ const AdminUserAccount = () => {
     }
   };
 
+  const handleToggleUserStatus = async (userId) => {
+    try {
+      await userApi.toggleUserStatus(accessToken, userId);
+      toast.success("Cập nhật trạng thái tài khoản thành công");
+      loadUsers();
+    } catch (err) {
+      console.error("Error toggling user status", err);
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Lỗi cập nhật trạng thái tài khoản"
+      );
+      throw err;
+    }
+  };
+
   return (
-    <main className="bg-gray-50 min-h-screen">
-      <section className="w-full px-4 pt-8">
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between">
-          <div className="text-lg font-medium">Quản lý người dùng</div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-4">
-              <input
-                type="text"
-                placeholder="Tìm theo tên, email, SĐT..."
-                value={qSearch}
-                onChange={(e) => {
-                  setQSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition w-64"
-              />
-
-              <select
-                value={qRole}
-                onChange={(e) => {
-                  setQRole(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition cursor-pointer"
-              >
-                <option value="all">Tất cả vai trò</option>
-                <option value="customer">Khách hàng</option>
-                <option value="manager">Manager</option>
-                <option value="admin">Admin</option>
-              </select>
-
-              <select
-                value={qBanStatus}
-                onChange={(e) => {
-                  setQBanStatus(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition cursor-pointer"
-              >
-                <option value="all">Tất cả ban status</option>
-                <option value="banned">Đang bị ban</option>
-                <option value="not_banned">Không bị ban</option>
-              </select>
-
-              <button
-                onClick={handleResetFilters}
-                className="px-3 py-2 bg-gray-100 rounded-lg transition hover:bg-gray-200 cursor-pointer"
-              >
-                Đặt lại
-              </button>
-            </div>
-          </div>
+    <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
+      <header className="mb-5 flex items-center gap-2 text-lg font-bold">
+        <div className="flex items-center gap-2 text-gray-900">
+          <Store className="h-5 w-5" strokeWidth={1.8} />
+          Quản trị hệ thống
         </div>
-      </section>
+        <ChevronRight className="h-5 w-5 text-gray-500" />
+        <div className="text-[#34ad54]">Quản lý người dùng</div>
+      </header>
 
-      <section className="pb-16 w-full px-4">
+      <div className="mb-4 flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-start">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+          <div className="relative w-full lg:w-[300px]">
+            <input
+              type="text"
+              placeholder="Tên, email, SĐT"
+              value={qSearch}
+              onChange={(e) => {
+                setQSearch(e.target.value);
+                setPage(1);
+              }}
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
+            />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          </div>
+
+          <div className="text-base font-bold text-gray-500">Lọc bởi:</div>
+
+          <FilterSelect
+            label="Vai trò"
+            value={qRole}
+            onChange={(value) => {
+              setQRole(value);
+            }}
+            options={[
+              { value: "all", label: "Tất cả vai trò" },
+              { value: "customer", label: "Khách hàng" },
+              { value: "manager", label: "Manager" },
+              { value: "admin", label: "Admin" },
+            ]}
+            className="lg:w-[220px]"
+          />
+
+          <FilterSelect
+            label="Trạng thái"
+            value={qActiveStatus}
+            onChange={(value) => {
+              setQActiveStatus(value);
+            }}
+            options={[
+              { value: "all", label: "Tất cả trạng thái" },
+              { value: "active", label: "Đã kích hoạt" },
+              { value: "unverified", label: "Chưa xác thực email" },
+              { value: "disabled", label: "Vô hiệu hóa" },
+            ]}
+            className="lg:w-[220px]"
+          />
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="whitespace-nowrap text-base font-bold text-[#34ad54] underline underline-offset-4 hover:text-[#2f9b45]"
+            >
+              Chọn mặc định
+            </button>
+          )}
+
+        </div>
+
+          <Button
+            type="button"
+            onClick={applyFilters}
+            className="h-12 w-full min-w-[110px] shrink-0 rounded-lg bg-[#34ad54] px-5 text-base font-bold text-white hover:bg-[#2f9b45] sm:w-auto"
+          >
+            Áp dụng
+          </Button>
+      </div>
+
+      <section className="pb-16 w-full">
         <UsersTable
-          users={users.filter((user) => {
-            if (qBanStatus === "all") return true;
-            const isBanned =
-              user?.ban_info?.status !== null &&
-              user?.ban_info?.status !== undefined;
-            const banUntil = user?.ban_info?.banned_until
-              ? new Date(user.ban_info.banned_until)
-              : null;
-            const isBanActive = isBanned && banUntil && banUntil > new Date();
-
-            if (qBanStatus === "banned") return isBanActive;
-            if (qBanStatus === "not_banned") return !isBanActive;
-            return true;
-          })}
+          users={users}
           isLoading={isLoading}
           onRowClick={handleRowClick}
         />
 
-        <div className="mt-3 text-xs text-gray-600 flex items-center justify-between">
-          <div>
-            Hiển thị {users.length} / {totalUsers} người dùng
-          </div>
-          <div>
-            Trang {page} / {totalPages}
-          </div>
-        </div>
-
-        {totalPages > 1 && (
-          <div className="flex justify-center mt-4 gap-2">
-            <button
-              disabled={page === 1}
-              onClick={() => setPage(page - 1)}
-              className={`px-3 py-1 rounded ${
-                page === 1
-                  ? "bg-gray-200 text-gray-400"
-                  : "bg-green-600 text-white cursor-pointer"
-              }`}
-            >
-              {"<"}
-            </button>
-            {[...Array(totalPages)].map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setPage(idx + 1)}
-                className={`px-3 py-1 rounded ${
-                  page === idx + 1
-                    ? "bg-green-600 text-white"
-                    : "bg-gray-200 cursor-pointer"
-                }`}
-              >
-                {idx + 1}
-              </button>
-            ))}
-            <button
-              disabled={page === totalPages}
-              onClick={() => setPage(page + 1)}
-              className={`px-3 py-1 rounded ${
-                page === totalPages
-                  ? "bg-gray-200 text-gray-400"
-                  : "bg-green-600 text-white cursor-pointer"
-              }`}
-            >
-              {">"}
-            </button>
-          </div>
-        )}
+        <AdminPagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalUsers}
+          pageSize={limit}
+          itemLabel="người dùng"
+          onPageChange={setPage}
+        />
       </section>
 
       <UserModal
@@ -226,8 +241,9 @@ const AdminUserAccount = () => {
         user={selectedUser}
         onBanUser={handleBanUser}
         onUnbanUser={handleUnbanUser}
+        onToggleUserStatus={handleToggleUserStatus}
       />
-    </main>
+    </section>
   );
 };
 

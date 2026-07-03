@@ -10,7 +10,7 @@ const branchSchema = new mongoose.Schema(
     address: {
       street: { type: String, default: "" },
       ward: {
-        code: { type: Number },
+        code: { type: String },
         name: { type: String },
       },
       district: {
@@ -30,6 +30,11 @@ const branchSchema = new mongoose.Schema(
     phone: {
       type: String,
       default: "",
+    },
+    shop_id: {
+      type: Number,
+      default: null,
+      index: true,
     },
     // short code for branch (e.g. 6 chars)
     code: {

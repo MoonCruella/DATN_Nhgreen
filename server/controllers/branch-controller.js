@@ -5,11 +5,36 @@ import User from "../models/user-model.js";
 import bcrypt from "bcryptjs";
 import sendMail from "../config/nodemailer.js";
 import { createVietnameseSearchQuery } from "../utils/fuzzySearch.js";
+import {
+  calculateGhnShippingFee,
+  createGhnStore,
+} from "../services/ghn-service.js";
 
 // Tạo mới branch
 export const createBranch = async (req, res) => {
   try {
     const { name, address, phone, active, status } = req.body;
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Tên chi nhánh không được để trống",
+      });
+    }
+
+    if (!phone || !String(phone).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Số điện thoại chi nhánh không được để trống",
+      });
+    }
+
+    if (!address?.province?.code || !address?.district?.code || !address?.ward?.code) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng chọn đầy đủ tỉnh/thành, quận/huyện và phường/xã",
+      });
+    }
 
     // accept `active` from client, but fall back to legacy `status` if provided
     const isActive =
@@ -19,10 +44,28 @@ export const createBranch = async (req, res) => {
         ? status
         : true;
 
+    let ghnStore = null;
+    let ghnWarning = "";
+    try {
+      ghnStore = await createGhnStore({ name, phone, address });
+    } catch (ghnError) {
+      ghnWarning =
+        ghnError.response?.data?.message ||
+        ghnError.response?.data?.code_message ||
+        ghnError.message ||
+        "Không thể tạo shop GHN";
+      console.error("createBranch: GHN store creation failed:", {
+        message: ghnWarning,
+        status: ghnError.response?.status,
+        response: ghnError.response?.data,
+      });
+    }
+
     const branch = new Branch({
-      name,
+      name: String(name).trim(),
       address,
-      phone,
+      phone: String(phone).trim(),
+      shop_id: ghnStore?.shopId || null,
       active: isActive,
     });
 
@@ -49,10 +92,30 @@ export const createBranch = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "Branch created successfully",
+      message: ghnWarning
+        ? "Tạo chi nhánh thành công nhưng chưa tạo được shop GHN"
+        : "Branch created successfully",
       data: branch,
+      warning: ghnWarning || null,
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "Mã hoặc thông tin chi nhánh đã tồn tại",
+        error: error.message,
+      });
+    }
+
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        success: false,
+        message: "Thông tin chi nhánh không hợp lệ",
+        error: error.message,
+      });
+    }
+
+    console.error("createBranch error:", error);
     res.status(500).json({
       success: false,
       message: "Error creating branch",
@@ -223,36 +286,41 @@ export const updateBranch = async (req, res) => {
   }
 };
 
-// Xóa branch
+// Ngừng kinh doanh branch
 export const deleteBranch = async (req, res) => {
   try {
-    const branch = await Branch.findByIdAndDelete(req.params.id);
+    const branch = await Branch.findById(req.params.id);
     if (!branch) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Branch not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Chi nhánh không tồn tại",
+      });
     }
 
-    // Xóa tất cả BranchDishStatus liên quan đến chi nhánh này
-    try {
-      await BranchDishStatus.deleteMany({ branchId: req.params.id });
-    } catch (statusError) {
-      console.error("Error deleting branch dish statuses:", statusError);
-      // Không throw error, vẫn trả về thành công
+    if (!branch.active) {
+      return res.status(200).json({
+        success: true,
+        message: "Chi nhánh đã ngừng kinh doanh",
+        data: branch,
+      });
     }
 
-    res
-      .status(200)
-      .json({ success: true, message: "Branch deleted successfully" });
+    branch.active = false;
+    await branch.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Ngừng kinh doanh chi nhánh thành công",
+      data: branch,
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error deleting branch",
+      message: "Không thể ngừng kinh doanh chi nhánh, vui lòng thử lại sau",
       error: error.message,
     });
   }
 };
-
 // Lấy danh sách món ăn của chi nhánh với trạng thái availability
 export const getBranchDishes = async (req, res) => {
   try {
@@ -292,7 +360,7 @@ export const getBranchDishes = async (req, res) => {
     // Lấy món ăn theo filters và populate category
     const dishes = await Dish.find(dishQuery)
       .select(
-        "_id name description price sale_price unit imageUrls defaultImageIndex category"
+        "_id name description price sale_price unit imageUrls defaultImageIndex category totalEnergyKcal totalProtein totalCarbs totalFat"
       )
       .populate("category", "name");
 
@@ -315,6 +383,10 @@ export const getBranchDishes = async (req, res) => {
         defaultImageIndex: dish.defaultImageIndex,
         imageUrls: dish.imageUrls || [],
         category: dish.category,
+        totalEnergyKcal: dish.totalEnergyKcal || 0,
+        totalProtein: dish.totalProtein || 0,
+        totalCarbs: dish.totalCarbs || 0,
+        totalFat: dish.totalFat || 0,
         isAvailableAtBranch:
           statusMap[dish._id.toString()] !== undefined
             ? statusMap[dish._id.toString()]
@@ -471,6 +543,47 @@ export const checkDishesAvailability = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error checking dishes availability",
+      error: error.message,
+    });
+  }
+};
+
+export const calculateBranchShippingFee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { shipping_info, items = [], insurance_value = 0 } = req.body;
+
+    const branch = await Branch.findById(id).lean();
+    if (!branch) {
+      return res.status(404).json({
+        success: false,
+        message: "Chi nhánh không tồn tại",
+      });
+    }
+
+    if (!branch.shop_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Chi nhánh chưa có shop_id GHN",
+      });
+    }
+
+    const ghnFee = await calculateGhnShippingFee({
+      branch,
+      shippingInfo: shipping_info,
+      items,
+      insuranceValue: insurance_value,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Tính phí giao hàng GHN thành công",
+      data: ghnFee,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Không thể tính phí giao hàng GHN",
       error: error.message,
     });
   }

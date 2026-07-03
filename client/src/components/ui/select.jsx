@@ -49,6 +49,7 @@ function SelectContent({
   className,
   children,
   position = "popper",
+  viewportClassName,
   ...props
 }) {
   return (
@@ -65,8 +66,9 @@ function SelectContent({
         {...props}>
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
+          data-slot="select-viewport"
           className={cn("p-1", position === "popper" &&
-            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1")}>
+            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1", viewportClassName)}>
           {children}
         </SelectPrimitive.Viewport>
         <SelectScrollDownButton />

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSelector } from "react-redux";
+import { io } from "socket.io-client";
 import { toast } from "sonner";
 import {
   ConciergeBell,
@@ -18,6 +19,8 @@ import { assets } from "@/assets/assets";
 import CreateOrderModal from "@/components/manager-view/modals/CreateOrderModal";
 import TableFormModal from "@/components/manager-view/modals/TableFormModal";
 import TableUpdateModal from "@/components/manager-view/modals/TableUpdateModal";
+
+const SOCKET_URL = import.meta.env.VITE_API_BASE_URL;
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
@@ -152,16 +155,83 @@ const TableCard = ({
 const TableQrModal = ({ table, onClose }) => {
   if (!table) return null;
 
-  const qrValue = table.qr_url || table.qr_token || table._id;
   const qrImage = table.qr_code_data_url;
+  const tableName = table.name || "Bàn";
 
-  const copyQr = async () => {
-    try {
-      await navigator.clipboard.writeText(qrValue);
-      toast.success("Đã sao chép link QR");
-    } catch {
-      toast.error("Không thể sao chép link QR");
+  const handlePrintQr = () => {
+    if (!qrImage) {
+      toast.error("Chưa có mã QR để in");
+      return;
     }
+
+    const printWindow = window.open("", "_blank", "width=520,height=680");
+    if (!printWindow) {
+      toast.error("Trình duyệt đã chặn cửa sổ in");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>In QR ${tableName}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-family: Arial, sans-serif;
+              color: #111827;
+              background: #ffffff;
+            }
+            .sheet {
+              width: 360px;
+              text-align: center;
+              padding: 24px;
+              border: 1px solid #e5e7eb;
+              border-radius: 16px;
+            }
+            h1 {
+              margin: 0 0 8px;
+              font-size: 24px;
+              font-weight: 800;
+            }
+            p {
+              margin: 0 0 20px;
+              font-size: 14px;
+              color: #6b7280;
+              font-weight: 600;
+            }
+            img {
+              width: 280px;
+              height: 280px;
+              object-fit: contain;
+            }
+            @media print {
+              body { min-height: auto; }
+              .sheet { border: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <h1>${tableName}</h1>
+            <p>Quét mã QR để mở E-menu và gọi món tại bàn</p>
+            <img src="${qrImage}" alt="QR ${tableName}" />
+          </div>
+          <script>
+            window.onload = () => {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   return (
@@ -195,29 +265,13 @@ const TableQrModal = ({ table, onClose }) => {
           )}
         </div>
 
-        <div className="mt-5 break-all rounded-lg bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-600">
-          {qrValue}
-        </div>
-
-        <div className="mt-5 grid grid-cols-2 gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={copyQr}
-            className="h-11 rounded-lg border-[#34ad54] text-sm font-bold text-[#34ad54]"
-          >
-            Sao chép link
-          </Button>
-          <Button
-            type="button"
-            onClick={() =>
-              window.open(qrValue, "_blank", "noopener,noreferrer")
-            }
-            className="h-11 rounded-lg bg-[#34ad54] text-sm font-bold text-white hover:bg-[#2f9b45]"
-          >
-            Mở E-menu
-          </Button>
-        </div>
+        <Button
+          type="button"
+          onClick={handlePrintQr}
+          className="mt-5 h-11 w-full rounded-lg bg-[#34ad54] text-sm font-bold text-white hover:bg-[#2f9b45]"
+        >
+          In QR
+        </Button>
       </div>
     </div>
   );
@@ -260,17 +314,16 @@ const MaManageTables = () => {
   const [editingTable, setEditingTable] = useState(null);
   const [qrTable, setQrTable] = useState(null);
 
-  const fetchTables = async () => {
+  const fetchTables = useCallback(async ({ silent = false } = {}) => {
     if (!accessToken || !branchId) return;
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [branchRes, tableRes] = await Promise.all([
         branchApi.getById(branchId),
         storeTableApi.getAll(accessToken, {
           branch_id: branchId,
           active: status === "all" ? undefined : status,
-          q: search || undefined,
           limit: 100,
         }),
       ]);
@@ -281,13 +334,40 @@ const MaManageTables = () => {
         error?.response?.data?.message || "Không thể tải danh sách bàn",
       );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [accessToken, branchId, status]);
 
   useEffect(() => {
     fetchTables();
-  }, [accessToken, branchId, status]);
+  }, [fetchTables]);
+
+  useEffect(() => {
+    if (!accessToken || !branchId || !SOCKET_URL) return undefined;
+
+    const socket = io(SOCKET_URL, {
+      auth: { token: accessToken },
+      transports: ["websocket", "polling"],
+    });
+
+    const refreshTables = () => {
+      fetchTables({ silent: true });
+    };
+
+    socket.on("connect", () => {
+      socket.emit("join_branch_room", branchId);
+    });
+    socket.on("new_order", refreshTables);
+    socket.on("order_status_updated", refreshTables);
+    socket.on("dine_in_order_paid", refreshTables);
+    socket.on("order_completed", refreshTables);
+    socket.on("order_cancelled", refreshTables);
+
+    return () => {
+      socket.emit("leave_branch_room", branchId);
+      socket.disconnect();
+    };
+  }, [accessToken, branchId, fetchTables]);
 
   const handleCreate = async (payload) => {
     try {
@@ -373,7 +453,7 @@ const MaManageTables = () => {
     <section className="min-h-[calc(100vh-92px)] bg-gray-50 px-2 py-2">
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Sơ đồ bàn QR</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Sơ đồ bàn</h2>
           <p className="mt-1 text-sm font-medium text-gray-500">
             {branch?.name || "Chi nhánh"} · {filteredTables.length} bàn
           </p>

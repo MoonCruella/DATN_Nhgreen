@@ -32,23 +32,23 @@ const OrdersTable = ({ orders = [], onRowClick, isLoading }) => {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div className="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
         <TableSkeleton rows={10} columns={6} />
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto shadow rounded-xl bg-white">
+    <div className="overflow-x-auto rounded-lg bg-white shadow-sm ring-1 ring-gray-100">
       <table className="w-full text-left">
-        <thead className="bg-gray-200">
+        <thead className="border-b border-gray-200 bg-white">
           <tr>
-            <th className="py-3 px-4 text-gray-700">Mã đơn</th>
-            <th className="py-3 px-4 text-gray-700">Khách hàng</th>
-            <th className="py-3 px-4 text-gray-700">Ngày đặt</th>
-            <th className="py-3 px-4 text-gray-700">Chi nhánh</th>
-            <th className="py-3 px-4 text-gray-700 text-center">Trạng thái</th>
-            <th className="py-3 px-4 text-gray-700 text-right">Tổng tiền</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Mã đơn</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Khách hàng</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Ngày đặt</th>
+            <th className="px-5 py-3 text-base font-bold text-slate-600">Chi nhánh</th>
+            <th className="px-5 py-3 text-center text-base font-bold text-slate-600">Trạng thái</th>
+            <th className="px-5 py-3 text-right text-base font-bold text-slate-600">Tổng tiền</th>
           </tr>
         </thead>
         <tbody className="bg-white">
@@ -56,30 +56,30 @@ const OrdersTable = ({ orders = [], onRowClick, isLoading }) => {
             orders.map((order) => (
               <tr
                 key={order._id}
-                className="border-b hover:bg-gray-50 cursor-pointer transition"
+                className="cursor-pointer border-b border-gray-100 text-base font-medium text-[#444] transition hover:bg-gray-50 last:border-b-0"
                 onClick={() => onRowClick && onRowClick(order)}
               >
-                <td className="py-3 px-4 text-gray-700 font-medium">
+                <td className="px-5 py-3 font-bold text-gray-800">
                   #{order.order_number || order._id?.slice(-8)}
                 </td>
-                <td className="py-3 px-4 text-gray-700">
+                <td className="px-5 py-3 text-gray-700">
                   <div>
-                    <div className="font-medium">{order.shipping_info?.name || "N/A"}</div>
+                    <div className="font-medium">{order.shipping_info?.name || ""}</div>
                     <div className="text-sm text-gray-500">{order.shipping_info?.phone || ""}</div>
                   </div>
                 </td>
-                <td className="py-3 px-4 text-gray-700">
+                <td className="px-5 py-3 text-gray-700">
                   {order.created_at
                     ? format(new Date(order.created_at), "dd/MM/yyyy HH:mm", { locale: vi })
-                    : "N/A"}
+                    : ""}
                 </td>
-                <td className="py-3 px-4 text-gray-700">
-                  {order.branch_info?.name || "N/A"}
+                <td className="px-5 py-3 text-gray-700">
+                  {order.branch_info?.name || ""}
                 </td>
-                <td className="py-3 px-4 text-center">
+                <td className="px-5 py-3 text-center">
                   {getStatusBadge(order.status)}
                 </td>
-                <td className="py-3 px-4 text-gray-700 text-right font-medium">
+                <td className="px-5 py-3 text-right font-bold text-gray-800">
                   {formatCurrency(order.total_amount || 0)}
                 </td>
               </tr>

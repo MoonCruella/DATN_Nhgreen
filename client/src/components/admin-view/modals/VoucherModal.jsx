@@ -153,23 +153,22 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg bg-white rounded-xl shadow-lg ring-1 ring-gray-100">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-xl bg-white px-6 py-6 shadow-xl ring-0 animate-modal-pop">
         <DialogHeader>
           <DialogTitle>
-            <div className="flex items-center justify-between">
-              <span className="text-lg font-medium text-gray-900">
+            <div className="mb-2 text-center">
+              <span className="text-lg font-bold text-black">
                 {initialData ? "Cập nhật Voucher" : "Thêm Voucher mới"}
               </span>
             </div>
           </DialogTitle>
-          <div className="mt-3 border-b border-gray-100 -mx-6 mb-4" />
         </DialogHeader>
 
-        <div className="px-2">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {/* Code */}
             <div className="col-span-1 md:col-span-2">
-              <Label className="text-sm text-gray-700">
+              <Label className="text-sm font-bold text-black">
                 Mã voucher <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -179,7 +178,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                   handleChange("code", e.target.value);
                 }}
                 placeholder="VD: SALE20"
-                className="mt-2"
+                className="mt-2 h-11 rounded-lg border-gray-200 text-sm font-medium text-black placeholder:text-gray-400 focus:border-green-500 focus-visible:ring-0"
               />
               {errors.code && (
                 <div className="mt-1 text-xs text-red-600">{errors.code}</div>
@@ -188,12 +187,12 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
 
             {/* Type */}
             <div>
-              <Label className="text-sm text-gray-700">Loại</Label>
+              <Label className="text-sm font-bold text-black">Loại</Label>
               <Select
                 value={form.type}
                 onValueChange={(val) => handleChange("type", val)}
               >
-                <SelectTrigger className="mt-2 w-full bg-white border border-gray-200 text-gray-800 rounded-lg focus:ring-2 focus:ring-gray-400">
+                <SelectTrigger className="mt-2 h-11 w-full rounded-lg border border-gray-200 bg-white text-sm font-medium text-slate-700 focus:border-green-500 focus:ring-0 focus-visible:ring-0">
                   <SelectValue placeholder="Chọn loại" />
                 </SelectTrigger>
                 <SelectContent>
@@ -212,7 +211,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                     checked={form.isPercent}
                     onCheckedChange={(val) => handleChange("isPercent", val)}
                   />
-                  <Label className="text-sm text-gray-700">Giảm theo %</Label>
+                  <Label className="text-sm font-bold text-black">Giảm theo %</Label>
                 </div>
               </div>
             )}
@@ -221,7 +220,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
             {form.type === "DISCOUNT" && (
               <>
                 <div>
-                  <Label className="text-sm text-gray-700">
+                  <Label className="text-sm font-bold text-black">
                     {form.isPercent ? "% giảm " : "Số tiền giảm (đ)"} <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -250,7 +249,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                       handleChange("discountValue", val);
                     }}
                     placeholder={form.isPercent ? "VD: 20" : "VD: 50000"}
-                    className="mt-2"
+                    className="mt-2 h-11 rounded-lg border-gray-200 text-sm font-medium text-black placeholder:text-gray-400 focus:border-green-500 focus-visible:ring-0"
                     aria-invalid={!!errors.discountValue}
                   />
                   {errors.discountValue && (
@@ -263,7 +262,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                 {/* Hiện 'Giảm tối đa' chỉ khi giảm theo % */}
                 {form.isPercent && (
                   <div>
-                    <Label className="text-sm text-gray-700">
+                    <Label className="text-sm font-bold text-black">
                       Giảm tối đa (đ) <span className="text-red-500">*</span>
                     </Label>
                     <Input
@@ -287,7 +286,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                         );
                       }}
                       placeholder="VD: 50000"
-                      className="mt-2"
+                      className="mt-2 h-11 rounded-lg border-gray-200 text-sm font-medium text-black placeholder:text-gray-400 focus:border-green-500 focus-visible:ring-0"
                     />
                     {errors.maxDiscount && (
                       <div className="mt-1 text-xs text-red-600">
@@ -302,7 +301,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
             {/* FREESHIP */}
             {form.type === "FREESHIP" && (
               <div className="md:col-span-2">
-                <Label className="text-sm text-gray-700">
+                <Label className="text-sm font-bold text-black">
                   Hỗ trợ phí ship tối đa (đ) <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -322,14 +321,14 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                     handleChange("maxDiscount", parseNumber(e.target.value))
                   }
                   placeholder="VD: 30000"
-                  className="mt-2"
+                  className="mt-2 h-11 rounded-lg border-gray-200 text-sm font-medium text-black placeholder:text-gray-400 focus:border-green-500 focus-visible:ring-0"
                 />
               </div>
             )}
 
             {/* Common fields */}
             <div>
-              <Label className="text-sm text-gray-700">
+              <Label className="text-sm font-bold text-black">
                 Đơn hàng tối thiểu
               </Label>
               <Input
@@ -349,7 +348,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                   setErrors((p) => ({ ...p, minOrderValue: null }));
                   handleChange("minOrderValue", parseNumber(e.target.value));
                 }}
-                className="mt-2"
+                className="mt-2 h-11 rounded-lg border-gray-200 text-sm font-medium text-black placeholder:text-gray-400 focus:border-green-500 focus-visible:ring-0"
               />
               {errors.minOrderValue && (
                 <div className="mt-1 text-xs text-red-600">
@@ -359,7 +358,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
             </div>
 
             <div>
-              <Label className="text-sm text-gray-700">Giới hạn số lượt</Label>
+              <Label className="text-sm font-bold text-black">Giới hạn số lượt</Label>
               <Input
                 type="text"
                 inputMode="numeric"
@@ -368,12 +367,12 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                 onChange={(e) =>
                   handleChange("usageLimit", Number(e.target.value))
                 }
-                className="mt-2"
+                className="mt-2 h-11 rounded-lg border-gray-200 text-sm font-medium text-black placeholder:text-gray-400 focus:border-green-500 focus-visible:ring-0"
               />
             </div>
 
             <div>
-              <Label className="text-sm text-gray-700">
+              <Label className="text-sm font-bold text-black">
                 Ngày bắt đầu <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -383,7 +382,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                   setErrors((p) => ({ ...p, startDate: null, endDate: null }));
                   handleChange("startDate", e.target.value);
                 }}
-                className="mt-2 cursor-pointer"
+                className="mt-2 h-11 cursor-pointer rounded-lg border-gray-200 text-sm font-medium text-black focus:border-green-500 focus-visible:ring-0"
               />
               {errors.startDate && (
                 <div className="mt-1 text-xs text-red-600">
@@ -393,7 +392,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
             </div>
 
             <div>
-              <Label className="text-sm text-gray-700">
+              <Label className="text-sm font-bold text-black">
                 Ngày kết thúc <span className="text-red-500">*</span>
               </Label>
               <Input
@@ -404,7 +403,7 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                   handleChange("endDate", e.target.value);
                 }}
                 disabled={!form.startDate}
-                className="mt-2 cursor-pointer disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="mt-2 h-11 cursor-pointer rounded-lg border-gray-200 text-sm font-medium text-black focus:border-green-500 focus-visible:ring-0 disabled:cursor-not-allowed disabled:bg-gray-100"
               />
               {errors.endDate && (
                 <div className="mt-1 text-xs text-red-600">
@@ -419,23 +418,23 @@ export default function VoucherForm({ open, onClose, onSubmit, initialData }) {
                 checked={form.active}
                 onCheckedChange={(val) => handleChange("active", val)}
               />
-              <Label className="text-sm text-gray-700">Đang hoạt động</Label>
+              <Label className="text-sm font-bold text-black">Đang hoạt động</Label>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="mt-4">
-          <div className="flex items-center justify-end gap-3 w-full">
+        <DialogFooter className="mt-6">
+          <div className="grid w-full grid-cols-2 gap-3">
             <Button
               variant="outline"
               onClick={onClose}
-              className="px-4 py-2 rounded-md border-gray-200 text-gray-700 hover:bg-gray-50 transition cursor-pointer"
+              className="h-10 cursor-pointer rounded-lg border-green-500 text-sm font-bold text-green-600 hover:bg-green-50 hover:text-green-700"
             >
-              Hủy
+              Quay lại
             </Button>
             <Button
               onClick={handleSubmit}
-              className="px-4 py-2 rounded-md bg-green-600 hover:bg-green-700 text-white transition cursor-pointer"
+              className="h-10 cursor-pointer rounded-lg bg-[#34ad54] text-sm font-bold text-white hover:bg-[#2f9b45]"
             >
               Lưu
             </Button>

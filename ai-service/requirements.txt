@@ -1,8 +1,0 @@
-fastapi
-uvicorn[standard]
-pandas
-numpy<2
-scikit-surprise
-python-dotenv
-pymongo
-python-multipart

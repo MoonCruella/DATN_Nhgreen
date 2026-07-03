@@ -4,6 +4,10 @@ import { useSelector } from "react-redux";
 import IngredientTable from "@/components/admin-view/tables/IngredientTable";
 import IngredientModal from "@/components/admin-view/modals/IngredientModal";
 import ingredientApi from "@/api/ingredientApi";
+import { ChevronRight, Search, Store } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import FilterSelect from "@/components/common/FilterSelect";
+import AdminPagination from "@/components/admin-view/AdminPagination";
 
 const AdminIngredients = () => {
   const [ingredients, setIngredients] = useState([]);
@@ -16,6 +20,8 @@ const AdminIngredients = () => {
   const [qName, setQName] = useState("");
   const [qStatus, setQStatus] = useState("");
   const [qType, setQType] = useState("");
+  const [appliedStatus, setAppliedStatus] = useState("");
+  const [appliedType, setAppliedType] = useState("");
 
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -32,8 +38,8 @@ const AdminIngredients = () => {
         page,
         limit,
         name: qName,
-        status: qStatus,
-        type: qType,
+        status: appliedStatus,
+        type: appliedType,
         ...opts,
       };
       const res = await ingredientApi.getAll(token, params);
@@ -57,7 +63,7 @@ const AdminIngredients = () => {
   useEffect(() => {
     if (!isAuthenticated || user?.role !== "admin") return;
     loadIngredients();
-  }, [isAuthenticated, user, qName, qStatus, qType, page]);
+  }, [isAuthenticated, user, qName, appliedStatus, appliedType, page]);
 
   const handleAdd = () => {
     setEditing(null);
@@ -65,8 +71,9 @@ const AdminIngredients = () => {
   };
 
   // Điều khiển chuyển trang: chỉ set page, effect sẽ load dữ liệu
-  const handlePageChange = (p) => {
-    setPage(p);
+  const handlePageChange = (nextPage) => {
+    if (nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    setPage(nextPage);
   };
 
   const handleRowClick = (it) => {
@@ -107,98 +114,134 @@ const AdminIngredients = () => {
     }
   };
 
+  const applyFilters = () => {
+    setAppliedStatus(qStatus);
+    setAppliedType(qType);
+    setPage(1);
+  };
+
+  const hasActiveFilters =
+    Boolean(qName.trim()) ||
+    Boolean(qStatus) ||
+    Boolean(qType) ||
+    Boolean(appliedStatus) ||
+    Boolean(appliedType);
+
   return (
-    <main className="bg-gray-50 min-h-screen">
-      <section className="w-full px-4 pt-8">
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex items-center justify-between">
-          <div className="text-lg font-medium">Quản lý nguyên liệu</div>
-          <div className="flex items-center gap-5">
-            <div className="flex items-center gap-4">
-              <input
-                type="text"
-                placeholder="Tìm theo tên"
-                value={qName}
-                onChange={(e) => {
-                  setQName(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition"
-              />
-              <select
-                value={qStatus}
-                onChange={(e) => {
-                  setQStatus(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition cursor-pointer"
-              >
-                <option value="">Tất cả</option>
-                <option value="available">Có sẵn</option>
-                <option value="discontinued">Ngừng bán</option>
-              </select>
-              <select
-                value={qType}
-                onChange={(e) => {
-                  setQType(e.target.value);
-                  setPage(1);
-                }}
-                className="border rounded-lg px-3 py-2 border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 transition cursor-pointer"
-              >
-                <option value="">Tất cả loại</option>
-                <option value="tinh_bot">Tinh bột</option>
-                <option value="protein_dong_vat">Protein động vật</option>
-                <option value="protein_thuc_vat">Protein thực vật</option>
-                <option value="rau_cu_qua">Rau, củ, quả</option>
-                <option value="trai_cay">Trái cây</option>
-                <option value="do_uong">Đồ uống</option>
-                <option value="do_ngot">Đồ ngọt</option>
-              </select>
-              {/* Search happens automatically while typing/selecting */}
-              <button
-                onClick={() => {
-                  setQName("");
-                  setQStatus("");
-                  setQType("");
-                  setPage(1);
-                }}
-                className="px-3 py-2 bg-gray-100 rounded-lg transition hover:bg-gray-200 cursor-pointer"
-              >
-                Đặt lại
-              </button>
-            </div>
-
-            <div className="flex items-center">
-              <button
-                onClick={handleAdd}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg transition transform hover:scale-105 hover:bg-green-700 active:scale-95 cursor-pointer"
-              >
-                + Thêm nguyên liệu
-              </button>
-            </div>
-          </div>
+    <section className="min-h-[calc(100vh-92px)] bg-[#f7f7f8] px-3 py-3">
+      <header className="mb-5 flex items-center gap-2 text-lg font-bold">
+        <div className="flex items-center gap-2 text-gray-900">
+          <Store className="h-5 w-5" strokeWidth={1.8} />
+          Quản trị hệ thống
         </div>
-      </section>
+        <ChevronRight className="h-5 w-5 text-gray-500" />
+        <div className="text-[#34ad54]">Kho nguyên liệu</div>
+      </header>
 
-      <section className="pb-16 w-full px-4">
+      <div className="mb-4 flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-start">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+          <div className="relative w-full lg:w-[300px]">
+            <input
+              type="text"
+              placeholder="Tên nguyên liệu"
+              value={qName}
+              onChange={(e) => {
+                setQName(e.target.value);
+                setPage(1);
+              }}
+              className="h-12 w-full rounded-lg border border-gray-200 bg-white px-4 pr-11 text-base font-medium text-gray-800 outline-none placeholder:text-slate-300 focus:border-[#34ad54]"
+            />
+            <Search className="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          </div>
+
+          <div className="text-base font-bold text-gray-500">Lọc bởi:</div>
+
+          <FilterSelect
+            label="Trạng thái"
+            value={qStatus || "all"}
+            onChange={(value) => {
+              setQStatus(value === "all" ? "" : value);
+            }}
+            options={[
+              { value: "all", label: "Tất cả trạng thái" },
+              { value: "available", label: "Có sẵn" },
+              { value: "discontinued", label: "Ngừng bán" },
+            ]}
+            className="lg:w-[220px]"
+          />
+
+          <FilterSelect
+            label="Loại"
+            value={qType || "all"}
+            onChange={(value) => {
+              setQType(value === "all" ? "" : value);
+            }}
+            options={[
+              { value: "all", label: "Tất cả loại" },
+              { value: "tinh_bot", label: "Tinh bột" },
+              { value: "protein_dong_vat", label: "Protein động vật" },
+              { value: "protein_thuc_vat", label: "Protein thực vật" },
+              { value: "rau_cu_qua", label: "Rau, củ, quả" },
+              { value: "trai_cay", label: "Trái cây" },
+              { value: "do_uong", label: "Đồ uống" },
+              { value: "do_ngot", label: "Đồ ngọt" },
+            ]}
+            className="lg:w-[220px]"
+          />
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setQName("");
+                setQStatus("");
+                setQType("");
+                setAppliedStatus("");
+                setAppliedType("");
+                setPage(1);
+              }}
+              className="whitespace-nowrap text-base font-bold text-[#34ad54] underline underline-offset-4 hover:text-[#2f9b45]"
+            >
+              Chọn mặc định
+            </button>
+          )}
+
+        </div>
+
+        <Button
+          type="button"
+          onClick={applyFilters}
+          className="h-12 w-full min-w-[110px] shrink-0 rounded-lg bg-[#34ad54] px-5 text-base font-bold text-white hover:bg-[#2f9b45] sm:w-auto"
+        >
+          Áp dụng
+        </Button>
+
+        <Button
+          type="button"
+          onClick={handleAdd}
+          className="h-12 rounded-lg bg-[#34ad54] px-5 text-base font-bold text-white hover:bg-[#2f9b45]"
+        >
+          + Thêm nguyên liệu
+        </Button>
+      </div>
+
+      <section className="pb-16 w-full">
         <IngredientTable
           ingredients={ingredients}
           isLoading={isLoading}
           onRowClick={handleRowClick}
           page={page}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
           pageSize={limit}
         />
 
-        {/* Footer showing counts */}
-        <div className="mt-3 text-xs text-gray-600 flex items-center justify-between">
-          <div>
-            Hiển thị {ingredients.length} / {totalItems} nguyên liệu
-          </div>
-          <div>
-            Trang {page} / {totalPages}
-          </div>
-        </div>
+        <AdminPagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={limit}
+          itemLabel="nguyên liệu"
+          onPageChange={handlePageChange}
+        />
       </section>
 
       <IngredientModal
@@ -208,7 +251,7 @@ const AdminIngredients = () => {
         onSubmit={handleSubmit}
         onDelete={handleDelete}
       />
-    </main>
+    </section>
   );
 };
 

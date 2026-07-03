@@ -1,169 +1,201 @@
 import React from "react";
 
-const PrintableBill = React.forwardRef(
-  ({ order, formatCurrency, formatDateTime }, ref) => {
-    return (
-      <div ref={ref} className="hidden">
-        <div className="header">
-          <h2>HÓA ĐƠN BÁN HÀNG</h2>
-          <p>{order.branch_info?.name || "NHÀ HÀNG"}</p>
-          <p>
-            {order.branch_info?.address?.full_address ||
-              order.branch_info?.phone ||
-              ""}
-          </p>
-        </div>
+const formatMoney = (value = 0) =>
+  `${new Intl.NumberFormat("vi-VN").format(value || 0)} VND`;
 
-        <div className="info">
-          <div className="info-row">
-            <span>Mã đơn:</span>
-            <strong>#{order.order_number}</strong>
-          </div>
-          <div className="info-row">
-            <span>Ngày:</span>
-            <span>{formatDateTime(order.created_at)}</span>
-          </div>
-          <div className="info-row">
-            <span>Khách:</span>
-            <span>{order.shipping_info?.name}</span>
-          </div>
-          <div className="info-row">
-            <span>SĐT:</span>
-            <span>{order.shipping_info?.phone}</span>
-          </div>
-        </div>
+const getTextValue = (value) =>
+  typeof value === "string" ? value.trim() : value;
 
-        <div className="divider"></div>
+const getAddressPart = (value) =>
+  value && typeof value === "object" ? value.name : value;
 
-        <div style={{ margin: "8px 0", fontSize: "10px" }}>
-          <div style={{ fontWeight: "bold", marginBottom: "3px" }}>
-            ĐỊA CHỈ GIAO HÀNG:
-          </div>
-          <div>
-            {order.shipping_info?.address}
-            {order.shipping_info?.ward && `, ${order.shipping_info.ward}`}
-            {order.shipping_info?.district &&
-              `, ${order.shipping_info.district}`}
-            {order.shipping_info?.province &&
-              `, ${order.shipping_info.province}`}
-          </div>
-        </div>
+const getShippingAddress = (shippingInfo = {}) =>
+  shippingInfo.full_address ||
+  [
+    shippingInfo.address,
+    getAddressPart(shippingInfo.ward),
+    getAddressPart(shippingInfo.district),
+    getAddressPart(shippingInfo.province),
+  ]
+    .filter(Boolean)
+    .join(", ");
 
-        <div className="divider"></div>
+const getOrderCode = (order) =>
+  order?.order_number ||
+  order?.code ||
+  order?._id?.slice(-6)?.toUpperCase() ||
+  "----";
 
-        <table>
-          <thead>
-            <tr>
-              <th className="item-name">Món</th>
-              <th className="item-qty">SL</th>
-              <th className="item-price">Giá</th>
-            </tr>
-          </thead>
-          <tbody>
-            {order.items?.map((item, index) => (
-              <tr key={index}>
-                <td className="item-name">
-                  {item.dish_name}
-                  <br />
-                  <small style={{ fontSize: "9px", color: "#666" }}>
-                    {item.sale_price && item.sale_price < item.price ? (
-                      // Hiển thị giá gốc gạch đi và giá sale
-                      <>
-                        <span
-                          style={{
-                            textDecoration: "line-through",
-                            marginRight: "4px",
-                          }}
-                        >
-                          {formatCurrency(item.price)}
-                        </span>
-                        <span style={{ color: "#16a34a", fontWeight: "600" }}>
-                          {formatCurrency(item.sale_price)}
-                        </span>
-                      </>
-                    ) : (
-                      // Hiển thị giá thường
-                      formatCurrency(item.price)
-                    )}
-                  </small>
-                </td>
-                <td className="item-qty">{item.quantity}</td>
-                <td className="item-price">
-                  <strong>
-                    {formatCurrency(
-                      (item.sale_price || item.price) * item.quantity
-                    )}
-                  </strong>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+const getOrderDateTime = (order) => {
+  const date = order?.completed_at || order?.payment_date || order?.created_at
+    ? new Date(order.completed_at || order.payment_date || order.created_at)
+    : new Date();
 
-        <div className="summary">
-          <div className="summary-row">
-            <span>Tạm tính:</span>
-            <span>{formatCurrency(order.subtotal)}</span>
-          </div>
-          <div className="summary-row">
-            <span>Phí giao hàng:</span>
-            <span>{formatCurrency(order.shipping_fee)}</span>
-          </div>
-          {order.freeship_value > 0 && (
-            <div className="summary-row">
-              <span>Giảm ship:</span>
-              <span>-{formatCurrency(order.freeship_value)}</span>
-            </div>
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+};
+
+const getPaymentMethodLabel = (method) => {
+  if (method === "momo") return "MoMo";
+  if (method === "zalopay") return "ZaloPay";
+  if (method === "vnpay") return "VNPay";
+  if (method === "bank_transfer") return "Chuyển khoản";
+  return "Tiền mặt";
+};
+
+const getPaymentStatusLabel = (status) => {
+  if (status === "paid") return "Đã thanh toán";
+  if (status === "refunded") return "Đã hoàn tiền";
+  if (status === "failed") return "Thanh toán lỗi";
+  return "Chưa thanh toán";
+};
+
+const getItemPrice = (item) => item?.sale_price || item?.price || 0;
+
+const getItemName = (item) => item?.dish_name || item?.name || "Sản phẩm";
+
+const PrintableBill = React.forwardRef(({ order }, ref) => {
+  const tableName = order?.table_info?.name || order?.table_id?.name || "";
+  const isDineIn = order.order_type === "dine_in" || Boolean(tableName);
+  const customerName =
+    !isDineIn && getTextValue(order.shipping_info?.name) ||
+    "Khách vãng lai";
+  const customerPhone =
+    !isDineIn && getTextValue(order.shipping_info?.phone) ||
+    "";
+  const shippingAddress = getShippingAddress(order.shipping_info);
+  const items = order.items || [];
+
+  return (
+    <div ref={ref} className="hidden">
+      <div className="bill-card">
+        <h3 className="bill-brand">NHGREEN</h3>
+        <p className="bill-company">
+          Địa chỉ Công ty/ Doanh nghiệp: tỉnh Sơn La, Việt Nam
+        </p>
+
+        <h4 className="bill-title">HÓA ĐƠN BÁN HÀNG</h4>
+
+        <div className="bill-info-grid">
+          <span>Mã hóa đơn:</span>
+          <span className="bill-right">{getOrderCode(order)}</span>
+          {isDineIn && (
+            <>
+              <span>Bàn:</span>
+              <span className="bill-right">{tableName || "Bàn"}</span>
+            </>
           )}
-          {order.discount_value > 0 && (
-            <div className="summary-row">
-              <span>Giảm giá:</span>
-              <span>-{formatCurrency(order.discount_value)}</span>
-            </div>
+          {!isDineIn && (
+            <>
+              <span>Khách hàng:</span>
+              <span className="bill-right">{customerName}</span>
+              {customerPhone && (
+                <>
+                  <span>SĐT:</span>
+                  <span className="bill-right">{customerPhone}</span>
+                </>
+              )}
+            </>
           )}
-          <div className="summary-row total">
-            <span>TỔNG CỘNG:</span>
-            <span>{formatCurrency(order.total_amount)}</span>
-          </div>
-          <div className="summary-row">
-            <span>Thanh toán:</span>
-            <span>
-              {order.payment_method === "vnpay"
-                ? "VNPay"
-                : order.payment_method === "zalopay"
-                ? "ZaloPay"
-                : "COD"}
-            </span>
-          </div>
-          <div className="summary-row">
-            <span>Trạng thái:</span>
-            <span>
-              {order.payment_status === "paid"
-                ? "Đã thanh toán"
-                : "Chưa thanh toán"}
-            </span>
-          </div>
+          <span>Thời gian:</span>
+          <span className="bill-right">{getOrderDateTime(order)}</span>
+          <span>Thanh toán:</span>
+          <span className="bill-right">
+            {getPaymentMethodLabel(order.payment_method)}
+          </span>
+          <span>Trạng thái:</span>
+          <span className="bill-right">
+            {getPaymentStatusLabel(order.payment_status)}
+          </span>
         </div>
 
-        {order.notes && (
-          <div
-            style={{ margin: "10px 0", fontSize: "9px", fontStyle: "italic" }}
-          >
-            <strong>Ghi chú:</strong> {order.notes}
+        {!isDineIn && shippingAddress && (
+          <div className="bill-address">
+            <div>Địa chỉ giao hàng:</div>
+            <p>{shippingAddress}</p>
           </div>
         )}
 
-        <div className="footer">
-          <p>*** CẢM ƠN QUÝ KHÁCH ***</p>
-          <p>Hẹn gặp lại!</p>
+        <div className="bill-items-header">
+          <div>STT</div>
+          <div>Tên sản phẩm</div>
+          <div className="bill-center">SL</div>
+          <div className="bill-right">Đơn giá</div>
+          <div className="bill-right">Thành tiền</div>
         </div>
+
+        <div>
+          {items.map((item, index) => {
+            const price = getItemPrice(item);
+
+            return (
+              <div key={item._id || index} className="bill-item-row">
+                <div>{index + 1}</div>
+                <div className="bill-item-name">{getItemName(item)}</div>
+                <div className="bill-center">{item.quantity}</div>
+                <div className="bill-right">{formatMoney(price)}</div>
+                <div className="bill-right">
+                  {formatMoney(price * item.quantity)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="bill-subtotal">
+          <div className="bill-summary-row">
+            <span>Tổng cộng:</span>
+            <span>{formatMoney(order.total_amount)}</span>
+          </div>
+          {!isDineIn && Number(order.shipping_fee || 0) > 0 && (
+            <div className="bill-summary-row">
+              <span>Phí giao hàng:</span>
+              <span>{formatMoney(order.shipping_fee)}</span>
+            </div>
+          )}
+          {Number(order.freeship_value || 0) > 0 && (
+            <div className="bill-summary-row">
+              <span>Giảm ship:</span>
+              <span>-{formatMoney(order.freeship_value)}</span>
+            </div>
+          )}
+          {Number(order.discount_value || 0) > 0 && (
+            <div className="bill-summary-row">
+              <span>Giảm giá:</span>
+              <span>-{formatMoney(order.discount_value)}</span>
+            </div>
+          )}
+          {Number(order.coin_discount || 0) > 0 && (
+            <div className="bill-summary-row">
+              <span>Sử dụng xu:</span>
+              <span>-{formatMoney(order.coin_discount)}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="bill-total">
+          <span>Tổng tiền:</span>
+          <span>{formatMoney(order.total_amount)}</span>
+        </div>
+
+        {order.notes && (
+          <div className="bill-note">
+            <span>Ghi chú:</span> {order.notes}
+          </div>
+        )}
+
+        <p className="bill-thanks">NHGREEN xin chân thành cảm ơn!</p>
       </div>
-    );
-  }
-);
+    </div>
+  );
+});
 
 PrintableBill.displayName = "PrintableBill";
 
 export default PrintableBill;
-
-

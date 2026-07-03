@@ -34,7 +34,9 @@ import vegetarian_meals from "./vegetarian_meals.png";
 import avatar from "./avatar.png";
 import add_icon from "./add_order_icon.png";
 import paid from "./paid.png";
+import momo_icon from "./momo.png";
 import serving_dish from "./serving-dish.png";
+import ghn_icon from "./ghn.webp";
 export const assets = {
   logo,
   xIcon,
@@ -57,6 +59,7 @@ export const assets = {
   vnpay_icon,
   cod_icon,
   zalo_pay,
+  momo_icon,
   edit_icon,
   delete_icon,
   voucher_icon,
@@ -73,6 +76,7 @@ export const assets = {
   add_icon,
   paid,
   serving_dish,
+  ghn_icon,
 };
 export const categoriesColors = [
   {

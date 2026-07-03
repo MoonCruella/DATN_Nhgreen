@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Star,
   AlertTriangle,
+  Utensils,
 } from "lucide-react";
 
 const MaNotifications = () => {
@@ -57,7 +58,7 @@ const MaNotifications = () => {
     if (!accessToken) return;
 
     const newSocket = io(
-      import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+      import.meta.env.VITE_API_BASE_URL,
       {
         auth: { token: accessToken },
         transports: ["websocket", "polling"],
@@ -74,9 +75,6 @@ const MaNotifications = () => {
 
     newSocket.on("new_notification", (notification) => {
       setNotifications((prev) => [notification, ...prev]);
-      toast.info(notification.title, {
-        description: notification.message,
-      });
     });
 
     setSocket(newSocket);
@@ -194,6 +192,51 @@ const MaNotifications = () => {
     });
   };
 
+  const getReferenceOrder = (notification) =>
+    notification.reference_model === "Order" &&
+    notification.reference_id &&
+    typeof notification.reference_id === "object"
+      ? notification.reference_id
+      : null;
+
+  const getReferenceId = (notification) => {
+    const reference = notification.reference_id;
+    if (!reference) return "";
+    return typeof reference === "object" ? reference._id : reference;
+  };
+
+  const isDineInOrderNotification = (notification) => {
+    const metadata = notification.metadata || {};
+    const referenceOrder = getReferenceOrder(notification);
+
+    return (
+      metadata.order_type === "dine_in" ||
+      metadata.order_channel === "dine_in" ||
+      metadata.order_channel === "dine_in_qr" ||
+      referenceOrder?.order_type === "dine_in" ||
+      referenceOrder?.order_channel === "dine_in" ||
+      referenceOrder?.order_channel === "dine_in_qr" ||
+      Boolean(metadata.table_id || referenceOrder?.table_id)
+    );
+  };
+
+  const getOrderKindBadge = (notification) => {
+    if (notification.reference_model !== "Order") return null;
+
+    const dineIn = isDineInOrderNotification(notification);
+    return (
+      <span
+        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
+          dineIn
+            ? "bg-emerald-50 text-emerald-700"
+            : "bg-sky-50 text-sky-700"
+        }`}
+      >
+        {dineIn ? "Đơn tại bàn" : "Đơn online"}
+      </span>
+    );
+  };
+
   const handleNotificationClick = (notification) => {
     if (!notification.is_read) {
       handleMarkAsRead(notification._id);
@@ -201,7 +244,12 @@ const MaNotifications = () => {
 
     // Navigate based on notification type
     if (notification.reference_model === "Order" && notification.reference_id) {
-      navigate(`/manager/orders/${notification.reference_id}`);
+      if (isDineInOrderNotification(notification)) {
+        navigate("/manager/tables");
+        return;
+      }
+
+      navigate(`/manager/orders/${getReferenceId(notification)}`);
     } else if (notification.reference_model === "Rating" && notification.reference_id) {
       navigate(`/manager/ratings`);
     }
@@ -267,7 +315,11 @@ const MaNotifications = () => {
                     !notification.is_read ? "bg-green-50" : "bg-gray-50"
                   }`}
                 >
-                  {getNotificationIcon(notification.type)}
+                  {isDineInOrderNotification(notification) ? (
+                    <Utensils className="w-5 h-5 text-emerald-600" />
+                  ) : (
+                    getNotificationIcon(notification.type)
+                  )}
                 </div>
 
                 {/* Content */}
@@ -281,6 +333,11 @@ const MaNotifications = () => {
                       >
                         {notification.title}
                       </h3>
+                      {getOrderKindBadge(notification) && (
+                        <div className="mb-2">
+                          {getOrderKindBadge(notification)}
+                        </div>
+                      )}
                       <p className="text-sm text-gray-600 mb-2">
                         {notification.message}
                       </p>

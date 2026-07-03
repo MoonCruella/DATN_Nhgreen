@@ -100,6 +100,14 @@ const loginUser = async (req, res) => {
     }
 
     // Kiểm tra xem user đã verify OTP chưa (kiểm tra trước khi check password)
+    if (checkUser.disabled) {
+      return res.json({
+        success: false,
+        disabled: true,
+        message: "Tai khoan da bi vo hieu hoa. Vui long lien he quan tri vien.",
+      });
+    }
+
     if (!checkUser.active) {
       // Gửi lại OTP nếu chưa verify
       const otpResult = await sendOtpToEmail(email);
@@ -132,6 +140,7 @@ const loginUser = async (req, res) => {
       coin: checkUser.coin,
       name: checkUser.name,
       active: checkUser.active,
+      disabled: checkUser.disabled,
       address: checkUser.address,
       phone: checkUser.phone,
       gender: checkUser.gender,
@@ -166,6 +175,7 @@ const loginUser = async (req, res) => {
           coin: checkUser.coin,
           name: checkUser.name,
           active: checkUser.active,
+          disabled: checkUser.disabled,
           address: checkUser.address,
           phone: checkUser.phone,
           gender: checkUser.gender,
@@ -216,6 +226,14 @@ const refreshToken = async (req, res) => {
     }
 
     // Kiểm tra refresh token có trong database không
+    if (user.disabled) {
+      return res.status(403).json({
+        success: false,
+        disabled: true,
+        message: "Tai khoan da bi vo hieu hoa. Vui long lien he quan tri vien.",
+      });
+    }
+
     const tokenExists = user.refresh_tokens.find(
       (item) => item.token === refreshToken
     );
@@ -241,6 +259,7 @@ const refreshToken = async (req, res) => {
       coin: user.coin,
       name: user.name,
       active: user.active,
+      disabled: user.disabled,
       address: user.address,
       phone: user.phone,
       gender: user.gender,
@@ -270,6 +289,7 @@ const refreshToken = async (req, res) => {
           coin: user.coin,
           name: user.name,
           active: user.active,
+          disabled: user.disabled,
           address: user.address,
           phone: user.phone,
           gender: user.gender,

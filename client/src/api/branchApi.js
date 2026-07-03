@@ -25,7 +25,7 @@ const branchApi = {
     });
     return res.data;
   },
-  remove: async (accessToken, id) => {
+  deactivate: async (accessToken, id) => {
     const headers = accessToken
       ? { Authorization: `Bearer ${accessToken}` }
       : undefined;
@@ -60,6 +60,14 @@ const branchApi = {
     const response = await axiosPublic.post(
       `/api/branches/${branchId}/dishes/check-availability`,
       { dishIds }
+    );
+    return response.data;
+  },
+
+  calculateShippingFee: async (branchId, payload) => {
+    const response = await axiosPublic.post(
+      `/api/branches/${branchId}/shipping-fee`,
+      payload
     );
     return response.data;
   },

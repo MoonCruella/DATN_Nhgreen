@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { assets } from "@/assets/assets";
@@ -17,7 +17,6 @@ const ProductCard = ({ product }) => {
   const formatCurrency = (value) =>
     value?.toLocaleString("vi-VN", { style: "currency", currency: "VND" });
 
-  // Xử lý thêm vào giỏ
   const handleAddToCart = async (e) => {
     e.preventDefault();
 
@@ -49,7 +48,7 @@ const ProductCard = ({ product }) => {
   return (
     <div
       onClick={() => navigate(`/products/${product._id}`)}
-      className="group p-4 mx-4 my-2 bg-white border border-gray-200 overflow-hidden hover:shadow-lg transition duration-300 w-70 cursor-pointer"
+      className="group relative p-4 mx-4 my-2 bg-white border border-gray-200 overflow-visible hover:shadow-lg transition duration-300 w-70 cursor-pointer"
     >
       {/* Thumbnail */}
       <div className="relative overflow-hidden ">

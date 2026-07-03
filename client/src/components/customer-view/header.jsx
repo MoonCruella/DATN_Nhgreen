@@ -47,13 +47,12 @@ const CustomerHeader = () => {
   }, []);
 
   const handleLogout = async () => {
+    const loadingToast = toast.loading("Đang đăng xuất...");
     try {
-      const loadingToast = toast.loading("Đang đăng xuất...");
-      await dispatch(logoutUser()).unwrap?.();
-      toast.dismiss(loadingToast);
-      toast.success("Đăng xuất thành công");
+      await dispatch(logoutUser()).unwrap();
+      toast.success("Đăng xuất thành công", { id: loadingToast });
     } catch (err) {
-      toast.error("Có lỗi xảy ra khi đăng xuất");
+      toast.error("Có lỗi xảy ra khi đăng xuất", { id: loadingToast });
     }
     setAccountOpen(false);
     navigate("/");

@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { getAllProvinces, getCoordinatesFromAddress } from "@/api/locationApi";
+import {
+  getAllProvinces,
+  getCoordinatesFromAddress,
+  getDistrictByCode,
+  getProvinceByCode,
+} from "@/api/locationApi";
 import AddressAutocomplete from "@/components/customer-view/address/AddressAutocomplete";
 
 const BranchModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
@@ -18,6 +23,8 @@ const BranchModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
   });
 
   const [provinces, setProvinces] = useState([]);
+  const [districts, setDistricts] = useState([]);
+  const [wards, setWards] = useState([]);
 
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -25,16 +32,6 @@ const BranchModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingCoords, setLoadingCoords] = useState(false);
-
-  // derived lists
-  const selectedProvince = provinces.find(
-    (p) => p.code === Number(form.provinceCode)
-  );
-  const districts = selectedProvince ? selectedProvince.districts || [] : [];
-  const selectedDistrict = districts.find(
-    (d) => d.code === Number(form.districtCode)
-  );
-  const wards = selectedDistrict ? selectedDistrict.wards || [] : [];
 
   useEffect(() => {
     // fetch provinces with depth=3 once
@@ -44,6 +41,34 @@ const BranchModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
         console.error("Failed to load provinces", e);
       });
   }, []);
+
+  useEffect(() => {
+    const loadDistrictsAndWards = async () => {
+      if (!form.provinceCode) {
+        setDistricts([]);
+        setWards([]);
+        return;
+      }
+
+      const province = await getProvinceByCode(form.provinceCode);
+      const nextDistricts = province?.districts || [];
+      setDistricts(nextDistricts);
+
+      if (!form.districtCode) {
+        setWards([]);
+        return;
+      }
+
+      const district = await getDistrictByCode(form.districtCode);
+      setWards(district?.wards || []);
+    };
+
+    loadDistrictsAndWards().catch((error) => {
+      console.error("Failed to load GHN districts/wards", error);
+      setDistricts([]);
+      setWards([]);
+    });
+  }, [form.provinceCode, form.districtCode]);
 
   useEffect(() => {
     if (initialData) {
@@ -177,11 +202,11 @@ const BranchModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
     const province = provinces.find(
       (p) => p.code === Number(form.provinceCode)
     );
-    const district = (province?.districts || []).find(
+    const district = districts.find(
       (d) => d.code === Number(form.districtCode)
     );
-    const ward = (district?.wards || []).find(
-      (w) => w.code === Number(form.wardCode)
+    const ward = wards.find(
+      (w) => String(w.code) === String(form.wardCode)
     );
 
     // Chỉ dùng phường/quận/tỉnh để fetch tọa độ
@@ -215,11 +240,11 @@ const BranchModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
     const province = provinces.find(
       (p) => p.code === Number(form.provinceCode)
     );
-    const district = (province?.districts || []).find(
+    const district = districts.find(
       (d) => d.code === Number(form.districtCode)
     );
-    const ward = (district?.wards || []).find(
-      (w) => w.code === Number(form.wardCode)
+    const ward = wards.find(
+      (w) => String(w.code) === String(form.wardCode)
     );
 
     const address = {
@@ -325,7 +350,8 @@ const BranchModal = ({ open, onClose, initialData, onSubmit, onDelete }) => {
                   ?.name || ""
               }
               ward={
-                wards.find((w) => w.code === Number(form.wardCode))?.name || ""
+                wards.find((w) => String(w.code) === String(form.wardCode))
+                  ?.name || ""
               }
             />
             {form.coordinates?.latitude && form.coordinates?.longitude && (
