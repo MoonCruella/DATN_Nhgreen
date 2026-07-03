@@ -1,19 +1,30 @@
 import React, { useState } from "react";
-import {
-  X,
-  User,
-  Mail,
-  Phone,
-  Shield,
-  CheckCircle,
-  XCircle,
-  MapPin,
-  Ban,
-  Unlock,
-  Power,
-} from "lucide-react";
+import { Ban, CheckCircle, Power, Unlock, User, X, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
+
+const formatDateTime = (value) =>
+  value ? format(new Date(value), "HH:mm dd/MM/yyyy", { locale: vi }) : "";
+
+const displayValue = (value) => value || "";
+
+const DetailRow = ({ label, value, children }) => (
+  <div className="grid grid-cols-[180px_1fr] gap-4 border-b border-gray-100 px-1 py-3 last:border-b-0">
+    <div className="text-sm font-semibold text-gray-500">{label}</div>
+    <div className="break-words text-sm font-semibold text-gray-900">
+      {children || displayValue(value)}
+    </div>
+  </div>
+);
+
+const Section = ({ title, children }) => (
+  <section className="rounded-lg border border-gray-200 bg-white">
+    <div className="border-b border-gray-200 px-4 py-3">
+      <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+    </div>
+    <div className="px-4">{children}</div>
+  </section>
+);
 
 const UserModal = ({
   open,
@@ -30,9 +41,47 @@ const UserModal = ({
 
   if (!open || !user) return null;
 
+  const isBanned =
+    user?.ban_info?.status !== null && user?.ban_info?.status !== undefined;
+  const banUntil = user?.ban_info?.banned_until
+    ? new Date(user.ban_info.banned_until)
+    : null;
+  const isBanActive = isBanned && banUntil && banUntil > new Date();
+  const isAdmin = user.role === "admin";
+
+  const roleMap = {
+    admin: "Admin",
+    manager: "Manager",
+    customer: "Khách hàng",
+  };
+
+  const statusMeta = isBanActive
+    ? {
+        label: "Đã bị ban",
+        icon: Ban,
+        className: "border-gray-300 text-gray-800",
+      }
+    : user.disabled
+    ? {
+        label: "Vô hiệu hóa",
+        icon: XCircle,
+        className: "border-gray-300 text-gray-800",
+      }
+    : user.active
+    ? {
+        label: "Đã kích hoạt",
+        icon: CheckCircle,
+        className: "border-gray-300 text-gray-800",
+      }
+    : {
+        label: "Chưa xác thực email",
+        icon: XCircle,
+        className: "border-gray-300 text-gray-800",
+      };
+  const StatusIcon = statusMeta.icon;
+
   const handleBanUser = async () => {
     if (!onBanUser) return;
-
     setIsUpdating(true);
     try {
       await onBanUser(user._id, {
@@ -50,7 +99,6 @@ const UserModal = ({
 
   const handleUnbanUser = async () => {
     if (!onUnbanUser) return;
-
     setIsUpdating(true);
     try {
       await onUnbanUser(user._id);
@@ -64,7 +112,6 @@ const UserModal = ({
 
   const handleToggleStatus = async () => {
     if (!onToggleUserStatus) return;
-
     setIsUpdating(true);
     try {
       await onToggleUserStatus(user._id);
@@ -76,359 +123,158 @@ const UserModal = ({
     }
   };
 
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
-  const isBanned =
-    user?.ban_info?.status !== null && user?.ban_info?.status !== undefined;
-  const banUntil = user?.ban_info?.banned_until
-    ? new Date(user.ban_info.banned_until)
-    : null;
-  const isBanActive = isBanned && banUntil && banUntil > new Date();
-
-  const getRoleBadge = (role) => {
-    const roleMap = {
-      admin: { text: "Admin", color: "bg-red-100 text-red-800" },
-      manager: { text: "Manager", color: "bg-green-100 text-green-800" },
-      customer: { text: "Khách hàng", color: "bg-green-100 text-green-800" },
-    };
-    const badge = roleMap[role] || {
-      text: role,
-      color: "bg-gray-100 text-gray-800",
-    };
-    return (
-      <span
-        className={`px-3 py-1 rounded-full text-sm font-medium ${badge.color}`}
-      >
-        {badge.text}
-      </span>
-    );
-  };
-
   return (
     <div
-      className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
-      onClick={handleBackdropClick}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
-        className="bg-white rounded-xl shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-800">
-              Thông tin người dùng
+        <header className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold text-gray-900">
+              Chi tiết người dùng
             </h2>
-            <p className="text-sm text-gray-500 mt-1">ID: {user._id}</p>
+            <p className="mt-1 text-sm font-medium text-gray-500">
+              {user._id}
+            </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition cursor-pointer"
+            className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800 cursor-pointer"
+            aria-label="Đóng"
           >
-            <X className="w-6 h-6" />
+            <X className="h-6 w-6" />
           </button>
-        </div>
+        </header>
 
-        <div className="p-6 space-y-6">
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h3 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
-              <User className="w-5 h-5" />
-              Thông tin cá nhân
-            </h3>
-
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <User className="w-5 h-5 text-gray-500 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500">Tên</p>
-                  <p className="font-medium text-gray-800">
-                    {user.name || "Chưa cập nhật"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Mail className="w-5 h-5 text-gray-500 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium text-gray-800">{user.email}</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Phone className="w-5 h-5 text-gray-500 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500">Số điện thoại</p>
-                  <p className="font-medium text-gray-800">
-                    {user.phone || "Chưa cập nhật"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <User className="w-5 h-5 text-gray-500 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500">Giới tính</p>
-                  <p className="font-medium text-gray-800">
-                    {user.gender === "male"
-                      ? "Nam"
-                      : user.gender === "female"
-                      ? "Nữ"
-                      : "Chưa cập nhật"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <User className="w-5 h-5 text-gray-500 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500">Xu (Coin)</p>
-                  <p className="font-medium text-gray-800">
-                    {user.coin || 0} xu
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {user.shipping_addresses && user.shipping_addresses.length > 0 && (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
-                <MapPin className="w-5 h-5" />
-                Địa chỉ giao hàng ({user.shipping_addresses.length})
-              </h3>
-              <div className="space-y-2">
-                {user.shipping_addresses.map((addr, idx) => (
-                  <div key={idx} className="bg-white p-3 rounded-lg text-sm">
-                    <div className="flex items-start gap-2">
-                      <MapPin className="w-4 h-4 text-gray-500 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-800">
-                          {addr.full_name} - {addr.phone}
-                        </p>
-                        <p className="text-gray-600">{addr.full_address}</p>
-                        {addr.is_default && (
-                          <span className="inline-block mt-1 px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded">
-                            Mặc định
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="bg-gray-50 rounded-lg p-4">
-            <h3 className="font-medium text-gray-800 mb-3 flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              Thông tin tài khoản
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Vai trò:</span>
-                {getRoleBadge(user.role)}
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Trạng thái:</span>
-                {isBanActive ? (
-                  <span className="flex items-center gap-2 text-red-600">
-                    <Ban className="w-5 h-5" />
-                    Đã bị ban
-                  </span>
-                ) : user.disabled ? (
-                  <span className="flex items-center gap-2 text-slate-600">
-                    <XCircle className="w-5 h-5" />
-                    Vô hiệu hóa
-                  </span>
-                ) : user.active ? (
-                  <span className="flex items-center gap-2 text-green-600">
-                    <CheckCircle className="w-5 h-5" />
-                    Đã kích hoạt
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2 text-orange-600">
-                    <XCircle className="w-5 h-5" />
-                    Chưa xác thực email
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Ngày tạo:</span>
-                <span className="font-medium text-gray-800">
-                  {user.createdAt
-                    ? format(new Date(user.createdAt), "dd/MM/yyyy HH:mm", {
-                        locale: vi,
-                      })
-                    : ""}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">Cập nhật lần cuối:</span>
-                <span className="font-medium text-gray-800">
-                  {user.updatedAt
-                    ? format(new Date(user.updatedAt), "dd/MM/yyyy HH:mm", {
-                        locale: vi,
-                      })
-                    : ""}
-                </span>
-              </div>
-
-              {user.last_login && (
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Đăng nhập lần cuối:</span>
-                  <span className="font-medium text-gray-800">
-                    {format(new Date(user.last_login), "dd/MM/yyyy HH:mm", {
-                      locale: vi,
-                    })}
-                  </span>
-                </div>
+        <main className="overflow-y-auto px-6 py-5">
+          <div className="mb-5 flex items-center gap-4 rounded-lg border border-gray-200 px-4 py-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-50">
+              {user.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={user.name || "User"}
+                  className="h-full w-full rounded-full object-cover"
+                />
+              ) : (
+                <User className="h-7 w-7 text-gray-500" />
               )}
             </div>
-          </div>
-
-          {/* Ban Info Section */}
-          {isBanActive && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <h3 className="font-medium text-red-800 mb-3 flex items-center gap-2">
-                <Ban className="w-5 h-5" />
-                Thông tin khóa tài khoản
-              </h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-red-700">Loại khóa:</span>
-                  <span className="font-medium text-red-800">
-                    {user.ban_info.status === "banned_login"
-                      ? "Khóa đăng nhập"
-                      : "Khóa đặt hàng"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-red-700">Lý do:</span>
-                  <span className="font-medium text-red-800">
-                    {user.ban_info.reason === "login_failed"
-                      ? "Đăng nhập sai quá nhiều"
-                      : user.ban_info.reason === "cancel_order"
-                      ? "Hủy đơn liên tiếp"
-                      : "Khóa bởi admin"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-red-700">Khóa đến:</span>
-                  <span className="font-medium text-red-800">
-                    {format(banUntil, "dd/MM/yyyy HH:mm", { locale: vi })}
-                  </span>
-                </div>
-                {user.ban_info.failed_login_count > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-red-700">Số lần đăng nhập sai:</span>
-                    <span className="font-medium text-red-800">
-                      {user.ban_info.failed_login_count}
-                    </span>
-                  </div>
-                )}
-                {user.ban_info.cancel_order_count > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-red-700">Tổng đơn đã hủy:</span>
-                    <span className="font-medium text-red-800">
-                      {user.ban_info.cancel_order_count}
-                    </span>
-                  </div>
-                )}
-                {user.ban_info.cancel_order_streak > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-red-700">Chuỗi hủy liên tiếp:</span>
-                    <span className="font-medium text-red-800">
-                      {user.ban_info.cancel_order_streak}
-                    </span>
-                  </div>
-                )}
+            <div className="min-w-0 flex-1">
+              <div className="text-lg font-semibold text-gray-900">
+                {user.name || "Người dùng"}
+              </div>
+              <div className="text-sm font-medium text-gray-500">
+                {user.email}
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Ban Dialog */}
-        {showBanDialog && (
-          <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Ban className="w-5 h-5 text-red-600" />
-                Khóa tài khoản tạm thời
-              </h3>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Thời gian khóa
-                  </label>
-                  <select
-                    value={banDuration}
-                    onChange={(e) => setBanDuration(e.target.value)}
-                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  >
-                    <option value="1">1 giờ</option>
-                    <option value="3">3 giờ</option>
-                    <option value="24">1 ngày</option>
-                    <option value="72">3 ngày</option>
-                    <option value="168">7 ngày</option>
-                    <option value="720">30 ngày</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Lý do khóa (tùy chọn)
-                  </label>
-                  <textarea
-                    value={banReason}
-                    onChange={(e) => setBanReason(e.target.value)}
-                    placeholder="Nhập lý do khóa tài khoản..."
-                    rows={3}
-                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  onClick={() => setShowBanDialog(false)}
-                  disabled={isUpdating}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  onClick={handleBanUser}
-                  disabled={isUpdating}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-                >
-                  {isUpdating ? "Đang khóa..." : "Xác nhận khóa"}
-                </button>
-              </div>
-            </div>
+            <span
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border bg-white px-3 py-1 text-xs font-semibold ${statusMeta.className}`}
+            >
+              <StatusIcon className="h-3.5 w-3.5" />
+              {statusMeta.label}
+            </span>
           </div>
-        )}
 
-        <div className="sticky bottom-0 bg-white border-t px-6 py-4 flex justify-between gap-3">
+          <div className="space-y-5">
+            <Section title="Thông tin cá nhân">
+              <DetailRow label="Tên" value={user.name} />
+              <DetailRow label="Email" value={user.email} />
+              <DetailRow label="Số điện thoại" value={user.phone} />
+              <DetailRow label="Giới tính">
+                {user.gender === "male"
+                  ? "Nam"
+                  : user.gender === "female"
+                  ? "Nữ"
+                  : ""}
+              </DetailRow>
+              <DetailRow label="Xu tích lũy" value={`${user.coin || 0} xu`} />
+            </Section>
+
+            <Section title="Thông tin tài khoản">
+              <DetailRow label="Vai trò" value={roleMap[user.role] || user.role} />
+              <DetailRow label="Trạng thái" value={statusMeta.label} />
+              <DetailRow label="Ngày tạo" value={formatDateTime(user.createdAt)} />
+              <DetailRow label="Cập nhật lần cuối" value={formatDateTime(user.updatedAt)} />
+              <DetailRow label="Đăng nhập lần cuối" value={formatDateTime(user.last_login)} />
+            </Section>
+
+            {user.shipping_addresses?.length > 0 && (
+              <Section title={`Địa chỉ giao hàng (${user.shipping_addresses.length})`}>
+                <div className="space-y-3 py-3">
+                  {user.shipping_addresses.map((addr, idx) => (
+                    <div
+                      key={idx}
+                      className="rounded border border-gray-200 px-4 py-3 text-sm"
+                    >
+                      <div className="font-bold text-gray-900">
+                        {[addr.full_name, addr.phone].filter(Boolean).join(" - ")}
+                      </div>
+                      <div className="mt-1 font-medium text-gray-600">
+                        {addr.full_address}
+                      </div>
+                      {addr.is_default && (
+                        <span className="mt-2 inline-flex rounded-lg border border-gray-200 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                          Mặc định
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            )}
+
+            {isBanActive && (
+              <Section title="Thông tin khóa tài khoản">
+                <DetailRow label="Loại khóa">
+                  {user.ban_info.status === "banned_login"
+                    ? "Khóa đăng nhập"
+                    : "Khóa đặt hàng"}
+                </DetailRow>
+                <DetailRow label="Lý do">
+                  {user.ban_info.reason === "login_failed"
+                    ? "Đăng nhập sai quá nhiều"
+                    : user.ban_info.reason === "cancel_order"
+                    ? "Hủy đơn liên tiếp"
+                    : "Khóa bởi admin"}
+                </DetailRow>
+                <DetailRow label="Khóa đến" value={formatDateTime(banUntil)} />
+                <DetailRow
+                  label="Đăng nhập sai"
+                  value={String(user.ban_info.failed_login_count || 0)}
+                />
+                <DetailRow
+                  label="Tổng đơn đã hủy"
+                  value={String(user.ban_info.cancel_order_count || 0)}
+                />
+                <DetailRow
+                  label="Chuỗi hủy liên tiếp"
+                  value={String(user.ban_info.cancel_order_streak || 0)}
+                />
+              </Section>
+            )}
+          </div>
+        </main>
+
+        <footer className="flex flex-col justify-between gap-3 border-t border-gray-200 bg-white px-6 py-4 sm:flex-row">
           <div className="flex flex-wrap gap-3">
             <button
+              type="button"
               onClick={handleToggleStatus}
-              disabled={isUpdating || user.role === "admin"}
-              className={`px-4 py-2 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer ${
+              disabled={isUpdating || isAdmin}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
                 user.disabled
-                  ? "bg-green-600 hover:bg-green-700"
+                  ? "bg-gray-700 hover:bg-gray-800"
                   : "bg-orange-600 hover:bg-orange-700"
               }`}
             >
-              <Power className="w-4 h-4" />
+              <Power className="h-4 w-4" />
               {isUpdating
                 ? "Đang cập nhật..."
                 : user.disabled
@@ -438,37 +284,96 @@ const UserModal = ({
 
             {isBanActive ? (
               <button
+                type="button"
                 onClick={handleUnbanUser}
-                disabled={isUpdating || user.role === "admin"}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+                disabled={isUpdating || isAdmin}
+                className="inline-flex items-center gap-2 rounded-lg bg-gray-700 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
               >
-                <Unlock className="w-4 h-4" />
+                <Unlock className="h-4 w-4" />
                 {isUpdating ? "Đang mở khóa..." : "Mở khóa ban"}
               </button>
             ) : (
               <button
+                type="button"
                 onClick={() => setShowBanDialog(true)}
-                disabled={isUpdating || user.role === "admin"}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+                disabled={isUpdating || isAdmin}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
               >
-                <Ban className="w-4 h-4" />
+                <Ban className="h-4 w-4" />
                 Khóa tạm thời
               </button>
             )}
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition cursor-pointer"
+            className="rounded-lg border border-gray-300 px-5 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
           >
             Đóng
           </button>
-        </div>
+        </footer>
       </div>
+
+      {showBanDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">
+              Khóa tài khoản tạm thời
+            </h3>
+
+            <div className="space-y-4">
+              <label className="block text-sm font-semibold text-gray-700">
+                Thời gian khóa
+                <select
+                  value={banDuration}
+                  onChange={(e) => setBanDuration(e.target.value)}
+                  className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium outline-none focus:border-gray-600"
+                >
+                  <option value="1">1 giờ</option>
+                  <option value="3">3 giờ</option>
+                  <option value="24">1 ngày</option>
+                  <option value="72">3 ngày</option>
+                  <option value="168">7 ngày</option>
+                  <option value="720">30 ngày</option>
+                </select>
+              </label>
+
+              <label className="block text-sm font-semibold text-gray-700">
+                Lý do khóa
+                <textarea
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                  placeholder="Nhập lý do khóa tài khoản..."
+                  rows={3}
+                  className="mt-2 w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium outline-none focus:border-gray-600"
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowBanDialog(false)}
+                disabled={isUpdating}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleBanUser}
+                disabled={isUpdating}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50 cursor-pointer"
+              >
+                {isUpdating ? "Đang khóa..." : "Xác nhận khóa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default UserModal;
-
-
