@@ -1,15 +1,15 @@
 # NHGREEN
 
-NHGREEN là hệ thống quản lý và bán món ăn healthy theo mô hình nhiều chi nhánh. Dự án bao gồm website khách hàng, E-menu tại bàn, trang quản lý chi nhánh và trang quản trị hệ thống. Hệ thống hỗ trợ đặt món online, đặt món tại bàn bằng QR, thanh toán điện tử, quản lý vận chuyển GHN, quản lý dinh dưỡng món ăn và gợi ý món ăn thông minh.
+NHGREEN là hệ thống quản lý và bán món ăn dinh dưỡng theo mô hình nhiều chi nhánh. Dự án bao gồm website khách hàng, E-menu tại bàn, trang quản lý chi nhánh và trang quản trị hệ thống. Hệ thống hỗ trợ đặt món online, đặt món tại bàn bằng QR, thanh toán điện tử, quản lý vận chuyển GHN, quản lý dinh dưỡng món ăn và gợi ý món ăn thông minh.
 
 ## Mục Tiêu
 
-- Xây dựng nền tảng bán món ăn healthy hoàn chỉnh cho cả online và tại quán.
+- Xây dựng nền tảng bán món ăn dinh dưỡng hoàn chỉnh cho cả online và tại quán.
 - Quản lý món ăn, nguyên liệu, dinh dưỡng, chi nhánh, bàn, đơn hàng và khách hàng trong cùng một hệ thống.
 - Tích hợp thanh toán VNPAY, MoMo, ZaloPay và hoàn tiền cho các giao dịch phù hợp.
 - Tích hợp GHN cho đơn online, tự động đồng bộ trạng thái giao hàng và tạo thông báo khi GHN cập nhật.
 - Cung cấp trải nghiệm E-menu tại bàn bằng QR, cập nhật realtime cho manager bằng Socket.io.
-- Gợi ý món ăn trên trang chủ bằng thuật toán hybrid dựa trên món bán chạy, lịch sử đặt món, độ mới và đánh giá.
+- Gợi ý món ăn trên trang chủ dựa trên món bán chạy, lịch sử đặt món, độ mới và đánh giá.
 
 ## Công Nghệ Sử Dụng
 
@@ -47,7 +47,6 @@ NHGREEN là hệ thống quản lý và bán món ăn healthy theo mô hình nhi
 - GHN Test API
 - Cloudinary
 - SMTP Brevo
-- AI Service tùy chọn cho chatbot/gợi ý
 
 ## Vai Trò Và Chức Năng
 
@@ -107,10 +106,10 @@ NHGREEN là hệ thống quản lý và bán món ăn healthy theo mô hình nhi
 - **E-menu QR tại bàn**: khách quét QR, gọi món và thanh toán ngay tại bàn.
 - **Realtime bằng Socket.io**: cập nhật trạng thái bàn, đơn hàng và thông báo.
 - **Dinh dưỡng món ăn**: tính kcal, protein, carbs, fat từ nguyên liệu.
-- **Lọc món nâng cao**: tìm kiếm, lọc theo danh mục, kcal và nguyên liệu.
+- **Lọc món nâng cao**: tìm kiếm, lọc theo danh mục, kcal, giá và nguyên liệu.
 - **Xuất xứ nguyên liệu**: hiển thị nguồn gốc nguyên liệu trong chi tiết món.
-- **Gợi ý món ăn hybrid**: kết hợp độ phổ biến, sở thích người dùng, độ mới và đánh giá.
-- **Tích điểm online**: cộng coin cho đơn online thanh toán thành công.
+- **Gợi ý món ăn quen thuộc**: gợi ý dựa theo món ăn người dùng đặt nhiều nhất.
+- **Tích điểm online**: cộng xu tích điểm cho đơn online thanh toán thành công.
 - **Triển khai Render**: hỗ trợ tách client/server và Redis bằng Docker/Redis Cloud.
 
 ## Cấu Trúc Dự Án
@@ -284,7 +283,7 @@ npm start
 
 ## Tác Giả
 
-Đồ án tốt nghiệp - Trường Đại học Sư phạm Kỹ thuật TP. Hồ Chí Minh
+Đồ án tốt nghiệp - Trường Đại học Công nghệ Kỹ thuật TP. Hồ Chí Minh
 
 | Họ và tên | MSSV | GitHub |
 | --- | --- | --- |
@@ -430,7 +429,6 @@ NHGREEN is a multi-branch healthy food ordering and management system. The proje
 - Automatic nutrition calculation from ingredients.
 - Advanced dish filtering.
 - Ingredient origin display.
-- Hybrid recommendation algorithm.
 - Reward points for successful online payments.
 - Deployment on Render with Redis Cloud and Docker support.
 
