@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="./docs/images/banner.png" width="100%">
-</p>
 
 <h1 align="center">
 🥗 NHGREEN
