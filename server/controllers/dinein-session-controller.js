@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import DineInSession from "../models/dinein-session-model.js";
 import StoreTable from "../models/store-table-model.js";
 import Order from "../models/order-model.js";
+import "../models/dinein-customer-model.js";
 import response from "../helpers/response.js";
 import { syncZalopayOrderStatus } from "./zalopay-controller.js";
 import { getIO } from "../config/socket.js";

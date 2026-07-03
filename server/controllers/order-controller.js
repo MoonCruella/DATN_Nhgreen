@@ -1,4 +1,5 @@
 import Order from "../models/order-model.js";
+import "../models/dinein-customer-model.js";
 import Branch from "../models/branch-model.js";
 import Dish from "../models/dish-model.js";
 import User from "../models/user-model.js";
@@ -134,6 +135,11 @@ const getRefundPaymentMethod = (order = {}) => {
   const gateway = order.payment_gateway_ref?.gateway;
   if (["zalopay", "momo", "vnpay"].includes(gateway)) return gateway;
   return order.payment_method;
+};
+
+const getManagerBranchId = async (userId) => {
+  const manager = await User.findById(userId).select("branch_id").lean();
+  return manager?.branch_id || null;
 };
 
 const getAddressRegion = (value, codeType = "number") => {
@@ -1399,6 +1405,31 @@ export const createOrder = async (req, res) => {
       );
     }
 
+    if (normalizedOrderChannel === "dine_in") {
+      const userRole = req.user?.role;
+      if (!["admin", "manager"].includes(userRole)) {
+        return response.sendError(
+          res,
+          "Vui long dang nhap bang tai khoan quan ly de tao don tai ban",
+          403
+        );
+      }
+
+      if (userRole === "manager") {
+        const managerBranchId = await getManagerBranchId(req.user?.userId);
+        if (
+          !managerBranchId ||
+          managerBranchId.toString() !== branch._id.toString()
+        ) {
+          return response.sendError(
+            res,
+            "Ban khong co quyen tao don tai ban cho chi nhanh nay",
+            403
+          );
+        }
+      }
+    }
+
     const orderNumber = await generateOrderNumber(normalizedOrderType);
 
     let subtotal = 0; // Tổng tiền sản phẩm
@@ -2495,16 +2526,18 @@ export const completeDineInOrder = async (req, res) => {
 
     const userRole = req.user?.role;
     if (userRole === "manager") {
-      const tokenBranchId = req.user.branch_id?.toString();
-      if (tokenBranchId && tokenBranchId !== order.branch_id.toString()) {
+      const managerBranchId = await getManagerBranchId(req.user?.userId);
+      if (
+        !managerBranchId ||
+        managerBranchId.toString() !== order.branch_id.toString()
+      ) {
         return response.sendError(
           res,
-          "Bạn không có quyền cập nhật đơn hàng của chi nhánh này",
+          "Ban khong co quyen cap nhat don hang cua chi nhanh nay",
           403
         );
       }
     }
-
     const now = new Date();
 
     try {
@@ -2604,16 +2637,18 @@ export const updateDineInOrderItems = async (req, res) => {
 
     const userRole = req.user?.role;
     if (userRole === "manager") {
-      const tokenBranchId = req.user.branch_id?.toString();
-      if (tokenBranchId && tokenBranchId !== order.branch_id.toString()) {
+      const managerBranchId = await getManagerBranchId(req.user?.userId);
+      if (
+        !managerBranchId ||
+        managerBranchId.toString() !== order.branch_id.toString()
+      ) {
         return response.sendError(
           res,
-          "Bạn không có quyền cập nhật đơn hàng của chi nhánh này",
+          "Ban khong co quyen cap nhat don hang cua chi nhanh nay",
           403
         );
       }
     }
-
     const currentQuantityByDish = (order.items || []).reduce((result, item) => {
       const dishId = item.dish_id?.toString();
       if (dishId) result[dishId] = (result[dishId] || 0) + item.quantity;
@@ -3020,17 +3055,16 @@ export const getOrdersByBranch = async (req, res) => {
     }
 
     // If user is manager, verify they manage this branch
-    if (
-      req.user.role === "manager" &&
-      req.user.branch_id?.toString() !== branchId
-    ) {
-      return response.sendError(
-        res,
-        "Bạn không có quyền truy cập chi nhánh này",
-        403
-      );
+    if (req.user.role === "manager") {
+      const managerBranchId = await getManagerBranchId(req.user.userId);
+      if (!managerBranchId || managerBranchId.toString() !== branchId) {
+        return response.sendError(
+          res,
+          "Ban khong co quyen truy cap chi nhanh nay",
+          403
+        );
+      }
     }
-
     const filter = { branch_id: branchId };
 
     if (order_type === "dine_in") {
@@ -3082,9 +3116,9 @@ export const getOrdersByBranch = async (req, res) => {
       const searchConditions = [
         { order_number: { $regex: search, $options: "i" } },
         {
-          "shipping_address.recipient_name": { $regex: search, $options: "i" },
+          "shipping_info.name": { $regex: search, $options: "i" },
         },
-        { "shipping_address.phone": { $regex: search, $options: "i" } },
+        { "shipping_info.phone": { $regex: search, $options: "i" } },
       ];
 
       if (filter.$or) {
