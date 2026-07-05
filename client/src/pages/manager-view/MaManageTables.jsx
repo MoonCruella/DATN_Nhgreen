@@ -9,6 +9,7 @@ import {
   Plus,
   QrCode,
   Search,
+  ArrowRightLeft,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ const TableCard = ({
   index,
   onCreateOrder,
   onDetailClick,
+  onTransferTable,
   onEditTable,
   onQrClick,
 }) => {
@@ -119,8 +121,9 @@ const TableCard = ({
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {hasActivity ? (
+            <>
             <button
               type="button"
               onClick={() => onDetailClick(table)}
@@ -129,8 +132,17 @@ const TableCard = ({
               <ExternalLink className="h-5 w-5" />
               Chi tiết
             </button>
+            <button
+              type="button"
+              onClick={() => onTransferTable(table)}
+              className="flex h-12 items-center justify-center gap-2 rounded-lg border border-sky-500 text-base font-bold text-sky-600 transition hover:bg-sky-50"
+            >
+              <ArrowRightLeft className="h-5 w-5" />
+              Chuyển
+            </button>
+            </>
           ) : (
-            <div className="w-full text-center">
+            <div className="col-span-2 w-full text-center">
               <img
                 src={assets.add_icon}
                 alt={table.name}
@@ -277,6 +289,101 @@ const TableQrModal = ({ table, onClose }) => {
   );
 };
 
+const TransferTableModal = ({
+  open,
+  sourceTable,
+  emptyTables = [],
+  submitting = false,
+  onClose,
+  onSubmit,
+}) => {
+  const [targetTableId, setTargetTableId] = useState("");
+
+  useEffect(() => {
+    if (open) setTargetTableId("");
+  }, [open]);
+
+  if (!open || !sourceTable) return null;
+
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/45 px-4">
+      <div className="relative w-full max-w-lg rounded-2xl bg-white px-7 py-7 shadow-2xl">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={submitting}
+          className="absolute right-4 top-4 rounded-md p-1 text-slate-800 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+          title="Đóng"
+        >
+          <X className="h-6 w-6" />
+        </button>
+
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
+            <ArrowRightLeft className="h-6 w-6" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-gray-900">Chuyển bàn</h3>
+            <p className="mt-1 text-sm font-medium text-gray-500">
+              Chuyển toàn bộ hóa đơn và phiên E-menu sang bàn trống.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+          <div className="text-sm font-semibold text-gray-500">Bàn hiện tại</div>
+          <div className="mt-1 text-lg font-bold text-gray-900">
+            {sourceTable.name || "Bàn"}
+          </div>
+        </div>
+
+        <label className="mt-5 block text-sm font-bold text-gray-700">
+          Chọn bàn chuyển đến
+          <select
+            value={targetTableId}
+            onChange={(event) => setTargetTableId(event.target.value)}
+            disabled={submitting || emptyTables.length === 0}
+            className="mt-2 h-12 w-full rounded-lg border border-gray-200 bg-white px-4 text-base font-semibold text-gray-900 outline-none focus:border-[#34ad54] disabled:cursor-not-allowed disabled:bg-gray-100"
+          >
+            <option value="">Chọn bàn trống</option>
+            {emptyTables.map((table) => (
+              <option key={table._id} value={table._id}>
+                {table.name || table.code || "Bàn"}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {emptyTables.length === 0 && (
+          <p className="mt-3 text-sm font-medium text-red-600">
+            Hiện không có bàn trống để chuyển.
+          </p>
+        )}
+
+        <div className="mt-7 flex justify-end gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={submitting}
+            className="h-11 rounded-lg px-5 font-bold"
+          >
+            Hủy
+          </Button>
+          <Button
+            type="button"
+            onClick={() => onSubmit?.(targetTableId)}
+            disabled={submitting || !targetTableId}
+            className="h-11 rounded-lg bg-[#34ad54] px-5 font-bold text-white hover:bg-[#2f9b45] disabled:cursor-not-allowed disabled:bg-[#bbf7d0]"
+          >
+            {submitting ? "Đang chuyển..." : "Xác nhận chuyển"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CreateTableCard = ({ onClick }) => (
   <button
     type="button"
@@ -313,6 +420,8 @@ const MaManageTables = () => {
   const [currentOrder, setCurrentOrder] = useState(null);
   const [editingTable, setEditingTable] = useState(null);
   const [qrTable, setQrTable] = useState(null);
+  const [transferSourceTable, setTransferSourceTable] = useState(null);
+  const [transferring, setTransferring] = useState(false);
 
   const fetchTables = useCallback(async ({ silent = false } = {}) => {
     if (!accessToken || !branchId) return;
@@ -362,6 +471,7 @@ const MaManageTables = () => {
     socket.on("dine_in_order_paid", refreshTables);
     socket.on("order_completed", refreshTables);
     socket.on("order_cancelled", refreshTables);
+    socket.on("table_transferred", refreshTables);
 
     return () => {
       socket.emit("leave_branch_room", branchId);
@@ -440,6 +550,37 @@ const MaManageTables = () => {
     }
   };
 
+  const handleOpenTransferTable = (table) => {
+    if (!table?.has_current_order && !table?.current_order_id) {
+      toast.error("Bàn hiện tại chưa có hóa đơn để chuyển");
+      return;
+    }
+
+    setTransferSourceTable(table);
+  };
+
+  const handleTransferTable = async (targetTableId) => {
+    if (!transferSourceTable?._id || !targetTableId) return;
+
+    try {
+      setTransferring(true);
+      await storeTableApi.transferOrder(
+        accessToken,
+        transferSourceTable._id,
+        targetTableId,
+      );
+      toast.success("Đã chuyển bàn thành công");
+      setTransferSourceTable(null);
+      setSelectedOrderTable(null);
+      setCurrentOrder(null);
+      await fetchTables();
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Không thể chuyển bàn");
+    } finally {
+      setTransferring(false);
+    }
+  };
+
   const filteredTables = tables.filter((table) => {
     if (!search.trim()) return true;
     const value = search.trim().toLowerCase();
@@ -448,6 +589,12 @@ const MaManageTables = () => {
       table.code?.toLowerCase().includes(value)
     );
   });
+  const emptyTransferTables = tables.filter(
+    (table) =>
+      table.active &&
+      table._id !== transferSourceTable?._id &&
+      !hasTableActivity(table),
+  );
 
   return (
     <section className="min-h-[calc(100vh-92px)] bg-gray-50 px-2 py-2">
@@ -496,6 +643,7 @@ const MaManageTables = () => {
                 setCurrentOrder(null);
               }}
               onDetailClick={handleDetailClick}
+              onTransferTable={handleOpenTransferTable}
               onEditTable={setEditingTable}
               onQrClick={setQrTable}
             />
@@ -528,6 +676,16 @@ const MaManageTables = () => {
         initialOrder={currentOrder}
       />
       <TableQrModal table={qrTable} onClose={() => setQrTable(null)} />
+      <TransferTableModal
+        open={Boolean(transferSourceTable)}
+        sourceTable={transferSourceTable}
+        emptyTables={emptyTransferTables}
+        submitting={transferring}
+        onClose={() => {
+          if (!transferring) setTransferSourceTable(null);
+        }}
+        onSubmit={handleTransferTable}
+      />
     </section>
   );
 };

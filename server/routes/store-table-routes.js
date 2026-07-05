@@ -4,6 +4,7 @@ import {
   deleteStoreTable,
   getStoreTableById,
   getStoreTables,
+  transferStoreTableOrder,
   updateStoreTable,
 } from "../controllers/store-table-controller.js";
 import { authMiddleware } from "../middleware/auth-middleware.js";
@@ -28,6 +29,7 @@ router.use(authMiddleware, requireAdminOrManager);
 router.post("/", createStoreTable);
 router.get("/", getStoreTables);
 router.get("/:id", getStoreTableById);
+router.post("/:id/transfer", transferStoreTableOrder);
 router.put("/:id", updateStoreTable);
 router.delete("/:id", deleteStoreTable);
 
