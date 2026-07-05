@@ -6,6 +6,7 @@ import Voucher from "../models/voucher-model.js";
 import FlashSale from "../models/flashsale-model.js";
 import StoreTable from "../models/store-table-model.js";
 import DineInSession from "../models/dinein-session-model.js";
+import "../models/dinein-customer-model.js";
 import OrderCounter from "../models/order-counter-model.js";
 import mongoose from "mongoose";
 import response from "../helpers/response.js";

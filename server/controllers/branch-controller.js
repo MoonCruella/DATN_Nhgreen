@@ -583,7 +583,7 @@ export const calculateBranchShippingFee = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Không thể tính phí giao hàng GHN",
+      message: error.message || "Không thể tính phí giao hàng GHN",
       error: error.message,
     });
   }

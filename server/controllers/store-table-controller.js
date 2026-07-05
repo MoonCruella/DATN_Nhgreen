@@ -4,7 +4,9 @@ import StoreTable from "../models/store-table-model.js";
 import Branch from "../models/branch-model.js";
 import User from "../models/user-model.js";
 import Order from "../models/order-model.js";
+import DineInSession from "../models/dinein-session-model.js";
 import response from "../helpers/response.js";
+import { getIO } from "../config/socket.js";
 
 const getQrUrl = (req, qrToken) => {
   const baseUrl =
@@ -392,6 +394,174 @@ export const updateStoreTable = async (req, res) => {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi cập nhật bàn",
+      500,
+      error.message,
+    );
+  }
+};
+
+export const transferStoreTableOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { target_table_id } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return response.sendError(res, "ID bàn nguồn không hợp lệ", 400);
+    }
+
+    if (!target_table_id || !mongoose.Types.ObjectId.isValid(target_table_id)) {
+      return response.sendError(res, "ID bàn chuyển đến không hợp lệ", 400);
+    }
+
+    if (id.toString() === target_table_id.toString()) {
+      return response.sendError(res, "Bàn chuyển đến phải khác bàn hiện tại", 400);
+    }
+
+    const [sourceTable, targetTable] = await Promise.all([
+      StoreTable.findOne({ _id: id, deleted: { $ne: true } }),
+      StoreTable.findOne({ _id: target_table_id, deleted: { $ne: true } }),
+    ]);
+
+    if (!sourceTable) {
+      return response.sendError(res, "Không tìm thấy bàn hiện tại", 404);
+    }
+
+    if (!targetTable || !targetTable.active) {
+      return response.sendError(res, "Bàn chuyển đến không tồn tại hoặc đã ngừng hoạt động", 404);
+    }
+
+    if (sourceTable.branch_id.toString() !== targetTable.branch_id.toString()) {
+      return response.sendError(res, "Chỉ có thể chuyển bàn trong cùng chi nhánh", 400);
+    }
+
+    if (!(await canManageBranch(req, sourceTable.branch_id))) {
+      return response.sendError(res, "Không có quyền chuyển bàn trong chi nhánh này", 403);
+    }
+
+    const activeOrderFilter = {
+      order_type: "dine_in",
+      status: { $in: ["pending", "confirmed", "processing"] },
+      payment_status: { $ne: "paid" },
+    };
+
+    const [sourceOrder, targetOrder] = await Promise.all([
+      Order.findOne({
+        ...activeOrderFilter,
+        table_id: sourceTable._id,
+        branch_id: sourceTable.branch_id,
+      }).sort({ created_at: -1 }),
+      Order.findOne({
+        ...activeOrderFilter,
+        table_id: targetTable._id,
+        branch_id: targetTable.branch_id,
+      }).lean(),
+    ]);
+
+    if (!sourceOrder) {
+      return response.sendError(res, "Bàn hiện tại chưa có hóa đơn đang mở", 400);
+    }
+
+    if (targetOrder) {
+      return response.sendError(res, "Bàn chuyển đến đang có hóa đơn, vui lòng chọn bàn trống", 409);
+    }
+
+    const now = new Date();
+
+    await DineInSession.updateMany(
+      {
+        table_id: targetTable._id,
+        branch_id: targetTable.branch_id,
+        status: "active",
+      },
+      {
+        $set: {
+          status: "expired",
+          expires_at: now,
+        },
+      },
+    );
+
+    await DineInSession.updateMany(
+      {
+        table_id: sourceTable._id,
+        branch_id: sourceTable.branch_id,
+        status: "active",
+        expires_at: { $gt: now },
+      },
+      {
+        $set: {
+          table_id: targetTable._id,
+          branch_id: targetTable.branch_id,
+        },
+      },
+    );
+
+    await Order.updateMany(
+      {
+        ...activeOrderFilter,
+        table_id: sourceTable._id,
+        branch_id: sourceTable.branch_id,
+      },
+      {
+        $set: {
+          table_id: targetTable._id,
+          table_info: {
+            name: targetTable.name,
+            code: targetTable.code,
+          },
+        },
+        $push: {
+          history: {
+            status: sourceOrder.status,
+            date: now,
+            note: `Chuyển bàn từ ${sourceTable.name} sang ${targetTable.name}`,
+            updated_by: req.user.userId,
+          },
+        },
+      },
+    );
+
+    const updatedOrder = await Order.findById(sourceOrder._id)
+      .populate("user_id", "name email phone")
+      .populate("customer_id", "name phone address linked_user_id")
+      .populate("branch_id", "name phone address code")
+      .populate("table_id", "name code active")
+      .lean();
+
+    try {
+      const io = getIO();
+      io.to(`branch:${sourceTable.branch_id}`).emit("table_transferred", {
+        branch_id: sourceTable.branch_id,
+        from_table_id: sourceTable._id,
+        to_table_id: targetTable._id,
+        order_id: updatedOrder?._id,
+      });
+      io.to(`branch:${sourceTable.branch_id}`).emit("order_status_updated", {
+        order_id: updatedOrder?._id,
+        order_number: updatedOrder?.order_number,
+        branch_id: sourceTable.branch_id,
+        status: updatedOrder?.status,
+        table_id: targetTable._id,
+        table_info: updatedOrder?.table_info,
+      });
+    } catch (socketError) {
+      console.error("Socket table transfer error:", socketError);
+    }
+
+    return response.sendSuccess(
+      res,
+      {
+        order: updatedOrder,
+        from_table: await serializeTable(req, sourceTable),
+        to_table: await serializeTable(req, targetTable),
+      },
+      "Chuyển bàn thành công",
+      200,
+    );
+  } catch (error) {
+    return response.sendError(
+      res,
+      "Có lỗi xảy ra khi chuyển bàn",
       500,
       error.message,
     );

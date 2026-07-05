@@ -52,6 +52,9 @@ const getStoredSessionKey = (qrToken) => `nhgreen_dine_in_session_${qrToken}`;
 
 const QR_TTL_MS = 15 * 60 * 1000;
 
+const getEntityId = (value) =>
+  value && typeof value === "object" ? value._id : value;
+
 const PAYMENT_METHODS = [
   { value: "cod", label: "Tiền mặt", icon: Banknote },
   { value: "momo", label: "MoMo", icon: QrCode },
@@ -65,6 +68,20 @@ const formatCountdown = (milliseconds = 0) => {
   const seconds = String(totalSeconds % 60).padStart(2, "0");
   return `${minutes}:${seconds}`;
 };
+
+const getSessionTable = (session, fallbackTable = null) =>
+  session?.table_id && typeof session.table_id === "object"
+    ? {
+        _id: session.table_id._id,
+        name: session.table_id.name,
+        code: session.table_id.code,
+      }
+    : fallbackTable;
+
+const getSessionBranch = (session, fallbackBranch = null) =>
+  session?.branch_id && typeof session.branch_id === "object"
+    ? session.branch_id
+    : fallbackBranch;
 
 const getPaymentTabClass = (method, active) => {
   if (!active) {
@@ -120,6 +137,15 @@ const DineInMenu = () => {
           try {
             const sessionResponse = await dineInApi.getSession(storedToken);
             activeSession = sessionResponse?.data?.session;
+            const sessionTableId = getEntityId(activeSession?.table_id);
+            if (
+              sessionTableId &&
+              scannedTable?._id &&
+              String(sessionTableId) !== String(scannedTable._id)
+            ) {
+              localStorage.removeItem(getStoredSessionKey(qrToken));
+              activeSession = null;
+            }
           } catch {
             localStorage.removeItem(getStoredSessionKey(qrToken));
           }
@@ -156,8 +182,8 @@ const DineInMenu = () => {
           },
         );
 
-        setTable(scannedTable);
-        setBranch(scannedBranch);
+        setTable(getSessionTable(activeSession, scannedTable));
+        setBranch(getSessionBranch(activeSession, scannedBranch));
         setSession(activeSession);
         setDishes(dishResponse?.data?.dishes || []);
         setQuantities(
@@ -345,6 +371,46 @@ const DineInMenu = () => {
 
     toast.error("Chưa có đơn hàng để kiểm tra");
   };
+
+  useEffect(() => {
+    if (!session?.session_token) return undefined;
+
+    let stopped = false;
+
+    const syncSessionAndOrder = async () => {
+      try {
+        const [sessionResponse, activeOrderResponse] = await Promise.all([
+          dineInApi.getSession(session.session_token),
+          dineInApi.getActiveOrder(session.session_token).catch(() => null),
+        ]);
+
+        if (stopped) return;
+
+        const latestSession = sessionResponse?.data?.session;
+        const latestOrder = activeOrderResponse?.data?.order || null;
+
+        if (latestSession) {
+          setSession(latestSession);
+          setTable((currentTable) => getSessionTable(latestSession, currentTable));
+          setBranch((currentBranch) =>
+            getSessionBranch(latestSession, currentBranch),
+          );
+        }
+
+        if (latestOrder) {
+          setLastOrder(latestOrder);
+        }
+      } catch {
+        // Poll láº¡i á»Ÿ láº§n sau.
+      }
+    };
+
+    const timer = setInterval(syncSessionAndOrder, 4000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [session?.session_token]);
 
   useEffect(() => {
     if (!showOrderDetail || !["momo", "zalopay"].includes(paymentMethod)) {

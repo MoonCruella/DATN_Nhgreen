@@ -80,6 +80,42 @@ export const createDineInSession = async (req, res) => {
       );
     }
 
+    const existingSession = await DineInSession.findOne({
+      table_id: table._id,
+      branch_id: table.branch_id._id,
+      status: "active",
+      expires_at: { $gt: new Date() },
+    }).lean();
+
+    if (existingSession) {
+      return response.sendSuccess(
+        res,
+        {
+          session: {
+            _id: existingSession._id,
+            session_token: existingSession.session_token,
+            table_id: {
+              _id: table._id,
+              name: table.name,
+              code: table.code,
+            },
+            branch_id: table.branch_id,
+            status: existingSession.status,
+            expires_at: existingSession.expires_at,
+            guest_info: existingSession.guest_info,
+          },
+          table: {
+            _id: table._id,
+            name: table.name,
+            code: table.code,
+          },
+          branch: table.branch_id,
+        },
+        "Láº¥y phiÃªn gá»i mÃ³n Ä‘ang má»Ÿ thÃ nh cÃ´ng",
+        200
+      );
+    }
+
     const session = new DineInSession({
       session_token: createSessionToken(),
       table_id: table._id,
@@ -100,6 +136,12 @@ export const createDineInSession = async (req, res) => {
         session: {
           _id: session._id,
           session_token: session.session_token,
+          table_id: {
+            _id: table._id,
+            name: table.name,
+            code: table.code,
+          },
+          branch_id: table.branch_id,
           status: session.status,
           expires_at: session.expires_at,
           guest_info: session.guest_info,

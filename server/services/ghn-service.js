@@ -266,19 +266,27 @@ export const calculateGhnShippingFee = async ({
       },
     });
   } catch (error) {
+    const ghnError = error.response?.data || {};
     console.error(
       "[GHN][shipping-fee][error]",
       JSON.stringify(
         {
           ...logContext,
           status: error.response?.status,
-          response: error.response?.data,
+          response: ghnError,
           message: error.message,
         },
         null,
         2,
       ),
     );
+
+    if (ghnError.code_message === "CLIENT_NOT_BELONG_OF_SHOP") {
+      throw new Error(
+        `Shop ID GHN ${shopId} của chi nhánh không thuộc GHN_TOKEN hiện tại. Vui lòng đổi shop_id của chi nhánh hoặc dùng đúng token GHN sandbox.`
+      );
+    }
+
     throw error;
   }
 
