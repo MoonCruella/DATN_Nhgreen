@@ -26,6 +26,15 @@ const storeTableApi = {
     return res.data;
   },
 
+  transferOrder: async (accessToken, sourceTableId, targetTableId) => {
+    const res = await axiosPrivate.post(
+      `/api/store-tables/${sourceTableId}/transfer`,
+      { target_table_id: targetTableId },
+      { headers: authHeaders(accessToken) },
+    );
+    return res.data;
+  },
+
   remove: async (accessToken, id) => {
     const res = await axiosPrivate.delete(`/api/store-tables/${id}`, {
       headers: authHeaders(accessToken),
