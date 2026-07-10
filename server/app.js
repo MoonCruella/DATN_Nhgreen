@@ -1,6 +1,9 @@
 import cors from "cors";
 import express from "express";
 import cookieParser from "cookie-parser";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import authRouter from "./routes/auth-routes.js";
 import branchRouter from "./routes/branch-routes.js";
 import ingredientRouter from "./routes/ingredient-routes.js";
@@ -25,6 +28,12 @@ import storeTableRouter from "./routes/store-table-routes.js";
 import dineInSessionRouter from "./routes/dinein-session-routes.js";
 import dineInCustomerRouter from "./routes/dinein-customer-routes.js";
 import momoRouter from "./routes/momo-routes.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(__dirname, "../client/dist");
+const clientIndexPath = path.join(clientDistPath, "index.html");
+
 const app = express();
 app.use(
   cors({
@@ -115,5 +124,17 @@ app.use("/api/dashboard", dashboardRouter);
 
 // Recommendations (AI Service)
 app.use("/api/recommendations", recommendationRouter);
+
+if (fs.existsSync(clientIndexPath)) {
+  app.use(express.static(clientDistPath));
+
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api")) {
+      return next();
+    }
+
+    return res.sendFile(clientIndexPath);
+  });
+}
 
 export default app;
