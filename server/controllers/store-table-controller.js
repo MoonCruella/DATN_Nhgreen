@@ -10,7 +10,9 @@ import { getIO } from "../config/socket.js";
 
 const getQrUrl = (req, qrToken) => {
   const baseUrl =
-    process.env.QR_CLIENT_BASE_URL || process.env.CLIENT_DINE_IN_URL;
+    process.env.QR_CLIENT_BASE_URL ||
+    process.env.CLIENT_DINE_IN_URL ||
+    req.protocol + "://" + req.get("host");
 
   const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
   const dineInBaseUrl = normalizedBaseUrl.endsWith("/dine-in")
