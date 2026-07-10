@@ -9,6 +9,22 @@ import {
   verifyRefreshToken,
 } from "../utils/jwt.js";
 
+const isProduction =
+  process.env.NODE_ENV === "production" || process.env.RENDER === "true";
+
+const refreshCookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+  maxAge: 1 * 60 * 60 * 1000,
+};
+
+const clearRefreshCookieOptions = {
+  httpOnly: refreshCookieOptions.httpOnly,
+  secure: refreshCookieOptions.secure,
+  sameSite: refreshCookieOptions.sameSite,
+};
+
 // Gửi OTP đến email
 const sendOtpToEmail = async (email) => {
   try {
@@ -158,12 +174,7 @@ const loginUser = async (req, res) => {
     await userDoc.updateLastLogin();
     res
       .status(200)
-      .cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: false,
-        sameSite: "strict",
-        maxAge: 1 * 60 * 60 * 1000,
-      })
+      .cookie("refreshToken", refreshToken, refreshCookieOptions)
       .json({
         success: true,
         message: "Đăng nhập thành công!",
@@ -197,7 +208,7 @@ const loginUser = async (req, res) => {
 
 // Logout
 const logoutUser = (req, res) => {
-  res.clearCookie("refreshToken").json({
+  res.clearCookie("refreshToken", clearRefreshCookieOptions).json({
     success: true,
     message: "Đăng xuất thành công!",
   });
@@ -272,12 +283,7 @@ const refreshToken = async (req, res) => {
 
     return res
       .status(200)
-      .cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: false,
-        sameSite: "strict",
-        maxAge: 1 * 60 * 60 * 1000,
-      })
+      .cookie("refreshToken", refreshToken, refreshCookieOptions)
       .json({
         success: true,
         message: "Token đã được làm mới",
