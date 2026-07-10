@@ -31,8 +31,17 @@ import momoRouter from "./routes/momo-routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const clientDistPath = path.resolve(__dirname, "../client/dist");
-const clientIndexPath = path.join(clientDistPath, "index.html");
+const clientDistCandidates = [
+  path.resolve(__dirname, "../client/dist"),
+  path.resolve(__dirname, "client/dist"),
+  path.resolve(__dirname, "public"),
+];
+const clientDistPath = clientDistCandidates.find((distPath) =>
+  fs.existsSync(path.join(distPath, "index.html")),
+);
+const clientIndexPath = clientDistPath
+  ? path.join(clientDistPath, "index.html")
+  : null;
 
 const app = express();
 app.use(
@@ -125,7 +134,7 @@ app.use("/api/dashboard", dashboardRouter);
 // Recommendations (AI Service)
 app.use("/api/recommendations", recommendationRouter);
 
-if (fs.existsSync(clientIndexPath)) {
+if (clientIndexPath) {
   app.use(express.static(clientDistPath));
 
   app.use((req, res, next) => {
