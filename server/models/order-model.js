@@ -136,18 +136,12 @@ const orderSchema = new mongoose.Schema(
           default: 0,
           min: 0,
         },
-        original_price: {
-          type: Number, // Giá gốc trước khi giảm
-        },
         total: {
           type: Number,
           required: true,
           min: 0,
         },
         // Additional dish info
-        sku: {
-          type: String,
-        },
         weight: {
           type: Number, // Khối lượng (gram)
         },
@@ -159,24 +153,6 @@ const orderSchema = new mongoose.Schema(
           size: String,
           color: String,
           other_attributes: mongoose.Schema.Types.Mixed,
-        },
-        // Discount info
-        discount_percent: {
-          type: Number,
-          default: 0,
-        },
-        discount_amount: {
-          type: Number,
-          default: 0,
-        },
-        // dish status at order time
-        was_on_sale: {
-          type: Boolean,
-          default: false,
-        },
-        was_featured: {
-          type: Boolean,
-          default: false,
         },
         // Metadata
         created_at: {
@@ -268,7 +244,6 @@ const orderSchema = new mongoose.Schema(
     shipping_provider: String,
     shipping_order_code: String,
     shipping_status: String,
-    shipping_expected_delivery_time: Date,
     shipping_raw_response: mongoose.Schema.Types.Mixed,
     cancel_reason: String,
     cancel_requested_at: Date,
