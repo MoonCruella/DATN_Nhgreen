@@ -254,7 +254,6 @@ const orderSchema = new mongoose.Schema(
     shipping_provider: String,
     shipping_order_code: String,
     shipping_status: String,
-    shipping_expected_delivery_time: Date,
     shipping_raw_response: mongoose.Schema.Types.Mixed,
     cancel_reason: String,
     cancel_requested_at: Date,

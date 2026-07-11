@@ -269,7 +269,6 @@ export const createGhnShippingOrder = async (order) => {
 
   return {
     orderCode: data.data?.order_code || "",
-    expectedDeliveryTime: data.data?.expected_delivery_time || null,
     fee: data.data?.total_fee || data.data?.fee?.main_service || null,
     raw: data,
   };

@@ -2458,11 +2458,6 @@ export const updateShippingInfo = async (req, res) => {
         if (ghnResult.fee) {
           order.shipping_fee = ghnResult.fee;
         }
-        if (ghnResult.expectedDeliveryTime) {
-          order.shipping_expected_delivery_time = new Date(
-            ghnResult.expectedDeliveryTime
-          );
-        }
       }
 
       statusChanged = shipping_status !== order.status;
