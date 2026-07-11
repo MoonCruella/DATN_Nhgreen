@@ -1660,11 +1660,6 @@ export const createOrder = async (req, res) => {
 
       // Calculate prices (finalPrice already set above if Flash Sale)
       const itemTotal = finalPrice * item.quantity;
-      const discountAmount = dish.price - finalPrice;
-      const discountPercent =
-        discountAmount > 0
-          ? Math.round((discountAmount / dish.price) * 100)
-          : 0;
 
       subtotal += itemTotal;
 
@@ -1682,26 +1677,12 @@ export const createOrder = async (req, res) => {
         quantity: item.quantity,
         price: dish.price, // Giá gốc
         sale_price: finalPrice, // Giá sau khi giảm (Flash Sale hoặc Sale thường)
-        original_price: dish.price, // Giá gốc (duplicate for clarity)
         total: itemTotal,
         // Additional info
-        sku: dish.sku,
         weight: dish.weight,
         unit: dish.unit || "sản phẩm",
         // Variant
         variant: item.variant || {},
-        // Discount
-        discount_percent: discountPercent,
-        discount_amount: discountAmount,
-        // Product status
-        was_on_sale:
-          isFlashSale || (dish.sale_price > 0 && dish.sale_price < dish.price),
-        was_featured: dish.featured || false,
-        // Flash Sale info
-        is_flash_sale: isFlashSale,
-        flash_sale_id: item.flashSaleId || null,
-        // Hometown
-        hometown_origin: dish.hometown_origin || {},
         created_at: new Date(),
       });
     }
@@ -2810,11 +2791,6 @@ export const updateDineInOrderItems = async (req, res) => {
 
       const finalPrice = dish.sale_price || dish.price || 0;
       const itemTotal = finalPrice * quantity;
-      const discountAmount = Math.max((dish.price || 0) - finalPrice, 0);
-      const discountPercent =
-        discountAmount > 0 && dish.price
-          ? Math.round((discountAmount / dish.price) * 100)
-          : 0;
       const dishImage =
         dish.imageUrls?.[dish.defaultImageIndex || 0] ||
         dish.imageUrls?.[0] ||
@@ -2832,17 +2808,10 @@ export const updateDineInOrderItems = async (req, res) => {
         quantity,
         price: dish.price,
         sale_price: finalPrice,
-        original_price: dish.price,
         total: itemTotal,
-        sku: dish.sku,
         weight: dish.weight,
         unit: dish.unit || "sản phẩm",
         variant: item.variant || {},
-        discount_percent: discountPercent,
-        discount_amount: discountAmount,
-        was_on_sale: dish.sale_price > 0 && dish.sale_price < dish.price,
-        was_featured: dish.featured || false,
-        hometown_origin: dish.hometown_origin || {},
         created_at: new Date(),
       });
     }

@@ -1,12 +1,28 @@
 import { createClient } from "redis";
 
+const buildRedisUrl = () => {
+  if (process.env.REDIS_URL) return process.env.REDIS_URL;
+
+  const host = process.env.REDIS_HOST || "127.0.0.1";
+  const port = process.env.REDIS_PORT || "6379";
+  const username = process.env.REDIS_USERNAME || "";
+  const password = process.env.REDIS_PASSWORD || "";
+  const db = process.env.REDIS_DB || "0";
+
+  const credentials = password
+    ? `${username ? encodeURIComponent(username) : "default"}:${encodeURIComponent(password)}@`
+    : "";
+
+  return `redis://${credentials}${host}:${port}/${db}`;
+};
+
 const redisClient = createClient({
-  url: process.env.REDIS_URL || "redis://127.0.0.1:6379",
+  url: buildRedisUrl(),
 });
 
 redisClient.on("error", (err) => console.error("Redis error:", err));
 
-// Sử dụng IIFE để connect
+// Connect Redis once when this module is loaded.
 (async () => {
   try {
     await redisClient.connect();
