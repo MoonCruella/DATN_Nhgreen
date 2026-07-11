@@ -6,7 +6,6 @@ import NewAdded from "@/components/customer-view/home/NewAdded";
 import FlashSale from "@/components/customer-view/home/FlashSale";
 import IntroduceBanner from "@/components/customer-view/home/IntroduceBanner";
 import DishForGym from "@/components/customer-view/home/DishForGym";
-import RecommendedDishes from "@/components/customer-view/recommendation/RecommendedDishes";
 import FamiliarDishes from "@/components/customer-view/recommendation/FamiliarDishes";
 
 const CustomerHome = () => {
@@ -17,7 +16,6 @@ const CustomerHome = () => {
       <FlashSale />
       <IntroduceBanner />
       <FamiliarDishes limit={4} />
-      <RecommendedDishes limit={8} />
       <BestSeller />
       <DishForGym />
       <NewAdded />

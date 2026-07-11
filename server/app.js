@@ -26,7 +26,6 @@ import dashboardRouter from "./routes/dashboard-routes.js";
 import recommendationRouter from "./routes/recommendation-routes.js";
 import storeTableRouter from "./routes/store-table-routes.js";
 import dineInSessionRouter from "./routes/dinein-session-routes.js";
-import dineInCustomerRouter from "./routes/dinein-customer-routes.js";
 import momoRouter from "./routes/momo-routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -103,8 +102,6 @@ app.use("/api/store-tables", storeTableRouter);
 // Dine-in QR
 app.use("/api/dine-in", dineInSessionRouter);
 
-// Dine-in customers
-app.use("/api/dine-in-customers", dineInCustomerRouter);
 
 
 // Users

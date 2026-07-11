@@ -105,6 +105,76 @@ const buildCalculateFeePayload = ({
   return payload;
 };
 
+const resolveGhnServiceId = async ({ apiUrl, token, shopId, branch = {}, shippingInfo = {} }) => {
+  const branchAddress = branch.address || {};
+  const fromDistrictId = Number(branchAddress.district?.code) || undefined;
+  const toDistrictId = Number(shippingInfo.district?.code) || undefined;
+
+  if (!fromDistrictId || !toDistrictId) {
+    throw new Error("Thieu ma quan/huyen GHN de lay goi dich vu giao hang");
+  }
+
+  const payload = {
+    shop_id: Number(shopId),
+    from_district: fromDistrictId,
+    to_district: toDistrictId,
+  };
+  const endpoint = `${apiUrl}/v2/shipping-order/available-services`;
+
+  const response = await axios.post(endpoint, payload, {
+    headers: {
+      "Content-Type": "application/json",
+      Token: token,
+      ShopId: shopId,
+    },
+  });
+
+  const data = response.data || {};
+  if (data.code !== 200) {
+    throw new Error(data.message || "GHN lay goi dich vu giao hang that bai");
+  }
+
+  const services = Array.isArray(data.data) ? data.data : [];
+  const selectedService =
+    services.find((service) => Number(service.service_type_id) === 2) ||
+    services[0];
+
+  return Number(selectedService?.service_id || 0) || null;
+};
+
+const buildLeadtimePayload = ({ branch = {}, shippingInfo = {}, serviceId }) => {
+  const branchAddress = branch.address || {};
+  const fromDistrictId = Number(branchAddress.district?.code) || undefined;
+  const fromWardCode = String(branchAddress.ward?.code || "").trim();
+  const toDistrictId = Number(shippingInfo.district?.code) || undefined;
+  const toWardCode = String(shippingInfo.ward?.code || "").trim();
+  const resolvedServiceId = Number(serviceId) || undefined;
+
+  if (!fromDistrictId || !fromWardCode) {
+    throw new Error(
+      "Thieu ma quan/huyen hoac phuong/xa GHN cua chi nhanh de tinh thoi gian giao hang",
+    );
+  }
+
+  if (!toDistrictId || !toWardCode) {
+    throw new Error(
+      "Thieu ma quan/huyen hoac phuong/xa GHN cua nguoi nhan de tinh thoi gian giao hang",
+    );
+  }
+
+  if (!resolvedServiceId) {
+    throw new Error("GHN chua tra ve ma dich vu de tinh thoi gian giao hang");
+  }
+
+  return {
+    from_district_id: fromDistrictId,
+    from_ward_code: fromWardCode,
+    to_district_id: toDistrictId,
+    to_ward_code: toWardCode,
+    service_id: resolvedServiceId,
+  };
+};
+
 const getOrderContent = (order) =>
   (order.items || [])
     .map((item) => `${item.dish_name} x${item.quantity}`)
@@ -325,6 +395,88 @@ export const calculateGhnShippingFee = async ({
   return {
     total: Number(data.data?.total || 0),
     serviceFee: Number(data.data?.service_fee || 0),
+    serviceId: Number(data.data?.service_id || 0) || null,
+    raw: data,
+  };
+};
+
+export const calculateGhnLeadtime = async ({ branch, shippingInfo, serviceId }) => {
+  const branchShopId = branch?.shop_id;
+  const { apiUrl, token, shopId } = getGhnConfig(branchShopId);
+  const resolvedServiceId =
+    Number(serviceId) ||
+    (await resolveGhnServiceId({ apiUrl, token, shopId, branch, shippingInfo }));
+  const payload = buildLeadtimePayload({
+    branch,
+    shippingInfo,
+    serviceId: resolvedServiceId,
+  });
+  const endpoint = `${apiUrl}/v2/shipping-order/leadtime`;
+  const logContext = {
+    branchId: branch?._id,
+    branchName: branch?.name,
+    shopId,
+    endpoint,
+    payload,
+  };
+
+  console.info("[GHN][leadtime][request]", JSON.stringify(logContext, null, 2));
+
+  let response;
+  try {
+    response = await axios.post(endpoint, payload, {
+      headers: {
+        "Content-Type": "application/json",
+        Token: token,
+        ShopId: shopId,
+      },
+    });
+  } catch (error) {
+    console.error(
+      "[GHN][leadtime][error]",
+      JSON.stringify(
+        {
+          ...logContext,
+          status: error.response?.status,
+          response: error.response?.data,
+          message: error.message,
+        },
+        null,
+        2,
+      ),
+    );
+    throw error;
+  }
+
+  const data = response.data || {};
+  console.info(
+    "[GHN][leadtime][response]",
+    JSON.stringify(
+      {
+        branchId: branch?._id,
+        branchName: branch?.name,
+        shopId,
+        code: data.code,
+        message: data.message,
+        leadtime: data.data,
+      },
+      null,
+      2,
+    ),
+  );
+
+  if (data.code !== 200) {
+    throw new Error(data.message || "GHN tinh thoi gian giao hang that bai");
+  }
+
+  const leadtime = Number(data.data?.leadtime || 0) || null;
+  const orderDate = Number(data.data?.order_date || 0) || null;
+
+  return {
+    leadtime,
+    orderDate,
+    leadtimeDate: leadtime ? new Date(leadtime * 1000).toISOString() : null,
+    orderDateTime: orderDate ? new Date(orderDate * 1000).toISOString() : null,
     raw: data,
   };
 };

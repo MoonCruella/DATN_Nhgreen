@@ -102,19 +102,12 @@ const getShippingAddress = (shippingInfo = {}) =>
     .filter(Boolean)
     .join(", ");
 
-const getDineInCustomer = (order) => {
-  const customer = order?.customer_id;
-  return customer && typeof customer === "object" ? customer : null;
-};
-
 const getCustomerName = (order) =>
-  getDineInCustomer(order)?.name ||
   order?.shipping_info?.name ||
   order?.user_id?.name ||
-  "Khách vãng lai";
+  "Kh??ch v??ng lai";
 
 const getCustomerPhone = (order) =>
-  getDineInCustomer(order)?.phone ||
   order?.shipping_info?.phone ||
   order?.user_id?.phone ||
   "";

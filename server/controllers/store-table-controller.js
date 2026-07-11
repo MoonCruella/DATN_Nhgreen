@@ -525,7 +525,6 @@ export const transferStoreTableOrder = async (req, res) => {
 
     const updatedOrder = await Order.findById(sourceOrder._id)
       .populate("user_id", "name email phone")
-      .populate("customer_id", "name phone address linked_user_id")
       .populate("branch_id", "name phone address code")
       .populate("table_id", "name code active")
       .lean();

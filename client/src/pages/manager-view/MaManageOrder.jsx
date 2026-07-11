@@ -39,28 +39,19 @@ const compactOrderCode = (orderNumber = "") =>
 const getTextValue = (value) =>
   typeof value === "string" ? value.trim() : value;
 
-const getDineInCustomer = (order) => {
-  const customer = order?.customer_id;
-  return customer && typeof customer === "object" ? customer : null;
-};
-
 const getCustomerName = (order) => {
-  const dineInCustomer = getDineInCustomer(order);
-
   return (
     getTextValue(order.shipping_info?.recipient_name) ||
     getTextValue(order.shipping_info?.name) ||
-    getTextValue(dineInCustomer?.name) ||
+    getTextValue(order.user_id?.name) ||
     "--"
   );
 };
 
 const getCustomerPhone = (order) => {
-  const dineInCustomer = getDineInCustomer(order);
-
   return (
     getTextValue(order.shipping_info?.phone) ||
-    getTextValue(dineInCustomer?.phone) ||
+    getTextValue(order.user_id?.phone) ||
     "--"
   );
 };

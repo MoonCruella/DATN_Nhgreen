@@ -20,10 +20,6 @@ const dineInSessionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    guest_info: {
-      name: String,
-      phone: String,
-    },
     cart_items: [
       {
         dish_id: {

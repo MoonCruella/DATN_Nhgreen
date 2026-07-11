@@ -3,7 +3,6 @@ import mongoose from "mongoose";
 import DineInSession from "../models/dinein-session-model.js";
 import StoreTable from "../models/store-table-model.js";
 import Order from "../models/order-model.js";
-import "../models/dinein-customer-model.js";
 import response from "../helpers/response.js";
 import { syncZalopayOrderStatus } from "./zalopay-controller.js";
 import { getIO } from "../config/socket.js";
@@ -66,7 +65,7 @@ export const scanDineInQr = async (req, res) => {
 
 export const createDineInSession = async (req, res) => {
   try {
-    const { qr_token, guest_info = {} } = req.body;
+    const { qr_token } = req.body;
 
     if (!qr_token) {
       return response.sendError(res, "QR không hợp lệ", 400);
@@ -103,7 +102,6 @@ export const createDineInSession = async (req, res) => {
             branch_id: table.branch_id,
             status: existingSession.status,
             expires_at: existingSession.expires_at,
-            guest_info: existingSession.guest_info,
           },
           table: {
             _id: table._id,
@@ -121,10 +119,6 @@ export const createDineInSession = async (req, res) => {
       session_token: createSessionToken(),
       table_id: table._id,
       branch_id: table.branch_id._id,
-      guest_info: {
-        name: guest_info.name || "",
-        phone: guest_info.phone || "",
-      },
       cart_items: [],
       expires_at: getExpiresAt(),
     });
@@ -145,7 +139,6 @@ export const createDineInSession = async (req, res) => {
           branch_id: table.branch_id,
           status: session.status,
           expires_at: session.expires_at,
-          guest_info: session.guest_info,
         },
         table: {
           _id: table._id,
@@ -232,7 +225,6 @@ export const getDineInActiveOrder = async (req, res) => {
       status: { $in: ["pending", "confirmed", "processing"] },
       payment_status: { $ne: "paid" },
     })
-      .populate("customer_id", "name phone address linked_user_id")
       .populate("branch_id", "name phone address code")
       .populate("table_id", "name code active")
       .sort({ created_at: -1 })

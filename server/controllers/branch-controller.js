@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import sendMail from "../config/nodemailer.js";
 import { createVietnameseSearchQuery } from "../utils/fuzzySearch.js";
 import {
+  calculateGhnLeadtime,
   calculateGhnShippingFee,
   createGhnStore,
 } from "../services/ghn-service.js";
@@ -575,10 +576,24 @@ export const calculateBranchShippingFee = async (req, res) => {
       insuranceValue: insurance_value,
     });
 
+    let leadtime = null;
+    try {
+      leadtime = await calculateGhnLeadtime({
+        branch,
+        shippingInfo: shipping_info,
+        serviceId: ghnFee.serviceId,
+      });
+    } catch (leadtimeError) {
+      console.error("Calculate GHN leadtime error:", leadtimeError);
+    }
+
     res.status(200).json({
       success: true,
       message: "Tính phí giao hàng GHN thành công",
-      data: ghnFee,
+      data: {
+        ...ghnFee,
+        leadtime,
+      },
     });
   } catch (error) {
     res.status(500).json({

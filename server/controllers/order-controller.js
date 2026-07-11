@@ -1,5 +1,4 @@
 import Order from "../models/order-model.js";
-import "../models/dinein-customer-model.js";
 import Branch from "../models/branch-model.js";
 import Dish from "../models/dish-model.js";
 import User from "../models/user-model.js";
@@ -7,7 +6,6 @@ import Voucher from "../models/voucher-model.js";
 import FlashSale from "../models/flashsale-model.js";
 import StoreTable from "../models/store-table-model.js";
 import DineInSession from "../models/dinein-session-model.js";
-import "../models/dinein-customer-model.js";
 import OrderCounter from "../models/order-counter-model.js";
 import mongoose from "mongoose";
 import response from "../helpers/response.js";
@@ -43,6 +41,76 @@ const calculateOrderStats = (orders) => {
     cancel_request: orders.filter((o) => o.status === "cancel_request").length,
     cancelled: orders.filter((o) => o.status === "cancelled").length,
     totalAmount: orders.reduce((sum, o) => sum + (o.total_amount || 0), 0),
+  };
+};
+
+const clampMoney = (value, min = 0, max = Number.MAX_SAFE_INTEGER) => {
+  const amount = Number(value) || 0;
+  return Math.min(Math.max(amount, min), max);
+};
+
+const validateVoucherForOrder = (voucher, type, orderValue) => {
+  if (!voucher || String(voucher.type).toUpperCase() !== type) {
+    return `Voucher ${type === "FREESHIP" ? "freeship" : "giam gia"} khong hop le`;
+  }
+
+  const now = new Date();
+  if (voucher.startDate && voucher.startDate > now) {
+    return "Voucher chua den ngay su dung";
+  }
+  if (voucher.endDate && voucher.endDate < now) {
+    return "Voucher da het han";
+  }
+  if (orderValue < (Number(voucher.minOrderValue) || 0)) {
+    return "Don hang chua dat gia tri toi thieu cua voucher";
+  }
+  if (Number(voucher.usageLimit) > 0 && voucher.usedCount >= voucher.usageLimit) {
+    return "Voucher da het luot su dung";
+  }
+
+  return null;
+};
+
+const calculateDiscountVoucherValue = (voucher, orderValue) => {
+  if (!voucher) return 0;
+
+  let discount = voucher.isPercent
+    ? (orderValue * (Number(voucher.discountValue) || 0)) / 100
+    : Number(voucher.discountValue) || 0;
+
+  if (Number(voucher.maxDiscount) > 0) {
+    discount = Math.min(discount, Number(voucher.maxDiscount));
+  }
+
+  return clampMoney(discount, 0, orderValue);
+};
+
+const calculateFreeshipVoucherValue = (voucher, shippingFee) => {
+  if (!voucher) return 0;
+
+  let freeship = 0;
+  if (voucher.isPercent && Number(voucher.discountValue) > 0) {
+    freeship = (shippingFee * Number(voucher.discountValue)) / 100;
+    if (Number(voucher.maxDiscount) > 0) {
+      freeship = Math.min(freeship, Number(voucher.maxDiscount));
+    }
+  } else {
+    freeship = Number(voucher.maxDiscount) || Number(voucher.discountValue) || shippingFee;
+  }
+
+  return clampMoney(freeship, 0, shippingFee);
+};
+
+const calculateOrderSubtotal = (orderOrItems = []) => {
+  const items = Array.isArray(orderOrItems) ? orderOrItems : orderOrItems?.items;
+  return (items || []).reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+};
+
+const attachOrderDerivedFields = (order) => {
+  if (!order) return order;
+  return {
+    ...order,
+    subtotal: calculateOrderSubtotal(order),
   };
 };
 
@@ -389,11 +457,11 @@ export const getUserOrders = async (req, res) => {
             };
           })
         );
-        return {
+        return attachOrderDerivedFields({
           ...order,
           rating_status: ratingStatus,
           items: enrichedItems,
-        };
+        });
       })
     );
 
@@ -511,10 +579,10 @@ export const getUserOrdersByAdmin = async (req, res) => {
             };
           })
         );
-        return {
+        return attachOrderDerivedFields({
           ...order,
           items: enrichedItems,
-        };
+        });
       })
     );
 
@@ -621,10 +689,6 @@ export const getOrderById = async (req, res) => {
         select: "name email phone",
       })
       .populate({
-        path: "customer_id",
-        select: "name phone address linked_user_id",
-      })
-      .populate({
         path: "branch_id",
         select: "name phone address code",
       })
@@ -716,11 +780,11 @@ export const getOrderById = async (req, res) => {
     }
 
     const data = {
-      order: {
+      order: attachOrderDerivedFields({
         ...order,
         items: enrichedItems, //  Use enriched items with dish existence flag
         timeline,
-      },
+      }),
     };
 
     return response.sendSuccess(
@@ -1643,16 +1707,67 @@ export const createOrder = async (req, res) => {
     }
 
     // Sử dụng shipping_fee từ frontend, fallback về 30000 nếu không có
-    const shippingFeeFromFrontend = isDineIn ? 0 : shipping_fee || 30000;
-    const coinDiscount = isDineIn ? 0 : coin_discount || 0;
+    const shippingFeeFromFrontend = isDineIn ? 0 : Number(shipping_fee) || 30000;
+    const coinDiscount = isDineIn
+      ? 0
+      : clampMoney(coin_discount, 0, subtotal + shippingFeeFromFrontend);
+    let appliedFreeshipCode = freeship || undefined;
+    let appliedDiscountCode = discount || undefined;
+    let appliedFreeshipValue = isDineIn
+      ? 0
+      : clampMoney(freeship_value, 0, shippingFeeFromFrontend);
+    let appliedDiscountValue = isDineIn
+      ? 0
+      : clampMoney(discount_value, 0, subtotal);
 
-    // Tính total_amount = subtotal + shipping_fee - discount - freeship - coin_discount
-    const totalAmount =
+    if (!isDineIn && (appliedFreeshipCode || appliedDiscountCode)) {
+      const voucherCodeList = [appliedFreeshipCode, appliedDiscountCode].filter(Boolean);
+      const vouchers = await Voucher.find({
+        code: { $in: voucherCodeList },
+        active: true,
+      }).lean();
+      const voucherByCode = new Map(
+        vouchers.map((voucher) => [voucher.code, voucher])
+      );
+
+      if (appliedFreeshipCode) {
+        const freeshipVoucher = voucherByCode.get(appliedFreeshipCode);
+        const errorMessage = validateVoucherForOrder(
+          freeshipVoucher,
+          "FREESHIP",
+          subtotal
+        );
+        if (errorMessage) return response.sendError(res, errorMessage, 400);
+        appliedFreeshipValue = calculateFreeshipVoucherValue(
+          freeshipVoucher,
+          shippingFeeFromFrontend
+        );
+      }
+
+      if (appliedDiscountCode) {
+        const discountVoucher = voucherByCode.get(appliedDiscountCode);
+        const errorMessage = validateVoucherForOrder(
+          discountVoucher,
+          "DISCOUNT",
+          subtotal
+        );
+        if (errorMessage) return response.sendError(res, errorMessage, 400);
+        appliedDiscountValue = calculateDiscountVoucherValue(
+          discountVoucher,
+          subtotal
+        );
+      }
+    }
+
+    // Calculate total_amount = subtotal + shipping_fee - discount - freeship - coin_discount
+    const totalAmount = Math.max(
+      0,
       subtotal +
-      shippingFeeFromFrontend -
-      (discount_value || 0) -
-      (freeship_value || 0) -
-      coinDiscount;
+        shippingFeeFromFrontend -
+        appliedDiscountValue -
+        appliedFreeshipValue -
+        coinDiscount
+    );
 
     if (isDineInQr) {
       const activeDineInOrder = await Order.findOne({
@@ -1690,12 +1805,9 @@ export const createOrder = async (req, res) => {
           }
         }
 
-        activeDineInOrder.subtotal = (activeDineInOrder.items || []).reduce(
-          (sum, item) => sum + (item.total || 0),
-          0
-        );
+        const activeOrderSubtotal = calculateOrderSubtotal(activeDineInOrder);
         activeDineInOrder.total_amount =
-          activeDineInOrder.subtotal +
+          activeOrderSubtotal +
           (activeDineInOrder.shipping_fee || 0) -
           (activeDineInOrder.discount_value || 0) -
           (activeDineInOrder.freeship_value || 0) -
@@ -1717,11 +1829,12 @@ export const createOrder = async (req, res) => {
           cart_items: [],
         });
 
-        const updatedOrder = await Order.findById(activeDineInOrder._id)
-          .populate("user_id", "name email phone")
-          .populate("customer_id", "name phone address linked_user_id")
-          .populate("branch_id", "name phone address code")
-          .lean();
+        const updatedOrder = attachOrderDerivedFields(
+          await Order.findById(activeDineInOrder._id)
+            .populate("user_id", "name email phone")
+              .populate("branch_id", "name phone address code")
+            .lean()
+        );
 
         try {
           const io = getIO();
@@ -1781,7 +1894,6 @@ export const createOrder = async (req, res) => {
             code: selectedTable.code,
           }
         : undefined,
-      customer_id: null,
       dine_in_session_id: isDineInQr ? dineInSession._id : null,
       branch_id: branch._id,
       branch_info: {
@@ -1799,11 +1911,14 @@ export const createOrder = async (req, res) => {
       },
       order_number: orderNumber,
       items: orderItems,
-      subtotal: subtotal,
       total_amount: totalAmount,
       shipping_fee: shippingFeeFromFrontend,
-      freeship_value: freeship_value || 0,
-      discount_value: discount_value || 0,
+      freeship_value: appliedFreeshipValue,
+      discount_value: appliedDiscountValue,
+      voucher_codes: {
+        freeship: appliedFreeshipCode,
+        discount: appliedDiscountCode,
+      },
       coin_discount: coinDiscount,
       payment_method: resolvedPaymentMethod,
       payment_status: ["vnpay", "momo", "zalopay"].includes(resolvedPaymentMethod)
@@ -1876,17 +1991,17 @@ export const createOrder = async (req, res) => {
     // await CartItem.deleteMany({ user_id: userId }); // COMMENTED OUT
 
     // Tăng usedCount cho voucher freeship nếu có
-    if (freeship) {
+    if (appliedFreeshipCode) {
       await Voucher.findOneAndUpdate(
-        { code: freeship },
+        { code: appliedFreeshipCode },
         { $inc: { usedCount: 1 } }
       );
     }
 
     // Tăng usedCount cho voucher discount nếu có
-    if (discount) {
+    if (appliedDiscountCode) {
       await Voucher.findOneAndUpdate(
-        { code: discount },
+        { code: appliedDiscountCode },
         { $inc: { usedCount: 1 } }
       );
     }
@@ -1894,12 +2009,11 @@ export const createOrder = async (req, res) => {
     // Không populate nữa, dùng hardcoded data
     const createdOrder = await Order.findById(newOrder._id)
       .populate("user_id", "name email phone")
-      .populate("customer_id", "name phone address linked_user_id")
       .populate("branch_id", "name phone address code")
       .lean();
 
     const data = {
-      order: createdOrder,
+      order: attachOrderDerivedFields(createdOrder),
     };
 
     // Send socket notification to branch
@@ -2734,7 +2848,6 @@ export const updateDineInOrderItems = async (req, res) => {
     }
 
     order.items = orderItems;
-    order.subtotal = subtotal;
     order.total_amount =
       subtotal +
       (order.shipping_fee || 0) -
@@ -2750,11 +2863,12 @@ export const updateDineInOrderItems = async (req, res) => {
 
     await order.save();
 
-    const updatedOrder = await Order.findById(order._id)
-      .populate("user_id", "name email phone")
-      .populate("customer_id", "name phone address linked_user_id")
-      .populate("branch_id", "name phone address code")
-      .lean();
+    const updatedOrder = attachOrderDerivedFields(
+      await Order.findById(order._id)
+        .populate("user_id", "name email phone")
+          .populate("branch_id", "name phone address code")
+        .lean()
+    );
 
     try {
       const io = getIO();
@@ -2766,7 +2880,7 @@ export const updateDineInOrderItems = async (req, res) => {
         updates: {
           items: order.items,
           total_amount: order.total_amount,
-          subtotal: order.subtotal,
+          subtotal,
         },
       });
     } catch (socketError) {
@@ -2855,7 +2969,7 @@ export const getAllOrders = async (req, res) => {
     return response.sendSuccess(
       res,
       {
-        orders,
+        orders: orders.map(attachOrderDerivedFields),
         pagination: {
           current_page: parseInt(page),
           total_pages: totalPages,
@@ -2986,7 +3100,7 @@ export const syncGhnShippingStatus = async (req, res) => {
     return response.sendSuccess(
       res,
       {
-        order: result.order,
+        order: attachOrderDerivedFields(result.order.toObject()),
         ghn: ghnDetail,
       },
       "Đồng bộ trạng thái GHN thành công",
@@ -3134,7 +3248,6 @@ export const getOrdersByBranch = async (req, res) => {
 
     const orders = await Order.find(filter)
       .populate("user_id", "name email phone")
-      .populate("customer_id", "name phone address linked_user_id")
       .sort({ created_at: -1 })
       .skip(skip)
       .limit(parseInt(limit))
@@ -3145,7 +3258,7 @@ export const getOrdersByBranch = async (req, res) => {
     return response.sendSuccess(
       res,
       {
-        orders,
+        orders: orders.map(attachOrderDerivedFields),
         pagination: {
           current_page: parseInt(page),
           total_orders: totalOrders,
@@ -3644,10 +3757,12 @@ export const searchOrders = async (req, res) => {
       "items.dish_id.name",
     ]);
 
-    const ordersWithScores = sortedResults.map((result) => ({
-      ...result.item,
-      relevance_score: result.score.toFixed(2),
-    }));
+    const ordersWithScores = sortedResults.map((result) =>
+      attachOrderDerivedFields({
+        ...result.item,
+        relevance_score: result.score.toFixed(2),
+      })
+    );
 
     return response.sendSuccess(
       res,

@@ -29,12 +29,6 @@ const orderSchema = new mongoose.Schema(
       name: String,
       code: String,
     },
-    customer_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "DineInCustomer",
-      default: null,
-      index: true,
-    },
     dine_in_session_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "DineInSession",
@@ -191,10 +185,6 @@ const orderSchema = new mongoose.Schema(
         },
       },
     ],
-    subtotal: {
-      type: Number,
-      required: true,
-    },
     total_amount: {
       type: Number,
       required: true,
@@ -210,6 +200,10 @@ const orderSchema = new mongoose.Schema(
     discount_value: {
       type: Number,
       default: 0,
+    },
+    voucher_codes: {
+      freeship: String,
+      discount: String,
     },
     coin_discount: {
       type: Number,
@@ -342,6 +336,16 @@ orderSchema.index({ order_number: 1 });
 orderSchema.index({ created_at: -1 });
 orderSchema.index({ status: 1, created_at: 1 });
 orderSchema.index({ "items.dish_id": 1 });
+
+const calculateOrderSubtotal = (items = []) =>
+  (items || []).reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+
+orderSchema.virtual("subtotal").get(function () {
+  return calculateOrderSubtotal(this.items);
+});
+
+orderSchema.set("toJSON", { virtuals: true });
+orderSchema.set("toObject", { virtuals: true });
 
 // Virtual để check xem dish còn tồn tại không
 orderSchema.virtual("items.dish_exists").get(function () {

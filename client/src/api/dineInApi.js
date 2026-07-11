@@ -6,10 +6,9 @@ const dineInApi = {
     return response.data;
   },
 
-  createSession: async (qrToken, guestInfo = {}) => {
+  createSession: async (qrToken) => {
     const response = await axiosPublic.post("/api/dine-in/sessions", {
       qr_token: qrToken,
-      guest_info: guestInfo,
     });
     return response.data;
   },
