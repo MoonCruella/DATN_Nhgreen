@@ -1,4 +1,4 @@
-import { Clock3, CreditCard, MapPin, Phone, Star, Store, Truck, UserCircle, X } from "lucide-react";
+import { Clock3, CreditCard, MapPin, Phone, Store, Truck, UserCircle, X } from "lucide-react";
 
 const formatCurrency = (value = 0) =>
   new Intl.NumberFormat("vi-VN").format(value || 0);
@@ -131,8 +131,6 @@ const OrderModal = ({ open, onClose, order }) => {
       0,
     );
   const totalAmount = order.total_amount || 0;
-  const earnedPoint =
-    order.reward_coin_earned || Math.floor(totalAmount / 100);
   const customerName = getCustomerName(order);
   const customerPhone = getCustomerPhone(order);
   const shippingAddress = getShippingAddress(order.shipping_info);
@@ -222,16 +220,6 @@ const OrderModal = ({ open, onClose, order }) => {
         </div>
 
         <div className="mt-4 space-y-5 text-base font-black">
-          {!isDineIn && (
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500">Điểm:</span>
-              <span className="inline-flex items-center gap-3 text-[#06183a]">
-                <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
-                {formatCurrency(earnedPoint)}
-              </span>
-            </div>
-          )}
-
           {!isDineIn && (
             <>
               <div className="flex items-center justify-between">

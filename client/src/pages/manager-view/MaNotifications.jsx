@@ -201,8 +201,11 @@ const MaNotifications = () => {
 
   const getReferenceId = (notification) => {
     const reference = notification.reference_id;
-    if (!reference) return "";
-    return typeof reference === "object" ? reference._id : reference;
+    if (!reference) return notification.metadata?.order_id || "";
+    if (typeof reference === "object") {
+      return reference._id || notification.metadata?.order_id || "";
+    }
+    return reference;
   };
 
   const isDineInOrderNotification = (notification) => {
@@ -211,6 +214,7 @@ const MaNotifications = () => {
 
     return (
       metadata.order_type === "dine_in" ||
+      metadata.order_channel === "dine-in" ||
       metadata.order_channel === "dine_in" ||
       metadata.order_channel === "dine_in_qr" ||
       referenceOrder?.order_type === "dine_in" ||
@@ -243,13 +247,18 @@ const MaNotifications = () => {
     }
 
     // Navigate based on notification type
-    if (notification.reference_model === "Order" && notification.reference_id) {
+    if (notification.reference_model === "Order") {
       if (isDineInOrderNotification(notification)) {
-        navigate("/manager/tables");
+        navigate("/manager/orders/dine-in");
         return;
       }
 
-      navigate(`/manager/orders/${getReferenceId(notification)}`);
+      const orderId = getReferenceId(notification);
+      if (orderId) {
+        navigate(`/manager/orders/${orderId}`);
+      } else {
+        navigate("/manager/orders/online");
+      }
     } else if (notification.reference_model === "Rating" && notification.reference_id) {
       navigate(`/manager/ratings`);
     }

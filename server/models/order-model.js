@@ -209,16 +209,6 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    reward_coin_earned: {
-      type: Number,
-      default: 0,
-    },
-    reward_coin_awarded_at: Date,
-    reward_coin_user_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
     payment_method: {
       type: String,
       enum: ["cod", "bank_transfer", "vnpay", "momo", "zalopay"],
@@ -346,13 +336,5 @@ orderSchema.virtual("subtotal").get(function () {
 
 orderSchema.set("toJSON", { virtuals: true });
 orderSchema.set("toObject", { virtuals: true });
-
-// Virtual để check xem dish còn tồn tại không
-orderSchema.virtual("items.dish_exists").get(function () {
-  return this.items.map(async (item) => {
-    const Dish = mongoose.model("Dish");
-    return await Dish.exists({ _id: item.dish_id });
-  });
-});
 
 export default mongoose.model("Order", orderSchema);

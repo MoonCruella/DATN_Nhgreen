@@ -131,6 +131,8 @@ const notifyNewOrder = async (order) => {
       reference_model: "Order",
       sender_id: order.user_id,
       metadata: {
+        order_id: order._id,
+        order_number: order.order_number,
         order_type: order.order_type || "online",
         order_channel: order.order_channel || "delivery",
         table_id: order.table_id || null,

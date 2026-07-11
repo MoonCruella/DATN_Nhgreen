@@ -11,7 +11,6 @@ import mongoose from "mongoose";
 import response from "../helpers/response.js";
 import * as notificationService from "../services/notification-service.js";
 import * as orderSchedulerService from "../services/order-scheduler-service.js";
-import { awardOrderRewardCoins } from "../services/reward-service.js";
 import CartItem from "../models/cart-model.js";
 import Rating from "../models/rating-model.js";
 import { getIO } from "../config/socket.js";
@@ -1975,10 +1974,6 @@ export const createOrder = async (req, res) => {
 
     await newOrder.save();
 
-    if (!isDineIn && newOrder.payment_status === "paid") {
-      await awardOrderRewardCoins(newOrder);
-    }
-
     if (isDineInQr) {
       await DineInSession.findByIdAndUpdate(dineInSession._id, {
         last_order_id: newOrder._id,
@@ -3354,9 +3349,7 @@ export const confirmReceived = async (req, res) => {
     });
 
     await order.save();
-
     // Reset cancel order streak khi đơn hàng hoàn thành thành công
-    await awardOrderRewardCoins(order);
 
     try {
       const user = await User.findById(userId);
@@ -3598,8 +3591,6 @@ export const autoCompleteOrder = async (orderId) => {
     });
 
     await order.save();
-
-    await awardOrderRewardCoins(order);
 
     // Send socket notification
     try {
