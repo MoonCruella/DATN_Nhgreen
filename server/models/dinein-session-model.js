@@ -14,12 +14,6 @@ const dineInSessionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    branch_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Branch",
-      required: true,
-      index: true,
-    },
     cart_items: [
       {
         dish_id: {
@@ -34,20 +28,10 @@ const dineInSessionSchema = new mongoose.Schema(
         },
       },
     ],
-    last_order_id: {
+    order_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Order",
       default: null,
-    },
-    status: {
-      type: String,
-      enum: ["active", "checked_out", "expired"],
-      default: "active",
-      index: true,
-    },
-    expires_at: {
-      type: Date,
-      required: true,
       index: true,
     },
   },

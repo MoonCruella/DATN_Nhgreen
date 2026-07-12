@@ -422,31 +422,17 @@ export const transferStoreTableOrder = async (req, res) => {
 
     const now = new Date();
 
-    await DineInSession.updateMany(
-      {
-        table_id: targetTable._id,
-        branch_id: targetTable.branch_id,
-        status: "active",
-      },
-      {
-        $set: {
-          status: "expired",
-          expires_at: now,
-        },
-      },
-    );
+    await DineInSession.deleteMany({
+      table_id: targetTable._id,
+    });
 
     await DineInSession.updateMany(
       {
         table_id: sourceTable._id,
-        branch_id: sourceTable.branch_id,
-        status: "active",
-        expires_at: { $gt: now },
       },
       {
         $set: {
           table_id: targetTable._id,
-          branch_id: targetTable.branch_id,
         },
       },
     );
@@ -492,7 +478,6 @@ export const transferStoreTableOrder = async (req, res) => {
       io.to(`branch:${sourceTable.branch_id}`).emit("order_status_updated", {
         order_id: updatedOrder?._id,
         order_number: updatedOrder?.order_number,
-        branch_id: sourceTable.branch_id,
         status: updatedOrder?.status,
         table_id: targetTable._id,
         table_info: updatedOrder?.table_info,

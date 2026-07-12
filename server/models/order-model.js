@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import DineInSession from "./dinein-session-model.js";
 
 const orderSchema = new mongoose.Schema(
   {
@@ -27,12 +28,6 @@ const orderSchema = new mongoose.Schema(
     },
     table_info: {
       name: String,
-    },
-    dine_in_session_id: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "DineInSession",
-      default: null,
-      index: true,
     },
     payment_gateway_ref: {
       gateway: String,
@@ -98,7 +93,7 @@ const orderSchema = new mongoose.Schema(
           ref: "Dish",
           required: true,
         },
-        // Hardcoded dish data - Lưu thông tin sản phẩm tại thời điểm đặt hàng
+        // Snapshot dish data at order time
         dish_name: {
           type: String,
           required: true,
@@ -107,7 +102,7 @@ const orderSchema = new mongoose.Schema(
           type: String,
         },
         dish_image: {
-          type: String, // URL ảnh chính
+          type: String, // Main image URL
         },
         dish_description: {
           type: String,
@@ -142,12 +137,12 @@ const orderSchema = new mongoose.Schema(
         },
         // Additional dish info
         weight: {
-          type: Number, // Khối lượng (gram)
+          type: Number, // Weight in grams
         },
         unit: {
-          type: String, // Đơn vị: kg, gói, hộp...
+          type: String, // Unit: kg, pack, box...
         },
-        // Variant info (nếu có)
+        // Variant info
         variant: {
           size: String,
           color: String,
@@ -311,7 +306,59 @@ orderSchema.virtual("subtotal").get(function () {
   return calculateOrderSubtotal(this.items);
 });
 
+orderSchema.pre("save", async function (next) {
+  if (this.order_type !== "dine_in" || this.payment_status !== "paid") {
+    this.$locals.shouldDeleteDineInSession = false;
+    return next();
+  }
+
+  if (this.isNew) {
+    this.$locals.shouldDeleteDineInSession = true;
+    return next();
+  }
+
+  if (!this.isModified("payment_status")) {
+    this.$locals.shouldDeleteDineInSession = false;
+    return next();
+  }
+
+  try {
+    const previousOrder = await this.constructor
+      .findById(this._id)
+      .select("payment_status")
+      .lean();
+
+    this.$locals.shouldDeleteDineInSession =
+      previousOrder?.payment_status !== "paid";
+    return next();
+  } catch (error) {
+    return next(error);
+  }
+});
+
+orderSchema.post("save", async function (doc) {
+  if (!doc.$locals?.shouldDeleteDineInSession) return;
+
+  const filters = [];
+  if (doc._id) {
+    filters.push({ order_id: doc._id });
+  }
+  if (doc.table_id) {
+    filters.push({
+      table_id: doc.table_id,
+    });
+  }
+
+  if (filters.length === 0) return;
+
+  try {
+    await DineInSession.deleteMany({ $or: filters });
+  } catch (error) {
+    console.error("Delete paid dine-in session error:", error);
+  }
+});
 orderSchema.set("toJSON", { virtuals: true });
 orderSchema.set("toObject", { virtuals: true });
 
 export default mongoose.model("Order", orderSchema);
+

@@ -7,15 +7,9 @@ import response from "../helpers/response.js";
 import { syncZalopayOrderStatus } from "./zalopay-controller.js";
 import { getIO } from "../config/socket.js";
 
-const SESSION_TTL_HOURS = 12;
 
 const createSessionToken = () => crypto.randomBytes(32).toString("hex");
 
-const getExpiresAt = () => {
-  const expiresAt = new Date();
-  expiresAt.setHours(expiresAt.getHours() + SESSION_TTL_HOURS);
-  return expiresAt;
-};
 
 const getTableByQrToken = async (qrToken) => {
   return StoreTable.findOne({ qr_token: qrToken })
@@ -23,6 +17,25 @@ const getTableByQrToken = async (qrToken) => {
     .lean();
 };
 
+const getSessionWithTable = (sessionToken) =>
+  DineInSession.findOne({ session_token: sessionToken })
+    .populate({
+      path: "table_id",
+      select: "name branch_id",
+      populate: { path: "branch_id", select: "name phone address code active" },
+    })
+    .lean();
+
+const getSessionContext = (session) => {
+  const table = session?.table_id;
+  const branch = table?.branch_id;
+  return {
+    table,
+    branch,
+    tableId: table?._id || table,
+    branchId: branch?._id || branch,
+  };
+};
 export const scanDineInQr = async (req, res) => {
   try {
     const { qrToken } = req.params;
@@ -81,9 +94,6 @@ export const createDineInSession = async (req, res) => {
 
     const existingSession = await DineInSession.findOne({
       table_id: table._id,
-      branch_id: table.branch_id._id,
-      status: "active",
-      expires_at: { $gt: new Date() },
     }).lean();
 
     if (existingSession) {
@@ -98,8 +108,6 @@ export const createDineInSession = async (req, res) => {
               name: table.name,
             },
             branch_id: table.branch_id,
-            status: existingSession.status,
-            expires_at: existingSession.expires_at,
           },
           table: {
             _id: table._id,
@@ -115,8 +123,6 @@ export const createDineInSession = async (req, res) => {
     const session = new DineInSession({
       session_token: createSessionToken(),
       table_id: table._id,
-      branch_id: table.branch_id._id,
-      expires_at: getExpiresAt(),
     });
 
     await session.save();
@@ -132,8 +138,6 @@ export const createDineInSession = async (req, res) => {
             name: table.name,
           },
           branch_id: table.branch_id,
-          status: session.status,
-          expires_at: session.expires_at,
         },
         table: {
           _id: table._id,
@@ -158,16 +162,10 @@ export const getDineInSession = async (req, res) => {
   try {
     const { sessionToken } = req.params;
 
-    const session = await DineInSession.findOne({
-      session_token: sessionToken,
-      status: "active",
-      expires_at: { $gt: new Date() },
-    })
-      .populate("table_id", "name")
-      .populate("branch_id", "name phone address code active")
-      .lean();
+    const session = await getSessionWithTable(sessionToken);
+    const { branch } = getSessionContext(session);
 
-    if (!session || !session.branch_id?.active) {
+    if (!session || !branch?.active) {
       return response.sendError(
         res,
         "Phiên gọi món không tồn tại hoặc đã hết hạn",
@@ -177,7 +175,7 @@ export const getDineInSession = async (req, res) => {
 
     return response.sendSuccess(
       res,
-      { session },
+      { session: { ...session, branch_id: branch } },
       "Lấy phiên gọi món thành công",
       200,
     );
@@ -195,15 +193,10 @@ export const getDineInActiveOrder = async (req, res) => {
   try {
     const { sessionToken } = req.params;
 
-    const session = await DineInSession.findOne({
-      session_token: sessionToken,
-      status: "active",
-      expires_at: { $gt: new Date() },
-    })
-      .select("table_id branch_id")
-      .lean();
+    const session = await getSessionWithTable(sessionToken);
+    const { tableId, branchId } = getSessionContext(session);
 
-    if (!session?.table_id || !session?.branch_id) {
+    if (!tableId || !branchId) {
       return response.sendError(
         res,
         "Phiên gọi món không tồn tại hoặc đã hết hạn",
@@ -212,8 +205,8 @@ export const getDineInActiveOrder = async (req, res) => {
     }
 
     const order = await Order.findOne({
-      table_id: session.table_id,
-      branch_id: session.branch_id,
+      table_id: tableId,
+      branch_id: branchId,
       order_type: "dine_in",
       status: { $in: ["pending", "confirmed", "processing"] },
       payment_status: { $ne: "paid" },
@@ -247,15 +240,10 @@ export const getDineInOrderStatus = async (req, res) => {
       return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
     }
 
-    const session = await DineInSession.findOne({
-      session_token: sessionToken,
-      status: "active",
-      expires_at: { $gt: new Date() },
-    })
-      .select("table_id branch_id")
-      .lean();
+    const session = await getSessionWithTable(sessionToken);
+    const { tableId, branchId } = getSessionContext(session);
 
-    if (!session?.table_id || !session?.branch_id) {
+    if (!tableId || !branchId) {
       return response.sendError(
         res,
         "Phiên gọi món không tồn tại hoặc đã hết hạn",
@@ -265,8 +253,8 @@ export const getDineInOrderStatus = async (req, res) => {
 
     let order = await Order.findOne({
       _id: orderId,
-      table_id: session.table_id,
-      branch_id: session.branch_id,
+      table_id: tableId,
+      branch_id: branchId,
       order_type: "dine_in",
     })
       .select(
@@ -323,15 +311,10 @@ export const requestDineInCashPayment = async (req, res) => {
       return response.sendError(res, "ID đơn hàng không hợp lệ", 400);
     }
 
-    const session = await DineInSession.findOne({
-      session_token: sessionToken,
-      status: "active",
-      expires_at: { $gt: new Date() },
-    })
-      .select("table_id branch_id")
-      .lean();
+    const session = await getSessionWithTable(sessionToken);
+    const { tableId, branchId } = getSessionContext(session);
 
-    if (!session?.table_id || !session?.branch_id) {
+    if (!tableId || !branchId) {
       return response.sendError(
         res,
         "Phiên gọi món không tồn tại hoặc đã hết hạn",
@@ -341,8 +324,8 @@ export const requestDineInCashPayment = async (req, res) => {
 
     const order = await Order.findOne({
       _id: orderId,
-      table_id: session.table_id,
-      branch_id: session.branch_id,
+      table_id: tableId,
+      branch_id: branchId,
       order_type: "dine_in",
       payment_method: "cod",
       payment_status: { $ne: "paid" },
@@ -421,8 +404,6 @@ export const updateDineInSessionCart = async (req, res) => {
 
     const session = await DineInSession.findOne({
       session_token: sessionToken,
-      status: "active",
-      expires_at: { $gt: new Date() },
     });
 
     if (!session) {
@@ -437,7 +418,6 @@ export const updateDineInSessionCart = async (req, res) => {
       dish_id: item.dish_id,
       quantity: item.quantity,
     }));
-    session.expires_at = getExpiresAt();
 
     await session.save();
 
@@ -446,8 +426,6 @@ export const updateDineInSessionCart = async (req, res) => {
       {
         session: {
           session_token: session.session_token,
-          status: session.status,
-          expires_at: session.expires_at,
           cart_items: session.cart_items,
         },
       },

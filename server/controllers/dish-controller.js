@@ -58,6 +58,12 @@ export const createDish = async (req, res) => {
           .filter(Boolean)
       : [];
 
+    if (normalizedIngredients.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Dish must have at least one ingredient",
+      });
+    }
     const toCreate = {
       name: String(name).trim(),
       description: String(description || ""),
@@ -474,6 +480,18 @@ export const updateDish = async (req, res) => {
     }
 
     // Lưu trạng thái cũ để so sánh
+    if (Object.prototype.hasOwnProperty.call(req.body, "ingredients")) {
+      const nextIngredients = Array.isArray(req.body.ingredients)
+        ? req.body.ingredients.filter(Boolean)
+        : [];
+
+      if (nextIngredients.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Dish must have at least one ingredient",
+        });
+      }
+    }
     const oldStatus = dish.status;
 
     Object.assign(dish, req.body); // cập nhật field mới

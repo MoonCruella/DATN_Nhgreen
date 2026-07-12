@@ -29,16 +29,24 @@ const dishSchema = new mongoose.Schema(
     },
     soldCount: { type: Number, default: 0, min: 0 },
 
-    ingredients: [
-      {
-        ingredient: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Ingredient",
-          required: true,
+    ingredients: {
+      type: [
+        {
+          ingredient: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Ingredient",
+            required: true,
+          },
+          quantityGram: { type: Number, required: true, min: 0 },
         },
-        quantityGram: { type: Number, required: true, min: 0 },
+      ],
+      validate: {
+        validator: function (items) {
+          return Array.isArray(items) && items.length > 0;
+        },
+        message: "Dish must have at least one ingredient",
       },
-    ],
+    },
     imagePublicIds: { type: [String], default: [] },
     defaultImageIndex: { type: Number, default: 0, min: 0 },
     // Tổng dinh dưỡng (tự động tính)

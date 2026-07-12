@@ -158,6 +158,11 @@ const AdminDishCreate = () => {
         return;
       }
 
+      if (selectedIngredients.length === 0) {
+        toast.error("Vui long chon it nhat mot nguyen lieu");
+        return;
+      }
+
       const payload = {
         name: formData.name,
         category: formData.category,

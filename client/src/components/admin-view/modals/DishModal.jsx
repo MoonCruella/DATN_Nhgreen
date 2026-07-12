@@ -267,6 +267,10 @@ const ProductModal = ({
           toast.error("Giá không hợp lệ");
           return;
         }
+        if (!Array.isArray(form.ingredients) || form.ingredients.length === 0) {
+          toast.error("Vui long chon it nhat mot nguyen lieu");
+          return;
+        }
 
         // prepare payload: coerce numeric fields
         const payload = {

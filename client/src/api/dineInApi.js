@@ -49,12 +49,11 @@ const dineInApi = {
     return response.data;
   },
 
-  createOrder: async ({ sessionToken, sessionId, tableId, items, notes = "" }) => {
+  createOrder: async ({ sessionToken, tableId, items, notes = "" }) => {
     const response = await axiosPublic.post("/api/orders", {
       order_channel: "dine_in_qr",
       order_type: "dine_in",
       dine_in_session_token: sessionToken,
-      dine_in_session_id: sessionId,
       table_id: tableId,
       payment_method: "cod",
       shipping_fee: 0,

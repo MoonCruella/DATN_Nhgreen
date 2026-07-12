@@ -1607,7 +1607,6 @@ export const createOrder = async (req, res) => {
       order_channel = "delivery",
       order_type,
       table_id,
-      dine_in_session_id,
       dine_in_session_token,
       vnpay_txn_ref,
       vnpay_transaction_no,
@@ -1687,24 +1686,14 @@ export const createOrder = async (req, res) => {
     let dineInSession = null;
 
     if (isDineInQr) {
-      if (
-        (!dine_in_session_id ||
-          !mongoose.Types.ObjectId.isValid(dine_in_session_id)) &&
-        !dine_in_session_token
-      ) {
+      if (!dine_in_session_token) {
         return response.sendError(res, "Phiên gọi món không hợp lệ", 400);
       }
 
-      const dineInSessionFilter = mongoose.Types.ObjectId.isValid(
-        dine_in_session_id
-      )
-        ? { _id: dine_in_session_id }
-        : { session_token: dine_in_session_token };
+      const dineInSessionFilter = { session_token: dine_in_session_token };
 
       dineInSession = await DineInSession.findOne({
         ...dineInSessionFilter,
-        status: "active",
-        expires_at: { $gt: new Date() },
       }).lean();
 
       if (!dineInSession) {
@@ -1728,7 +1717,7 @@ export const createOrder = async (req, res) => {
         );
       }
 
-      selectedBranchId = dineInSession.branch_id;
+      selectedBranchId = selectedTable.branch_id;
     } else if (normalizedOrderChannel === "dine_in") {
       if (!table_id || !mongoose.Types.ObjectId.isValid(table_id)) {
         return response.sendError(res, "Bàn không hợp lệ", 400);
@@ -2107,7 +2096,7 @@ export const createOrder = async (req, res) => {
         await activeDineInOrder.save();
 
         await DineInSession.findByIdAndUpdate(dineInSession._id, {
-          last_order_id: activeDineInOrder._id,
+          order_id: activeDineInOrder._id,
           cart_items: [],
         });
 
@@ -2119,7 +2108,21 @@ export const createOrder = async (req, res) => {
         );
 
         try {
+          await notificationService.notifyDineInItemsAdded(
+            updatedOrder,
+            orderItems,
+          );
+        } catch (notifyError) {
+          console.error("Notify dine-in items added error:", notifyError);
+        }
+
+        try {
           const io = getIO();
+          const addedQuantity = orderItems.reduce(
+            (sum, item) => sum + (Number(item.quantity) || 0),
+            0,
+          );
+
           io.to(`branch:${branch._id}`).emit("order_status_updated", {
             order_id: updatedOrder._id,
             order_number: updatedOrder.order_number,
@@ -2130,6 +2133,25 @@ export const createOrder = async (req, res) => {
               subtotal: updatedOrder.subtotal,
               total_amount: updatedOrder.total_amount,
             },
+          });
+
+          io.to(`branch:${branch._id}`).emit("dine_in_items_added", {
+            order_id: updatedOrder._id,
+            order_number: updatedOrder.order_number,
+            branch_id: branch._id,
+            order_type: updatedOrder.order_type,
+            order_channel: updatedOrder.order_channel,
+            table_id: updatedOrder.table_id,
+            table_info: updatedOrder.table_info,
+            added_items: orderItems.map((item) => ({
+              dish_id: item.dish_id,
+              dish_name: item.dish_name,
+              quantity: item.quantity,
+              total: item.total,
+            })),
+            added_quantity: addedQuantity,
+            total_amount: updatedOrder.total_amount,
+            created_at: new Date().toISOString(),
           });
         } catch (socketError) {
           console.error("Socket dine-in QR add items error:", socketError);
@@ -2176,7 +2198,6 @@ export const createOrder = async (req, res) => {
             code: selectedTable.code,
           }
         : undefined,
-      dine_in_session_id: isDineInQr ? dineInSession._id : null,
       branch_id: branch._id,
       branch_info: {
         name: branch.name,
@@ -2259,7 +2280,7 @@ export const createOrder = async (req, res) => {
 
     if (isDineInQr) {
       await DineInSession.findByIdAndUpdate(dineInSession._id, {
-        last_order_id: newOrder._id,
+        order_id: newOrder._id,
         cart_items: [],
       });
     }
