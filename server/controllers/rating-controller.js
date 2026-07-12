@@ -207,7 +207,6 @@ export const getRatingsByDish = async (req, res) => {
       {
         $match: {
           dish_id: new mongoose.Types.ObjectId(dishId),
-          status: "visible",
         },
       },
       {
@@ -233,7 +232,6 @@ export const getRatingsByDish = async (req, res) => {
           order_id: 1,
           content: 1,
           rating: 1,
-          status: 1,
           created_at: 1,
           updated_at: 1,
           "user._id": 1,
@@ -268,7 +266,6 @@ export const getRatingsByDish = async (req, res) => {
       {
         $match: {
           dish_id: new mongoose.Types.ObjectId(dishId),
-          status: "visible",
         },
       },
       {
@@ -361,7 +358,7 @@ export const deleteRating = async (req, res) => {
 export const updateRating = async (req, res) => {
   try {
     const { id } = req.params;
-    const { content, rating, status } = req.body;
+    const { content, rating } = req.body;
     const userId = req.user.userId;
     const isAdmin = req.user.role === "admin";
 
@@ -430,7 +427,6 @@ export const updateRating = async (req, res) => {
 
     if (content !== undefined) existingRating.content = content;
     if (rating !== undefined) existingRating.rating = rating;
-    if (status !== undefined && isAdmin) existingRating.status = status;
 
     await existingRating.save();
 
@@ -439,7 +435,7 @@ export const updateRating = async (req, res) => {
       "name email avatar active"
     );
 
-    if (rating !== undefined || status !== undefined) {
+    if (rating !== undefined) {
       await Dish.updateDishRating(existingRating.dish_id);
     }
 
@@ -468,7 +464,6 @@ export const getDishAverageRating = async (req, res) => {
       {
         $match: {
           dish_id: new mongoose.Types.ObjectId(dishId),
-          status: "visible",
         },
       },
       {
@@ -529,19 +524,10 @@ export const getDishAverageRating = async (req, res) => {
 
 export const getAllRatings = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, searchUser, searchDish } = req.query;
+    const { page = 1, limit = 10, searchUser, searchDish } = req.query;
     const skip = (page - 1) * limit;
 
-    const filter = {};
-
-    if (status && status !== "all") {
-      filter.status = status;
-    }
-
     const ratingsAggregation = await Rating.aggregate([
-      {
-        $match: filter,
-      },
       {
         $lookup: {
           from: "users",
@@ -639,10 +625,8 @@ export const getAllRatings = async (req, res) => {
           },
           content: r.content,
           rating: r.rating,
-          status: r.status,
           created_at: r.created_at,
           updated_at: r.updated_at,
-          isVisible: r.status === "visible" && r.user?.active === true,
         })),
         pagination: {
           total,
@@ -816,10 +800,8 @@ export const getAllRatingsForManager = async (req, res) => {
           },
           content: r.content,
           rating: r.rating,
-          status: r.status,
           created_at: r.created_at,
           updated_at: r.updated_at,
-          isVisible: r.status === "visible" && r.user?.active === true,
         })),
         pagination: {
           total,

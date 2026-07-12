@@ -11,7 +11,6 @@ import cart from "./cart.png";
 import heart from "./heart.png";
 import leaf from "./leaf.png";
 import foodbanner from "./foodbanner.png";
-import gymfood from "./gymfood.png";
 import kcal_icon from "./kcal_icon.png";
 import protein_icon from "./protein_icon.png";
 import fat_icon from "./fats_icon.png";
@@ -28,8 +27,6 @@ import next from "./next.png";
 import back from "./back.png";
 import gift from "./gift.png";
 import street from "./street.png";
-import bg_gym_meals from "./bg_gym_meals.jpg";
-import lose_weight_meal from "./lose_weight_meals.png";
 import vegetarian_meals from "./vegetarian_meals.png";
 import avatar from "./avatar.png";
 import add_icon from "./add_order_icon.png";
@@ -51,7 +48,6 @@ export const assets = {
   heart,
   leaf,
   foodbanner,
-  gymfood,
   kcal_icon,
   protein_icon,
   fat_icon,
@@ -69,8 +65,6 @@ export const assets = {
   back,
   gift,
   street,
-  bg_gym_meals,
-  lose_weight_meal,
   vegetarian_meals,
   avatar,
   add_icon,

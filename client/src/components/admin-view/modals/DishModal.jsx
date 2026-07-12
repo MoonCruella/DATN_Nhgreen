@@ -25,7 +25,6 @@ const ProductModal = ({
     // store price as string so the input can preserve formatting (leading zeros)
     price: "0",
     stock: "0",
-    tags: [],
     imageUrls: [],
     imagePublicIds: [],
     defaultImageIndex: 0,
@@ -77,7 +76,6 @@ const ProductModal = ({
               : it._id || "",
           quantityGram: String(it.quantityGram ?? 0),
         })),
-        tags: initialData.tags || [],
         status: initialData.status || "active",
       };
       setForm(snapshot);
@@ -89,7 +87,6 @@ const ProductModal = ({
         description: "",
         price: "0",
         stock: "0",
-        tags: [],
         imageUrls: [],
         imagePublicIds: [],
         defaultImageIndex: 0,
@@ -243,8 +240,6 @@ const ProductModal = ({
         String(initialSnapshot.status) !== String(form.status) ||
         JSON.stringify(initialSnapshot.imagePublicIds || []) !==
           JSON.stringify(form.imagePublicIds || []) ||
-        JSON.stringify(initialSnapshot.tags || []) !==
-          JSON.stringify(form.tags || []) ||
         JSON.stringify(initialSnapshot.ingredients || []) !==
           JSON.stringify(form.ingredients || [])
       );
@@ -287,7 +282,6 @@ const ProductModal = ({
           imagePublicIds: Array.isArray(form.imagePublicIds)
             ? form.imagePublicIds
             : [],
-          tags: Array.isArray(form.tags) ? form.tags : [],
         };
         const res = onSubmit(payload);
         if (res && res.then) await res;
@@ -301,7 +295,6 @@ const ProductModal = ({
           })),
           imageUrls: payload.imageUrls || [],
           imagePublicIds: payload.imagePublicIds || [],
-          tags: payload.tags || [],
         };
         setInitialSnapshot(snap);
         setForm((s) => ({ ...s, ...snap }));
@@ -408,27 +401,6 @@ const ProductModal = ({
                 }
                 className="border rounded px-3 py-2 h-24 resize-none"
               />
-            </label>
-          </div>
-
-          {/* Tags (read-only) */}
-          <div className="md:col-span-2">
-            <label className="flex flex-col">
-              <span className="text-sm text-gray-600">Tags</span>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {(form.tags || []).length > 0 ? (
-                  (form.tags || []).map((t, idx) => (
-                    <span
-                      key={idx}
-                      className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded"
-                    >
-                      {t}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-sm text-gray-400">-</span>
-                )}
-              </div>
             </label>
           </div>
 

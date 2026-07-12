@@ -2497,7 +2497,7 @@ export const updateShippingInfo = async (req, res) => {
               if (!refundResult.success) {
                 return response.sendError(
                   res,
-                  `HoÃ n tiá»n MoMo tháº¥t báº¡i: ${refundResult.message}`,
+                  `Hoàn tiền MoMo thất bại: ${refundResult.message}`,
                   400,
                   refundResult.message
                 );

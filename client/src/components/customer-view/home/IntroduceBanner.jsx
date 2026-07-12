@@ -40,7 +40,7 @@ const IntroduceBanner = () => {
 
               <div className="mt-8">
                 <Link
-                  to={"/products/tags?tag=balanced_meal"}
+                  to={"/products"}
                   className="inline-flex items-center gap-2 px-6 py-2 btn-primary transition rounded text-white font-medium"
                 >
                   Xem ngay

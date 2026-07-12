@@ -7,7 +7,6 @@ import {
   getDishById,
   updateDish,
   deleteDish,
-  getDishByTag,
 } from "../controllers/dish-controller.js";
 import {
   authMiddleware,
@@ -25,10 +24,6 @@ router.get("/", checkAuthOptional, getDishes);
 // Top-selling và newest (ngắn gọn)
 router.get("/top-selling", getTopSellingDishes);
 router.get("/newest", getNewestDishes);
-// Support both query-based tag search (/api/dishes/tags?tag=xyz)
-router.get("/tags", getDishByTag);
-// Support param-based tag search (/api/dishes/tags/:tag) used by client-side helpers
-router.get("/tags/:tag", getDishByTag);
 
 // Lấy chi tiết 1 món ăn theo ID
 router.get("/:id", getDishById);

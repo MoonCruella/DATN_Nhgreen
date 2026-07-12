@@ -74,7 +74,6 @@ const getSessionTable = (session, fallbackTable = null) =>
     ? {
         _id: session.table_id._id,
         name: session.table_id.name,
-        code: session.table_id.code,
       }
     : fallbackTable;
 
@@ -391,7 +390,9 @@ const DineInMenu = () => {
 
         if (latestSession) {
           setSession(latestSession);
-          setTable((currentTable) => getSessionTable(latestSession, currentTable));
+          setTable((currentTable) =>
+            getSessionTable(latestSession, currentTable),
+          );
           setBranch((currentBranch) =>
             getSessionBranch(latestSession, currentBranch),
           );
@@ -461,13 +462,13 @@ const DineInMenu = () => {
         response = await dineInApi.createMomoPayment({
           orderId: lastOrder._id,
           amount: orderDetailTotal,
-          orderInfo: `Thanh toan don tai ban ${table?.name || ""}`,
+          orderInfo: `Thanh toán đơn tại ${table?.name || ""}`,
         });
       } else if (method === "zalopay") {
         response = await dineInApi.createZalopayPayment({
           orderId: lastOrder._id,
           amount: orderDetailTotal,
-          description: `Thanh toan don tai ban ${table?.name || ""}`,
+          description: `Thanh toán đơn tại ${table?.name || ""}`,
         });
       } else if (method === "vnpay") {
         response = await dineInApi.createVnpayPayment({

@@ -107,12 +107,6 @@ const ProductDisplay = ({
           data = await dishApi.getNewest();
           if (data && data.success)
             setProducts(normalizeProducts(data.data || []));
-        } else if (type === "gym_meal") {
-          // fetch dishes tagged with 'gym_meal', limit 3
-          data = await dishApi.getByTag("gym_meal", { limit: 3 });
-          console.log("Gym meal products data:", data);
-          if (data && data.success)
-            setProducts(normalizeProducts(data.data || []));
         } else {
           data = await dishApi.getAll();
           if (data && data.success) {

@@ -28,9 +28,7 @@ const createNotification = async (data) => {
       metadata,
     });
 
-    const populatedNotification = await Notification.findById(
-      notification._id
-    )
+    const populatedNotification = await Notification.findById(notification._id)
       .populate("sender_id", "name avatar")
       .populate({
         path: "reference_id",
@@ -41,7 +39,7 @@ const createNotification = async (data) => {
     const io = getIO();
     io.to(`user:${recipient_id}`).emit(
       "new_notification",
-      populatedNotification
+      populatedNotification,
     );
 
     const unreadCount = await Notification.countUnread(recipient_id);
@@ -59,8 +57,15 @@ const createNotification = async (data) => {
 // Gửi thông báo cho managers của một chi nhánh
 const notifyBranchManagers = async (branchId, data) => {
   try {
-    const { type, title, message, reference_id, reference_model, sender_id, metadata } =
-      data;
+    const {
+      type,
+      title,
+      message,
+      reference_id,
+      reference_model,
+      sender_id,
+      metadata,
+    } = data;
 
     // Tìm tất cả managers của chi nhánh này
     // Convert to string to handle both ObjectId and string types
@@ -71,11 +76,11 @@ const notifyBranchManagers = async (branchId, data) => {
     });
 
     console.log(
-      `📨 Sending notification to ${managers.length} managers of branch ${branchIdStr}`
+      `📨 Sending notification to ${managers.length} managers of branch ${branchIdStr}`,
     );
     console.log(
       `👥 Manager IDs:`,
-      managers.map((m) => m._id.toString())
+      managers.map((m) => m._id.toString()),
     );
 
     const notifications = [];
@@ -109,7 +114,7 @@ const notifyNewOrder = async (order) => {
     const branchId = order.branch_id?._id || order.branch_id;
 
     console.log(
-      `🔔 Creating notification for new order #${order.order_number} at branch ${branchId}`
+      `🔔 Creating notification for new order #${order.order_number} at branch ${branchId}`,
     );
     console.log(`📦 Order details:`, {
       _id: order._id,
@@ -146,6 +151,41 @@ const notifyNewOrder = async (order) => {
 };
 
 // Thông báo yêu cầu hủy đơn cho managers của chi nhánh
+const notifyDineInItemsAdded = async (order, addedItems = []) => {
+  try {
+    const branchId = order.branch_id?._id || order.branch_id;
+    const tableName = order.table_info?.name || "bàn";
+    const addedQuantity = addedItems.reduce(
+      (sum, item) => sum + (Number(item.quantity) || 0),
+      0,
+    );
+
+    return notifyBranchManagers(branchId, {
+      type: "dine_in_items_added",
+      title: "Khách gọi thêm món",
+      message: `${tableName} vừa gọi thêm món cho đơn #${order.order_number}.`,
+      reference_id: order._id,
+      reference_model: "Order",
+      sender_id: order.user_id || null,
+      metadata: {
+        order_type: order.order_type || "dine_in",
+        order_channel: order.order_channel || "dine_in_qr",
+        table_id: order.table_id || null,
+        table_name: tableName,
+        added_items: addedItems.map((item) => ({
+          dish_id: item.dish_id,
+          dish_name: item.dish_name,
+          quantity: item.quantity,
+          total: item.total,
+        })),
+        added_quantity: addedQuantity,
+      },
+    });
+  } catch (error) {
+    console.error("Error in notifyDineInItemsAdded:", error);
+    throw error;
+  }
+};
 const notifyCancelRequest = async (order) => {
   try {
     const branchId = order.branch_id?._id || order.branch_id;
@@ -171,7 +211,7 @@ const notifyOrderCancelled = async (order) => {
   try {
     const populatedOrder = await Order.findById(order._id).populate(
       "user_id",
-      "name email"
+      "name email",
     );
 
     const notification = await createNotification({
@@ -205,7 +245,7 @@ const notifyOrderCancelledManagers = async (order) => {
   try {
     const branchId = order.branch_id?._id || order.branch_id;
     console.log(
-      `🔔 notifyOrderCancelledManagers called for order #${order.order_number}`
+      `🔔 notifyOrderCancelledManagers called for order #${order.order_number}`,
     );
     console.log(`🏪 Branch ID:`, branchId);
     console.log(`📦 Order details:`, {
@@ -233,7 +273,7 @@ const notifyOrderCancelledManagers = async (order) => {
   } catch (error) {
     console.error(
       "❌ Error notifying managers about order cancellation:",
-      error
+      error,
     );
     throw error;
   }
@@ -244,7 +284,7 @@ const notifyOrderAutoConfirmed = async (order) => {
   try {
     const populatedOrder = await Order.findById(order._id).populate(
       "user_id",
-      "name email"
+      "name email",
     );
 
     const notification = await createNotification({
@@ -278,17 +318,17 @@ const notifyNewRating = async (rating) => {
   try {
     // Populate các thông tin cần thiết
     const populatedRating = await rating.populate([
-      { path: 'user_id', select: 'name' },
-      { path: 'dish_id', select: 'name' },
-      { path: 'order_id', select: 'branch_id' }
+      { path: "user_id", select: "name" },
+      { path: "dish_id", select: "name" },
+      { path: "order_id", select: "branch_id" },
     ]);
 
-    const userName = populatedRating.user_id?.name || 'Khách hàng';
-    const dishName = populatedRating.dish_id?.name || 'món ăn';
+    const userName = populatedRating.user_id?.name || "Khách hàng";
+    const dishName = populatedRating.dish_id?.name || "món ăn";
     const branchId = populatedRating.order_id?.branch_id;
 
     console.log(
-      `🔔 Creating notification for new rating on dish "${dishName}" at branch ${branchId}`
+      `🔔 Creating notification for new rating on dish "${dishName}" at branch ${branchId}`,
     );
     console.log(`⭐ Rating details:`, {
       _id: populatedRating._id,
@@ -420,6 +460,7 @@ export {
   createNotification,
   notifyBranchManagers,
   notifyNewOrder,
+  notifyDineInItemsAdded,
   notifyNewRating,
   notifyNewProduct,
   notifyNewComment,
