@@ -53,6 +53,28 @@ const buildDineInPaymentRedirectUrl = async ({ order, query }) => {
   const params = new URLSearchParams(query);
   return `${dineInBase}/${table.qr_token}?${params.toString()}`;
 };
+const getManagerClientBase = () => {
+  const baseUrl =
+    process.env.VNP_MANAGER_REDIRECT_URL ||
+    process.env.MOMO_MANAGER_REDIRECT_URL ||
+    process.env.CLIENT_URL;
+
+  return baseUrl ? baseUrl.replace(/\/$/, "") : "";
+};
+
+const buildManagerBillRedirectUrl = ({ order, query }) => {
+  if (!order || order.order_type !== "dine_in") return "";
+  if (order.order_channel === "dine_in_qr") return "";
+
+  const managerBase = getManagerClientBase();
+  if (!managerBase) return "";
+
+  const rootBase = managerBase.replace(/\/manager\/tables\/?$/, "");
+  const params = new URLSearchParams(query);
+  params.set("payment_method", "vnpay");
+  params.set("payment_success", query.success || "false");
+  return `${rootBase}/manager/tables/bill/${order._id}?${params.toString()}`;
+};
 function sortParams(params) {
   return Object.entries(params)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -272,6 +294,13 @@ export const vnpayReturn = async (req, res) => {
       vnp_Amount: vnpAmount,
       payment_method: "vnpay",
     };
+    const managerBillRedirectUrl = buildManagerBillRedirectUrl({
+      order: paidOrder,
+      query: redirectQuery,
+    });
+    if (managerBillRedirectUrl) {
+      return res.redirect(managerBillRedirectUrl);
+    }
 
     const dineInRedirectUrl = await buildDineInPaymentRedirectUrl({
       order: paidOrder,
@@ -280,7 +309,6 @@ export const vnpayReturn = async (req, res) => {
     if (dineInRedirectUrl) {
       return res.redirect(dineInRedirectUrl);
     }
-
     // Redirect to checkout for online orders.
     const redirectBase = process.env.VNP_FE_REDIRECT_URL;
     if (!redirectBase) {
