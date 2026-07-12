@@ -58,6 +58,10 @@ const userSchema = new mongoose.Schema(
       ref: "Branch",
       default: null,
     },
+    active: {
+      type: Boolean,
+      default: false,
+    },
     avatar: {
       type: String,
       default: null,
@@ -68,10 +72,6 @@ const userSchema = new mongoose.Schema(
     gender: {
       type: String,
       enum: ["male", "female", "other"],
-    },
-    active: {
-      type: Boolean,
-      default: false,
     },
     disabled: {
       type: Boolean,
@@ -127,7 +127,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Method
@@ -169,7 +169,7 @@ userSchema.methods.addRefreshToken = function (refreshToken, deviceInfo = "") {
 // Method để xóa refresh token
 userSchema.methods.removeRefreshToken = function (refreshToken) {
   this.refresh_tokens = this.refresh_tokens.filter(
-    (item) => item.token !== refreshToken
+    (item) => item.token !== refreshToken,
   );
   return this.save();
 };

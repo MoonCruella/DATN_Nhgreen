@@ -19,7 +19,6 @@ export const createDish = async (req, res) => {
       defaultImageIndex = 0,
       imageUrls = [],
       imagePublicIds = [],
-      tags = [],
     } = req.body;
 
     // Basic validations
@@ -69,7 +68,6 @@ export const createDish = async (req, res) => {
       defaultImageIndex: Number(defaultImageIndex) || 0,
       imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
       imagePublicIds: Array.isArray(imagePublicIds) ? imagePublicIds : [],
-      tags: Array.isArray(tags) ? tags : [],
     };
 
     // check duplicate name (case-insensitive)
@@ -479,7 +477,7 @@ export const updateDish = async (req, res) => {
     const oldStatus = dish.status;
 
     Object.assign(dish, req.body); // cập nhật field mới
-    await dish.save(); // chạy pre("save") để tính lại totalEnergyKcal và tags
+    await dish.save(); // ch?y pre("save") ?? t?nh l?i totalEnergyKcal
 
     // Xử lý thay đổi status
     if (req.body.status && oldStatus !== req.body.status) {
@@ -557,81 +555,5 @@ export const deleteDish = async (req, res) => {
       message: "Error deleting dish",
       error: error.message,
     });
-  }
-};
-
-// Lấy dishes theo tag (query or param) với phân trang
-export const getDishByTag = async (req, res) => {
-  try {
-    const rawTag = req.params.tag || req.query.tag;
-    if (!rawTag) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Tag is required (param or query)" });
-    }
-
-    const tag = rawTag.trim();
-
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-
-    const status = req.query.status || "active"; // optional status filter
-
-    // The tag is passed in normalized form (e.g. 'gym_meal').
-    // Match the exact tag value inside the tags array.
-    const filter = { tags: tag };
-    if (status) filter.status = status;
-
-    const [dishes, total] = await Promise.all([
-      Dish.find(filter)
-        .populate("category", "name status")
-        .populate("ingredients.ingredient", "name protein fat carbs")
-        .skip(skip)
-        .limit(limit)
-        .sort({ createdAt: -1 })
-        .lean(),
-      Dish.countDocuments(filter),
-    ]);
-
-    // Lấy Flash Sale đang active (nếu có)
-    const now = new Date();
-    const activeFlashSale = await FlashSale.findOne({
-      startTime: { $lte: now },
-      endTime: { $gte: now },
-    }).lean();
-
-    // Gắn thông tin Flash Sale vào từng dish (nếu có)
-    const dishesWithFlashSale = dishes.map((dish) => {
-      if (activeFlashSale && activeFlashSale.dishes) {
-        const flashSaleDish = activeFlashSale.dishes.find(
-          (fd) => fd.dish_id.toString() === dish._id.toString()
-        );
-
-        if (flashSaleDish && flashSaleDish.sold < flashSaleDish.stock) {
-          return {
-            ...dish,
-            flashSale: {
-              flashSaleId: activeFlashSale._id,
-              salePrice: flashSaleDish.salePrice,
-              originalPrice: flashSaleDish.originalPrice,
-              stock: flashSaleDish.stock,
-              sold: flashSaleDish.sold,
-              remaining: flashSaleDish.stock - flashSaleDish.sold,
-              endTime: activeFlashSale.endTime,
-            },
-          };
-        }
-      }
-      return dish;
-    });
-
-    res.status(200).json({
-      success: true,
-      data: dishesWithFlashSale,
-      pagination: { total, page, pages: Math.ceil(total / limit), limit },
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
   }
 };

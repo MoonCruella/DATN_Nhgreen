@@ -64,7 +64,10 @@ const validateVoucherForOrder = (voucher, type, orderValue) => {
   if (orderValue < (Number(voucher.minOrderValue) || 0)) {
     return "Don hang chua dat gia tri toi thieu cua voucher";
   }
-  if (Number(voucher.usageLimit) > 0 && voucher.usedCount >= voucher.usageLimit) {
+  if (
+    Number(voucher.usageLimit) > 0 &&
+    voucher.usedCount >= voucher.usageLimit
+  ) {
     return "Voucher da het luot su dung";
   }
 
@@ -95,15 +98,23 @@ const calculateFreeshipVoucherValue = (voucher, shippingFee) => {
       freeship = Math.min(freeship, Number(voucher.maxDiscount));
     }
   } else {
-    freeship = Number(voucher.maxDiscount) || Number(voucher.discountValue) || shippingFee;
+    freeship =
+      Number(voucher.maxDiscount) ||
+      Number(voucher.discountValue) ||
+      shippingFee;
   }
 
   return clampMoney(freeship, 0, shippingFee);
 };
 
 const calculateOrderSubtotal = (orderOrItems = []) => {
-  const items = Array.isArray(orderOrItems) ? orderOrItems : orderOrItems?.items;
-  return (items || []).reduce((sum, item) => sum + (Number(item.total) || 0), 0);
+  const items = Array.isArray(orderOrItems)
+    ? orderOrItems
+    : orderOrItems?.items;
+  return (items || []).reduce(
+    (sum, item) => sum + (Number(item.total) || 0),
+    0,
+  );
 };
 
 const attachOrderDerivedFields = (order) => {
@@ -221,11 +232,10 @@ const getAddressRegion = (value, codeType = "number") => {
           ? String(value.code)
           : undefined
         : hasCode
-        ? Number(value.code)
-        : undefined;
+          ? Number(value.code)
+          : undefined;
     return {
-      code:
-        codeType === "string" || Number.isFinite(code) ? code : undefined,
+      code: codeType === "string" || Number.isFinite(code) ? code : undefined,
       name: value.name || "",
     };
   }
@@ -268,7 +278,7 @@ const generateOrderNumber = async (orderType) => {
     const counter = await OrderCounter.findOneAndUpdate(
       { key: counterKey },
       { $inc: { seq: 1 } },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
+      { new: true, upsert: true, setDefaultsOnInsert: true },
     ).lean();
     const orderNumber = `${prefix}${counter.seq}`;
     const existed = await Order.exists({ order_number: orderNumber });
@@ -376,7 +386,8 @@ const applyGhnStatusToOrder = async (order, ghnPayload = {}) => {
   if (nextStatus !== order.status) {
     order.status = nextStatus;
     if (nextStatus === "shipped" && !order.shipped_at) order.shipped_at = now;
-    if (nextStatus === "delivered" && !order.delivered_at) order.delivered_at = now;
+    if (nextStatus === "delivered" && !order.delivered_at)
+      order.delivered_at = now;
     if (nextStatus === "cancelled") {
       if (!order.cancelled_at) order.cancelled_at = now;
       order.cancel_reason =
@@ -455,14 +466,14 @@ export const getUserOrders = async (req, res) => {
               dish_exists: !!dishExists,
               dish_deleted: !dishExists,
             };
-          })
+          }),
         );
         return attachOrderDerivedFields({
           ...order,
           rating_status: ratingStatus,
           items: enrichedItems,
         });
-      })
+      }),
     );
 
     // Get total count for pagination
@@ -489,7 +500,7 @@ export const getUserOrders = async (req, res) => {
         .length,
       totalAmount: allUserOrders.reduce(
         (sum, order) => sum + (order.total_amount || 0),
-        0
+        0,
       ),
     };
 
@@ -515,7 +526,7 @@ export const getUserOrders = async (req, res) => {
       res,
       data,
       "Lấy danh sách đơn hàng thành công",
-      200
+      200,
     );
   } catch (error) {
     console.error("Get user orders error:", error);
@@ -523,7 +534,7 @@ export const getUserOrders = async (req, res) => {
       res,
       "Có lỗi xảy ra khi lấy danh sách đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -577,13 +588,13 @@ export const getUserOrdersByAdmin = async (req, res) => {
               dish_exists: !!dishExists,
               dish_deleted: !dishExists,
             };
-          })
+          }),
         );
         return attachOrderDerivedFields({
           ...order,
           items: enrichedItems,
         });
-      })
+      }),
     );
 
     // Get total count for pagination
@@ -610,7 +621,7 @@ export const getUserOrdersByAdmin = async (req, res) => {
         .length,
       totalAmount: allUserOrders.reduce(
         (sum, order) => sum + (order.total_amount || 0),
-        0
+        0,
       ),
     };
 
@@ -636,7 +647,7 @@ export const getUserOrdersByAdmin = async (req, res) => {
       res,
       data,
       "Lấy danh sách đơn hàng thành công",
-      200
+      200,
     );
   } catch (error) {
     console.error("Get user orders error:", error);
@@ -644,7 +655,7 @@ export const getUserOrdersByAdmin = async (req, res) => {
       res,
       "Có lỗi xảy ra khi lấy danh sách đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -672,7 +683,7 @@ export const getOrderById = async (req, res) => {
         return response.sendError(
           res,
           "Tài khoản manager chưa được gán chi nhánh",
-          403
+          403,
         );
       }
       query.branch_id = manager.branch_id;
@@ -698,7 +709,7 @@ export const getOrderById = async (req, res) => {
       return response.sendError(
         res,
         "Không tìm thấy đơn hàng hoặc bạn không có quyền truy cập",
-        404
+        404,
       );
     }
 
@@ -711,7 +722,7 @@ export const getOrderById = async (req, res) => {
           dish_exists: !!dishExists,
           dish_deleted: !dishExists,
         };
-      })
+      }),
     );
 
     //  Add order timeline
@@ -728,7 +739,7 @@ export const getOrderById = async (req, res) => {
         label: "Đã xác nhận",
         date: order.confirmed_at,
         completed: ["confirmed", "processing", "shipped", "delivered"].includes(
-          order.status
+          order.status,
         ),
         description: "Đơn hàng đã được xác nhận",
       },
@@ -737,7 +748,7 @@ export const getOrderById = async (req, res) => {
         label: "Đang chuẩn bị",
         date: order.processing_at,
         completed: ["processing", "shipped", "delivered"].includes(
-          order.status
+          order.status,
         ),
         description: "Shop đang chuẩn bị hàng",
       },
@@ -791,7 +802,7 @@ export const getOrderById = async (req, res) => {
       res,
       data,
       "Lấy thông tin đơn hàng thành công",
-      200
+      200,
     );
   } catch (error) {
     console.error("Get order by ID error:", error);
@@ -799,7 +810,7 @@ export const getOrderById = async (req, res) => {
       res,
       "Có lỗi xảy ra khi lấy thông tin đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -836,10 +847,10 @@ export const cancelOrder = async (req, res) => {
           return response.sendError(
             res,
             `Thiếu thông tin giao dịch VNPay để hoàn tiền: ${missingFields.join(
-              ", "
+              ", ",
             )}`,
             400,
-            missingFields.join(", ")
+            missingFields.join(", "),
           );
         }
         try {
@@ -857,7 +868,7 @@ export const cancelOrder = async (req, res) => {
               res,
               `Hoàn tiền VNPay thất bại: ${refundResult.message}`,
               400,
-              refundResult.message
+              refundResult.message,
             );
           }
 
@@ -879,24 +890,21 @@ export const cancelOrder = async (req, res) => {
             res,
             `Không thể hoàn tiền VNPay: ${refundError.message}`,
             400,
-            refundError.message
+            refundError.message,
           );
         }
       }
 
-      if (
-        refundPaymentMethod === "momo" &&
-        order.payment_status === "paid"
-      ) {
+      if (refundPaymentMethod === "momo" && order.payment_status === "paid") {
         const missingFields = getMomoRefundMissingFields(order);
         if (missingFields.length > 0) {
           return response.sendError(
             res,
             `Thiếu thông tin giao dịch MoMo để hoàn tiền: ${missingFields.join(
-              ", "
+              ", ",
             )}`,
             400,
-            missingFields.join(", ")
+            missingFields.join(", "),
           );
         }
         try {
@@ -911,7 +919,7 @@ export const cancelOrder = async (req, res) => {
               res,
               `Hoàn tiền MoMo thất bại: ${refundResult.message}`,
               400,
-              refundResult.message
+              refundResult.message,
             );
           }
 
@@ -933,7 +941,7 @@ export const cancelOrder = async (req, res) => {
             res,
             `Không thể hoàn tiền MoMo: ${refundError.message}`,
             400,
-            refundError.message
+            refundError.message,
           );
         }
       }
@@ -947,10 +955,10 @@ export const cancelOrder = async (req, res) => {
           return response.sendError(
             res,
             `Thiếu thông tin giao dịch ZaloPay để hoàn tiền: ${missingFields.join(
-              ", "
+              ", ",
             )}`,
             400,
-            missingFields.join(", ")
+            missingFields.join(", "),
           );
         }
         try {
@@ -965,7 +973,7 @@ export const cancelOrder = async (req, res) => {
               res,
               `Hoàn tiền ZaloPay thất bại: ${refundResult.message}`,
               400,
-              refundResult.message
+              refundResult.message,
             );
           }
 
@@ -974,7 +982,8 @@ export const cancelOrder = async (req, res) => {
           order.refund_amount = order.total_amount;
           order.refund_date = now;
           order.refund_response_code =
-            refundResult.data?.return_code || refundResult.data?.sub_return_code;
+            refundResult.data?.return_code ||
+            refundResult.data?.sub_return_code;
           order.refund_message =
             refundResult.data?.return_message ||
             refundResult.data?.sub_return_message;
@@ -990,7 +999,7 @@ export const cancelOrder = async (req, res) => {
             res,
             `Không thể hoàn tiền ZaloPay: ${refundError.message}`,
             400,
-            refundError.message
+            refundError.message,
           );
         }
       }
@@ -1081,7 +1090,7 @@ export const cancelOrder = async (req, res) => {
         res,
         responseData,
         "Hủy đơn hàng thành công",
-        200
+        200,
       );
     } else if (order.status === "processing") {
       // Gửi yêu cầu hủy cho đơn hàng đang chuẩn bị
@@ -1103,7 +1112,7 @@ export const cancelOrder = async (req, res) => {
       } catch (notifyError) {
         console.error(
           "Error sending cancel request notification:",
-          notifyError
+          notifyError,
         );
       }
 
@@ -1147,14 +1156,14 @@ export const cancelOrder = async (req, res) => {
         res,
         { order },
         "Đã gửi yêu cầu hủy đơn hàng đến shop",
-        200
+        200,
       );
     } else {
       // Các trạng thái khác (shipped, delivered, completed, cancelled) không thể hủy
       return response.sendError(
         res,
         `Không thể hủy đơn hàng ở trạng thái "${order.status}". Vui lòng liên hệ shop để được hỗ trợ.`,
-        400
+        400,
       );
     }
   } catch (error) {
@@ -1162,7 +1171,7 @@ export const cancelOrder = async (req, res) => {
       res,
       "Có lỗi xảy ra khi hủy đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -1188,7 +1197,7 @@ export const reorder = async (req, res) => {
       return response.sendError(
         res,
         "Không tìm thấy đơn hàng hoặc bạn không có quyền truy cập",
-        404
+        404,
       );
     }
 
@@ -1252,7 +1261,7 @@ export const reorder = async (req, res) => {
           "➕ Added new cart item:",
           dish.name,
           "qty:",
-          item.quantity
+          item.quantity,
         );
       }
 
@@ -1283,7 +1292,7 @@ export const reorder = async (req, res) => {
       res,
       "Có lỗi xảy ra khi đặt lại đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -1351,7 +1360,7 @@ export const createOrder = async (req, res) => {
       return response.sendError(
         res,
         "Danh sách sản phẩm không được để trống",
-        400
+        400,
       );
     }
 
@@ -1377,7 +1386,7 @@ export const createOrder = async (req, res) => {
       return response.sendError(
         res,
         "Phương thức thanh toán không được để trống",
-        400
+        400,
       );
     }
 
@@ -1395,7 +1404,7 @@ export const createOrder = async (req, res) => {
       }
 
       const dineInSessionFilter = mongoose.Types.ObjectId.isValid(
-        dine_in_session_id
+        dine_in_session_id,
       )
         ? { _id: dine_in_session_id }
         : { session_token: dine_in_session_token };
@@ -1410,21 +1419,20 @@ export const createOrder = async (req, res) => {
         return response.sendError(
           res,
           "Phiên gọi món không tồn tại hoặc đã hết hạn",
-          404
+          404,
         );
       }
 
-      if (table_id && table_id.toString() !== dineInSession.table_id.toString()) {
+      if (
+        table_id &&
+        table_id.toString() !== dineInSession.table_id.toString()
+      ) {
         return response.sendError(res, "Bàn không khớp với phiên gọi món", 400);
       }
 
       selectedTable = await StoreTable.findById(dineInSession.table_id).lean();
-      if (!selectedTable || !selectedTable.active) {
-        return response.sendError(
-          res,
-          "Bàn không tồn tại hoặc đã ngừng hoạt động",
-          400
-        );
+      if (!selectedTable) {
+        return response.sendError(res, "Bàn không tồn tại hoặc đã bị xóa", 400);
       }
 
       selectedBranchId = dineInSession.branch_id;
@@ -1434,30 +1442,33 @@ export const createOrder = async (req, res) => {
       }
 
       selectedTable = await StoreTable.findById(table_id).lean();
-      if (!selectedTable || !selectedTable.active) {
-        return response.sendError(
-          res,
-          "Bàn không tồn tại hoặc đã ngừng hoạt động",
-          400
-        );
+      if (!selectedTable) {
+        return response.sendError(res, "Bàn không tồn tại hoặc đã bị xóa", 400);
       }
 
       if (
         selectedBranchId &&
         selectedTable.branch_id.toString() !== selectedBranchId.toString()
       ) {
-        return response.sendError(res, "Bàn không thuộc chi nhánh đã chọn", 400);
+        return response.sendError(
+          res,
+          "Bàn không thuộc chi nhánh đã chọn",
+          400,
+        );
       }
 
       selectedBranchId = selectedTable.branch_id;
     }
 
     // Validate branch selection
-    if (!selectedBranchId || !mongoose.Types.ObjectId.isValid(selectedBranchId)) {
+    if (
+      !selectedBranchId ||
+      !mongoose.Types.ObjectId.isValid(selectedBranchId)
+    ) {
       return response.sendError(
         res,
         "Chi nhánh không hợp lệ hoặc chưa chọn",
-        400
+        400,
       );
     }
 
@@ -1466,7 +1477,7 @@ export const createOrder = async (req, res) => {
       return response.sendError(
         res,
         "Chi nhánh không tồn tại hoặc không hoạt động",
-        400
+        400,
       );
     }
 
@@ -1475,8 +1486,8 @@ export const createOrder = async (req, res) => {
       if (!["admin", "manager"].includes(userRole)) {
         return response.sendError(
           res,
-          "Vui long dang nhap bang tai khoan quan ly de tao don tai ban",
-          403
+          "Vui lòng đăng nhập bằng tài khoản quản lý để tạo đơn tại bàn",
+          403,
         );
       }
 
@@ -1488,8 +1499,8 @@ export const createOrder = async (req, res) => {
         ) {
           return response.sendError(
             res,
-            "Ban khong co quyen tao don tai ban cho chi nhanh nay",
-            403
+            "Bạn không có quyền tạo đơn tại bàn cho chi nhánh này",
+            403,
           );
         }
       }
@@ -1506,7 +1517,7 @@ export const createOrder = async (req, res) => {
         return response.sendError(
           res,
           `ID sản phẩm ${item.dish_id} không hợp lệ`,
-          400
+          400,
         );
       }
 
@@ -1519,7 +1530,7 @@ export const createOrder = async (req, res) => {
         return response.sendError(
           res,
           `Món ăn với ID ${item.dish_id} không tồn tại`,
-          400
+          400,
         );
       }
 
@@ -1527,7 +1538,7 @@ export const createOrder = async (req, res) => {
         return response.sendError(
           res,
           `Sản phẩm ${dish.name} không còn bán`,
-          400
+          400,
         );
       }
 
@@ -1535,7 +1546,7 @@ export const createOrder = async (req, res) => {
         return response.sendError(
           res,
           `Số lượng sản phẩm ${dish.name} không hợp lệ`,
-          400
+          400,
         );
       }
 
@@ -1555,19 +1566,19 @@ export const createOrder = async (req, res) => {
           return response.sendError(
             res,
             `Flash Sale đã kết thúc cho sản phẩm ${dish.name}`,
-            400
+            400,
           );
         }
 
         const flashSaleDish = flashSale.dishes.find(
-          (fd) => fd.dish_id.toString() === item.dish_id.toString()
+          (fd) => fd.dish_id.toString() === item.dish_id.toString(),
         );
 
         if (!flashSaleDish) {
           return response.sendError(
             res,
             `Sản phẩm ${dish.name} không có trong Flash Sale`,
-            400
+            400,
           );
         }
 
@@ -1576,7 +1587,7 @@ export const createOrder = async (req, res) => {
           return response.sendError(
             res,
             `Flash Sale cho ${dish.name} chỉ còn ${remaining} sản phẩm`,
-            400
+            400,
           );
         }
 
@@ -1637,14 +1648,14 @@ export const createOrder = async (req, res) => {
           {
             arrayFilters: [{ "elem.dish_id": dish._id }],
             new: true,
-          }
+          },
         );
 
         if (!updatedFlashSale) {
           return response.sendError(
             res,
             `Flash Sale cho ${dish.name} đã hết hàng. Vui lòng thử lại!`,
-            400
+            400,
           );
         }
 
@@ -1688,7 +1699,9 @@ export const createOrder = async (req, res) => {
     }
 
     // Sử dụng shipping_fee từ frontend, fallback về 30000 nếu không có
-    const shippingFeeFromFrontend = isDineIn ? 0 : Number(shipping_fee) || 30000;
+    const shippingFeeFromFrontend = isDineIn
+      ? 0
+      : Number(shipping_fee) || 30000;
     const coinDiscount = isDineIn
       ? 0
       : clampMoney(coin_discount, 0, subtotal + shippingFeeFromFrontend);
@@ -1702,13 +1715,15 @@ export const createOrder = async (req, res) => {
       : clampMoney(discount_value, 0, subtotal);
 
     if (!isDineIn && (appliedFreeshipCode || appliedDiscountCode)) {
-      const voucherCodeList = [appliedFreeshipCode, appliedDiscountCode].filter(Boolean);
+      const voucherCodeList = [appliedFreeshipCode, appliedDiscountCode].filter(
+        Boolean,
+      );
       const vouchers = await Voucher.find({
         code: { $in: voucherCodeList },
         active: true,
       }).lean();
       const voucherByCode = new Map(
-        vouchers.map((voucher) => [voucher.code, voucher])
+        vouchers.map((voucher) => [voucher.code, voucher]),
       );
 
       if (appliedFreeshipCode) {
@@ -1716,12 +1731,12 @@ export const createOrder = async (req, res) => {
         const errorMessage = validateVoucherForOrder(
           freeshipVoucher,
           "FREESHIP",
-          subtotal
+          subtotal,
         );
         if (errorMessage) return response.sendError(res, errorMessage, 400);
         appliedFreeshipValue = calculateFreeshipVoucherValue(
           freeshipVoucher,
-          shippingFeeFromFrontend
+          shippingFeeFromFrontend,
         );
       }
 
@@ -1730,12 +1745,12 @@ export const createOrder = async (req, res) => {
         const errorMessage = validateVoucherForOrder(
           discountVoucher,
           "DISCOUNT",
-          subtotal
+          subtotal,
         );
         if (errorMessage) return response.sendError(res, errorMessage, 400);
         appliedDiscountValue = calculateDiscountVoucherValue(
           discountVoucher,
-          subtotal
+          subtotal,
         );
       }
     }
@@ -1747,7 +1762,7 @@ export const createOrder = async (req, res) => {
         shippingFeeFromFrontend -
         appliedDiscountValue -
         appliedFreeshipValue -
-        coinDiscount
+        coinDiscount,
     );
 
     if (isDineInQr) {
@@ -1781,7 +1796,7 @@ export const createOrder = async (req, res) => {
             activeDineInOrder.items.push(newItem);
             itemMap.set(
               key,
-              activeDineInOrder.items[activeDineInOrder.items.length - 1]
+              activeDineInOrder.items[activeDineInOrder.items.length - 1],
             );
           }
         }
@@ -1813,9 +1828,17 @@ export const createOrder = async (req, res) => {
         const updatedOrder = attachOrderDerivedFields(
           await Order.findById(activeDineInOrder._id)
             .populate("user_id", "name email phone")
-              .populate("branch_id", "name phone address code")
-            .lean()
+            .populate("branch_id", "name phone address code")
+            .lean(),
         );
+
+        const addedItems = orderItems.map((item) => ({
+          dish_id: item.dish_id,
+          dish_name: item.dish_name,
+          quantity: item.quantity,
+          price: item.sale_price || item.price || 0,
+          total: item.total,
+        }));
 
         try {
           const io = getIO();
@@ -1830,15 +1853,43 @@ export const createOrder = async (req, res) => {
               total_amount: updatedOrder.total_amount,
             },
           });
+
+          io.to(`branch:${branch._id}`).emit("dine_in_items_added", {
+            order_id: updatedOrder._id,
+            order_number: updatedOrder.order_number,
+            branch_id: branch._id,
+            order_type: updatedOrder.order_type,
+            order_channel: updatedOrder.order_channel,
+            table_id: selectedTable._id,
+            table_info: {
+              name: selectedTable.name,
+            },
+            added_items: addedItems,
+            added_quantity: addedItems.reduce(
+              (sum, item) => sum + (Number(item.quantity) || 0),
+              0,
+            ),
+            total_amount: updatedOrder.total_amount,
+            created_at: new Date().toISOString(),
+          });
         } catch (socketError) {
           console.error("Socket dine-in QR add items error:", socketError);
+        }
+
+        try {
+          await notificationService.notifyDineInItemsAdded(
+            updatedOrder,
+            addedItems,
+          );
+        } catch (notifyError) {
+          console.error("Dine-in items added notification error:", notifyError);
         }
 
         return response.sendSuccess(
           res,
           { order: updatedOrder },
           "ÄÃ£ thÃªm mÃ³n vÃ o Ä‘Æ¡n Ä‘ang má»Ÿ",
-          200
+          200,
         );
       }
     }
@@ -1872,7 +1923,6 @@ export const createOrder = async (req, res) => {
       table_info: isDineIn
         ? {
             name: selectedTable.name,
-            code: selectedTable.code,
           }
         : undefined,
       dine_in_session_id: isDineInQr ? dineInSession._id : null,
@@ -1902,22 +1952,28 @@ export const createOrder = async (req, res) => {
       },
       coin_discount: coinDiscount,
       payment_method: resolvedPaymentMethod,
-      payment_status: ["vnpay", "momo", "zalopay"].includes(resolvedPaymentMethod)
+      payment_status: ["vnpay", "momo", "zalopay"].includes(
+        resolvedPaymentMethod,
+      )
         ? "paid"
         : "pending",
       payment_date: ["vnpay", "momo", "zalopay"].includes(resolvedPaymentMethod)
         ? now
         : undefined,
-      vnpay_txn_ref: resolvedPaymentMethod === "vnpay" ? vnpay_txn_ref : undefined,
+      vnpay_txn_ref:
+        resolvedPaymentMethod === "vnpay" ? vnpay_txn_ref : undefined,
       vnpay_transaction_no:
         resolvedPaymentMethod === "vnpay" ? vnpay_transaction_no : undefined,
       vnpay_create_date:
         resolvedPaymentMethod === "vnpay" ? vnpay_create_date : undefined,
-      vnpay_pay_date: resolvedPaymentMethod === "vnpay" ? vnpay_pay_date : undefined,
-      vnpay_amount: resolvedPaymentMethod === "vnpay" ? vnpay_amount : undefined,
+      vnpay_pay_date:
+        resolvedPaymentMethod === "vnpay" ? vnpay_pay_date : undefined,
+      vnpay_amount:
+        resolvedPaymentMethod === "vnpay" ? vnpay_amount : undefined,
       momo_request_id:
         resolvedPaymentMethod === "momo" ? momo_request_id : undefined,
-      momo_trans_id: resolvedPaymentMethod === "momo" ? momo_trans_id : undefined,
+      momo_trans_id:
+        resolvedPaymentMethod === "momo" ? momo_trans_id : undefined,
       momo_amount: resolvedPaymentMethod === "momo" ? momo_amount : undefined,
       zalopay_app_trans_id:
         resolvedPaymentMethod === "zalopay" ? zalopay_app_trans_id : undefined,
@@ -1946,8 +2002,8 @@ export const createOrder = async (req, res) => {
                   resolvedPaymentMethod === "vnpay"
                     ? "Thanh toán VNPay thành công"
                     : resolvedPaymentMethod === "momo"
-                    ? "Thanh toán MoMo thành công"
-                    : "Thanh toán ZaloPay thành công",
+                      ? "Thanh toán MoMo thành công"
+                      : "Thanh toán ZaloPay thành công",
               },
             ]
           : []),
@@ -1975,7 +2031,7 @@ export const createOrder = async (req, res) => {
     if (appliedFreeshipCode) {
       await Voucher.findOneAndUpdate(
         { code: appliedFreeshipCode },
-        { $inc: { usedCount: 1 } }
+        { $inc: { usedCount: 1 } },
       );
     }
 
@@ -1983,7 +2039,7 @@ export const createOrder = async (req, res) => {
     if (appliedDiscountCode) {
       await Voucher.findOneAndUpdate(
         { code: appliedDiscountCode },
-        { $inc: { usedCount: 1 } }
+        { $inc: { usedCount: 1 } },
       );
     }
 
@@ -2020,7 +2076,7 @@ export const createOrder = async (req, res) => {
       res,
       "Có lỗi xảy ra khi tạo đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -2070,7 +2126,7 @@ export const getOrderStats = async (req, res) => {
       res,
       data,
       "Lấy thống kê đơn hàng thành công",
-      200
+      200,
     );
   } catch (error) {
     console.error("Get order stats error:", error);
@@ -2078,7 +2134,7 @@ export const getOrderStats = async (req, res) => {
       res,
       "Có lỗi xảy ra khi lấy thống kê đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -2103,7 +2159,7 @@ export const updateShippingInfo = async (req, res) => {
       return response.sendError(
         res,
         "Đơn hàng đã hủy, không thể cập nhật vận chuyển",
-        400
+        400,
       );
     }
 
@@ -2117,16 +2173,19 @@ export const updateShippingInfo = async (req, res) => {
         const now = new Date();
         const refundPaymentMethod = getRefundPaymentMethod(order);
 
-        if (refundPaymentMethod === "vnpay" && order.payment_status === "paid") {
+        if (
+          refundPaymentMethod === "vnpay" &&
+          order.payment_status === "paid"
+        ) {
           const missingFields = getVnpayRefundMissingFields(order);
           if (missingFields.length > 0) {
             return response.sendError(
               res,
               `Thiếu thông tin giao dịch VNPay để hoàn tiền: ${missingFields.join(
-                ", "
+                ", ",
               )}`,
               400,
-              missingFields.join(", ")
+              missingFields.join(", "),
             );
           }
           try {
@@ -2144,7 +2203,7 @@ export const updateShippingInfo = async (req, res) => {
                 res,
                 `Hoàn tiền VNPay thất bại: ${refundResult.message}`,
                 400,
-                refundResult.message
+                refundResult.message,
               );
             }
 
@@ -2166,24 +2225,21 @@ export const updateShippingInfo = async (req, res) => {
               res,
               `Không thể hoàn tiền VNPay: ${refundError.message}`,
               400,
-              refundError.message
+              refundError.message,
             );
           }
         }
 
-        if (
-          refundPaymentMethod === "momo" &&
-          order.payment_status === "paid"
-        ) {
+        if (refundPaymentMethod === "momo" && order.payment_status === "paid") {
           const missingFields = getMomoRefundMissingFields(order);
           if (missingFields.length > 0) {
             return response.sendError(
               res,
               `Thiếu thông tin giao dịch MoMo để hoàn tiền: ${missingFields.join(
-                ", "
+                ", ",
               )}`,
               400,
-              missingFields.join(", ")
+              missingFields.join(", "),
             );
           }
           try {
@@ -2198,7 +2254,7 @@ export const updateShippingInfo = async (req, res) => {
                 res,
                 `Hoàn tiền MoMo thất bại: ${refundResult.message}`,
                 400,
-                refundResult.message
+                refundResult.message,
               );
             }
 
@@ -2220,7 +2276,7 @@ export const updateShippingInfo = async (req, res) => {
               res,
               `Không thể hoàn tiền MoMo: ${refundError.message}`,
               400,
-              refundError.message
+              refundError.message,
             );
           }
         }
@@ -2234,10 +2290,10 @@ export const updateShippingInfo = async (req, res) => {
             return response.sendError(
               res,
               `Thiếu thông tin giao dịch ZaloPay để hoàn tiền: ${missingFields.join(
-                ", "
+                ", ",
               )}`,
               400,
-              missingFields.join(", ")
+              missingFields.join(", "),
             );
           }
           try {
@@ -2252,7 +2308,7 @@ export const updateShippingInfo = async (req, res) => {
                 res,
                 `Hoàn tiền ZaloPay thất bại: ${refundResult.message}`,
                 400,
-                refundResult.message
+                refundResult.message,
               );
             }
 
@@ -2278,7 +2334,7 @@ export const updateShippingInfo = async (req, res) => {
               res,
               `Không thể hoàn tiền ZaloPay: ${refundError.message}`,
               400,
-              refundError.message
+              refundError.message,
             );
           }
         }
@@ -2297,14 +2353,14 @@ export const updateShippingInfo = async (req, res) => {
         try {
           await notificationService.notifyOrderStatusUpdate(
             order,
-            previousStatus
+            previousStatus,
           );
           // Thông báo cho managers khi duyệt yêu cầu hủy
           await notificationService.notifyOrderCancelledManagers(order);
         } catch (notifyError) {
           console.error(
             "Không thể gửi thông báo cập nhật đơn hàng:",
-            notifyError
+            notifyError,
           );
         }
 
@@ -2334,7 +2390,7 @@ export const updateShippingInfo = async (req, res) => {
           res,
           { shipping: order },
           "Đã chấp nhận hủy đơn hàng",
-          200
+          200,
         );
       }
       // Manager từ chối hủy: cancel_request → processing (quay lại trạng thái trước đó)
@@ -2355,12 +2411,12 @@ export const updateShippingInfo = async (req, res) => {
         try {
           await notificationService.notifyOrderStatusUpdate(
             order,
-            previousStatus
+            previousStatus,
           );
         } catch (notifyError) {
           console.error(
             "Không thể gửi thông báo cập nhật đơn hàng:",
-            notifyError
+            notifyError,
           );
         }
 
@@ -2392,20 +2448,20 @@ export const updateShippingInfo = async (req, res) => {
           res,
           { shipping: order },
           "Đã từ chối yêu cầu hủy đơn hàng",
-          200
+          200,
         );
       } else if (shipping_status) {
         return response.sendError(
           res,
           "Chỉ có thể chấp nhận hủy (cancelled) hoặc từ chối (processing)",
-          400
+          400,
         );
       }
       // Nếu không gửi shipping_status mà chỉ cập nhật carrier / tracking_number thì cũng không hợp lệ
       return response.sendError(
         res,
         "Đơn đang yêu cầu hủy, vui lòng chọn chấp nhận hoặc từ chối",
-        400
+        400,
       );
     }
 
@@ -2433,10 +2489,7 @@ export const updateShippingInfo = async (req, res) => {
       allowedStatusTransitions[order.status]?.includes(shipping_status);
 
     // Chỉ cho phép chuyển sang trạng thái tiếp theo trong luồng nghiệp vụ
-    if (
-      shipping_status &&
-      isAllowedTransition
-    ) {
+    if (shipping_status && isAllowedTransition) {
       let ghnResult = null;
       if (
         shipping_status === "shipped" &&
@@ -2446,7 +2499,7 @@ export const updateShippingInfo = async (req, res) => {
       ) {
         const orderForGhn = await Order.findById(order._id).populate(
           "branch_id",
-          "name phone address shop_id"
+          "name phone address shop_id",
         );
         ghnResult = await createGhnShippingOrder(orderForGhn);
         order.carrier = "GHN";
@@ -2486,7 +2539,7 @@ export const updateShippingInfo = async (req, res) => {
                   sold_quantity: item.quantity,
                 },
               },
-              { new: true }
+              { new: true },
             );
           }
         } catch (updateError) {
@@ -2507,7 +2560,7 @@ export const updateShippingInfo = async (req, res) => {
       return response.sendError(
         res,
         "Không thể chuyển trạng thái theo luồng hiện tại",
-        400
+        400,
       );
     }
 
@@ -2529,12 +2582,12 @@ export const updateShippingInfo = async (req, res) => {
       try {
         await notificationService.notifyOrderStatusUpdate(
           order,
-          previousStatus
+          previousStatus,
         );
       } catch (notifyError) {
         console.error(
           "Không thể gửi thông báo cập nhật đơn hàng:",
-          notifyError
+          notifyError,
         );
       }
 
@@ -2571,7 +2624,7 @@ export const updateShippingInfo = async (req, res) => {
       res,
       { shipping: order },
       "Cập nhật thông tin vận chuyển thành công",
-      200
+      200,
     );
   } catch (error) {
     console.error("Update shipping info error:", error);
@@ -2579,7 +2632,7 @@ export const updateShippingInfo = async (req, res) => {
       res,
       "Có lỗi xảy ra khi cập nhật vận chuyển",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -2595,7 +2648,11 @@ export const completeDineInOrder = async (req, res) => {
     }
 
     if (!allowedPaymentMethods.includes(paymentMethod)) {
-      return response.sendError(res, "Phương thức thanh toán không hợp lệ", 400);
+      return response.sendError(
+        res,
+        "Phương thức thanh toán không hợp lệ",
+        400,
+      );
     }
 
     const order = await Order.findById(orderId);
@@ -2608,11 +2665,7 @@ export const completeDineInOrder = async (req, res) => {
     }
 
     if (["completed", "cancelled"].includes(order.status)) {
-      return response.sendError(
-        res,
-        "Đơn hàng đã hoàn thành hoặc đã hủy",
-        400
-      );
+      return response.sendError(res, "Đơn hàng đã hoàn thành hoặc đã hủy", 400);
     }
 
     const userRole = req.user?.role;
@@ -2624,8 +2677,8 @@ export const completeDineInOrder = async (req, res) => {
       ) {
         return response.sendError(
           res,
-          "Ban khong co quyen cap nhat don hang cua chi nhanh nay",
-          403
+          "Bạn không có quyền cập nhật đơn hàng của chi nhánh này",
+          403,
         );
       }
     }
@@ -2640,7 +2693,7 @@ export const completeDineInOrder = async (req, res) => {
               sold_quantity: item.quantity,
             },
           },
-          { new: true }
+          { new: true },
         );
       }
     } catch (updateError) {
@@ -2683,7 +2736,7 @@ export const completeDineInOrder = async (req, res) => {
       res,
       { order },
       "Thanh toán đơn ăn tại quán thành công",
-      200
+      200,
     );
   } catch (error) {
     console.error("Complete dine-in order error:", error);
@@ -2691,7 +2744,7 @@ export const completeDineInOrder = async (req, res) => {
       res,
       "Có lỗi xảy ra khi thanh toán đơn ăn tại quán",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -2719,11 +2772,7 @@ export const updateDineInOrderItems = async (req, res) => {
     }
 
     if (["completed", "cancelled"].includes(order.status)) {
-      return response.sendError(
-        res,
-        "Đơn hàng đã hoàn thành hoặc đã hủy",
-        400
-      );
+      return response.sendError(res, "Đơn hàng đã hoàn thành hoặc đã hủy", 400);
     }
 
     const userRole = req.user?.role;
@@ -2735,8 +2784,8 @@ export const updateDineInOrderItems = async (req, res) => {
       ) {
         return response.sendError(
           res,
-          "Ban khong co quyen cap nhat don hang cua chi nhanh nay",
-          403
+          "Bạn không có quyền cập nhật đơn hàng của chi nhánh này",
+          403,
         );
       }
     }
@@ -2754,7 +2803,7 @@ export const updateDineInOrderItems = async (req, res) => {
         return response.sendError(
           res,
           `ID sản phẩm ${item.dish_id} không hợp lệ`,
-          400
+          400,
         );
       }
 
@@ -2768,7 +2817,7 @@ export const updateDineInOrderItems = async (req, res) => {
         return response.sendError(
           res,
           "Không thể giảm món đã xác nhận trong đơn tại bàn",
-          400
+          400,
         );
       }
 
@@ -2780,7 +2829,7 @@ export const updateDineInOrderItems = async (req, res) => {
         return response.sendError(
           res,
           `Món ăn với ID ${item.dish_id} không tồn tại hoặc không còn bán`,
-          400
+          400,
         );
       }
 
@@ -2830,8 +2879,8 @@ export const updateDineInOrderItems = async (req, res) => {
     const updatedOrder = attachOrderDerivedFields(
       await Order.findById(order._id)
         .populate("user_id", "name email phone")
-          .populate("branch_id", "name phone address code")
-        .lean()
+        .populate("branch_id", "name phone address code")
+        .lean(),
     );
 
     try {
@@ -2855,7 +2904,7 @@ export const updateDineInOrderItems = async (req, res) => {
       res,
       { order: updatedOrder },
       "Xác nhận thêm món thành công",
-      200
+      200,
     );
   } catch (error) {
     console.error("Update dine-in order items error:", error);
@@ -2863,7 +2912,7 @@ export const updateDineInOrderItems = async (req, res) => {
       res,
       "Có lỗi xảy ra khi xác nhận thêm món",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -2952,14 +3001,14 @@ export const getAllOrders = async (req, res) => {
         },
       },
       "Lấy danh sách đơn hàng thành công",
-      200
+      200,
     );
   } catch (error) {
     return response.sendError(
       res,
       "Có lỗi xảy ra khi lấy danh sách đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -2973,7 +3022,9 @@ export const ghnWebhook = async (req, res) => {
         req.headers["x-webhook-secret"] ||
         req.query?.secret;
       if (String(receivedSecret || "") !== webhookSecret) {
-        return res.status(401).json({ success: false, message: "Unauthorized" });
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized" });
       }
     }
 
@@ -3003,10 +3054,7 @@ export const ghnWebhook = async (req, res) => {
     const order = await Order.findOne({
       $or: [
         ...(orderCode
-          ? [
-              { shipping_order_code: orderCode },
-              { tracking_number: orderCode },
-            ]
+          ? [{ shipping_order_code: orderCode }, { tracking_number: orderCode }]
           : []),
         ...(clientOrderCode ? [{ order_number: clientOrderCode }] : []),
       ],
@@ -3046,7 +3094,7 @@ export const syncGhnShippingStatus = async (req, res) => {
 
     const order = await Order.findById(orderId).populate(
       "branch_id",
-      "shop_id"
+      "shop_id",
     );
     if (!order) {
       return response.sendError(res, "Không tìm thấy đơn hàng", 404);
@@ -3139,8 +3187,8 @@ export const getOrdersByBranch = async (req, res) => {
       if (!managerBranchId || managerBranchId.toString() !== branchId) {
         return response.sendError(
           res,
-          "Ban khong co quyen truy cap chi nhanh nay",
-          403
+          "Bạn không có quyền truy cập chi nhánh này",
+          403,
         );
       }
     }
@@ -3149,7 +3197,10 @@ export const getOrdersByBranch = async (req, res) => {
     if (order_type === "dine_in") {
       filter.order_type = "dine_in";
     } else if (order_type === "online") {
-      filter.$or = [{ order_type: "online" }, { order_type: { $exists: false } }];
+      filter.$or = [
+        { order_type: "online" },
+        { order_type: { $exists: false } },
+      ];
     }
 
     // Status filter
@@ -3172,7 +3223,7 @@ export const getOrdersByBranch = async (req, res) => {
         startDate = new Date(
           yesterday.getFullYear(),
           yesterday.getMonth(),
-          yesterday.getDate()
+          yesterday.getDate(),
         );
         const endDate = new Date(startDate);
         endDate.setHours(23, 59, 59, 999);
@@ -3230,7 +3281,7 @@ export const getOrdersByBranch = async (req, res) => {
         },
       },
       "Lấy danh sách đơn hàng thành công",
-      200
+      200,
     );
   } catch (error) {
     console.error("Get orders by branch error:", error);
@@ -3238,7 +3289,7 @@ export const getOrdersByBranch = async (req, res) => {
       res,
       "Có lỗi xảy ra khi lấy danh sách đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -3263,7 +3314,7 @@ export const confirmReceived = async (req, res) => {
       return response.sendError(
         res,
         "Bạn không có quyền xác nhận đơn hàng này",
-        403
+        403,
       );
     }
 
@@ -3272,7 +3323,7 @@ export const confirmReceived = async (req, res) => {
       return response.sendError(
         res,
         "Chỉ có thể xác nhận đơn hàng đã được giao",
-        400
+        400,
       );
     }
 
@@ -3287,7 +3338,7 @@ export const confirmReceived = async (req, res) => {
                 sold_quantity: item.quantity,
               },
             },
-            { new: true }
+            { new: true },
           );
         }
       } catch (updateError) {
@@ -3374,7 +3425,7 @@ export const confirmReceived = async (req, res) => {
       res,
       { order },
       "Xác nhận đã nhận hàng thành công",
-      200
+      200,
     );
   } catch (error) {
     console.error("Confirm received error:", error);
@@ -3382,7 +3433,7 @@ export const confirmReceived = async (req, res) => {
       res,
       "Có lỗi xảy ra khi xác nhận đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -3407,7 +3458,7 @@ export const reportNotReceived = async (req, res) => {
       return response.sendError(
         res,
         "Bạn không có quyền báo cáo đơn hàng này",
-        403
+        403,
       );
     }
 
@@ -3416,7 +3467,7 @@ export const reportNotReceived = async (req, res) => {
       return response.sendError(
         res,
         "Chỉ có thể báo cáo đơn hàng đã được giao",
-        400
+        400,
       );
     }
 
@@ -3489,7 +3540,7 @@ export const reportNotReceived = async (req, res) => {
       res,
       { order },
       "Đã ghi nhận báo cáo của bạn. Chúng tôi sẽ xử lý trong thời gian sớm nhất",
-      200
+      200,
     );
   } catch (error) {
     console.error("Report not received error:", error);
@@ -3497,7 +3548,7 @@ export const reportNotReceived = async (req, res) => {
       res,
       "Có lỗi xảy ra khi gửi báo cáo",
       500,
-      error.message
+      error.message,
     );
   }
 };
@@ -3518,12 +3569,15 @@ export const scheduleAutoComplete = async (orderId) => {
     await order.save();
 
     // Schedule the auto-complete
-    setTimeout(async () => {
-      await autoCompleteOrder(orderId);
-    }, 60 * 60 * 1000); // 1 hour in milliseconds
+    setTimeout(
+      async () => {
+        await autoCompleteOrder(orderId);
+      },
+      60 * 60 * 1000,
+    ); // 1 hour in milliseconds
 
     console.log(
-      `Auto-complete scheduled for order ${order.order_number} at ${autoCompleteTime}`
+      `Auto-complete scheduled for order ${order.order_number} at ${autoCompleteTime}`,
     );
   } catch (error) {
     console.error("Schedule auto-complete error:", error);
@@ -3542,7 +3596,7 @@ export const autoCompleteOrder = async (orderId) => {
     // Only auto-complete if still in delivered status
     if (order.status !== "delivered") {
       console.log(
-        `Order ${order.order_number} is not in delivered status, skipping auto-completion`
+        `Order ${order.order_number} is not in delivered status, skipping auto-completion`,
       );
       return;
     }
@@ -3596,7 +3650,7 @@ export const autoCompleteOrder = async (orderId) => {
           },
         });
         console.log(
-          `✅ Socket emitted: order auto-completed to user:${userId}`
+          `✅ Socket emitted: order auto-completed to user:${userId}`,
         );
       }
     } catch (socketError) {
@@ -3697,7 +3751,7 @@ export const searchOrders = async (req, res) => {
           search_query: q,
         },
         "Không tìm thấy đơn hàng nào",
-        200
+        200,
       );
     }
 
@@ -3725,7 +3779,7 @@ export const searchOrders = async (req, res) => {
       attachOrderDerivedFields({
         ...result.item,
         relevance_score: result.score.toFixed(2),
-      })
+      }),
     );
 
     return response.sendSuccess(
@@ -3751,7 +3805,7 @@ export const searchOrders = async (req, res) => {
         },
       },
       `Tìm thấy ${totalOrders} đơn hàng phù hợp`,
-      200
+      200,
     );
   } catch (error) {
     console.error("Search orders error:", error);
@@ -3759,7 +3813,7 @@ export const searchOrders = async (req, res) => {
       res,
       "Có lỗi xảy ra khi tìm kiếm đơn hàng",
       500,
-      error.message
+      error.message,
     );
   }
 };

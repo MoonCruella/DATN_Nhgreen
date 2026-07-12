@@ -60,14 +60,6 @@ const getAllForManager = (accessToken, params) => {
   return axiosPrivate.get(`${base}/manager/all`, { params, headers }).then((r) => r.data);
 };
 
-// Manager: update rating status (visible/hidden) - requires manager auth
-const updateStatusForManager = (accessToken, id, status) => {
-  const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
-  return axiosPrivate
-    .patch(`${base}/manager/${id}/status`, { status }, { headers })
-    .then((r) => r.data);
-};
-
 export default {
   create,
   getAll,
@@ -78,5 +70,4 @@ export default {
   update,
   remove,
   getAllForManager,
-  updateStatusForManager,
 };

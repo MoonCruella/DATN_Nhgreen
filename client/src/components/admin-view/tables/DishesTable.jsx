@@ -29,7 +29,6 @@ const ProductsTable = ({
             <th className="py-3 px-4 text-gray-700">Danh mục</th>
             <th className="py-3 px-4 text-gray-700">Giá</th>
             <th className="py-3 px-4 text-gray-700">Số lượng</th>
-            <th className="py-3 px-4 text-gray-700">Tags</th>
             <th className="py-3 px-4 text-gray-700">Kcal</th>
             <th className="py-3 px-4 text-gray-700">Đã bán</th>
             <th className="py-3 px-4 text-gray-700">Trạng thái</th>
@@ -70,28 +69,6 @@ const ProductsTable = ({
                   {p.stock != null ? p.stock : "-"}
                 </td>
                 <td className="py-3 px-4 text-gray-700">
-                  {(p.tags || []).length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {(p.tags || []).slice(0, 4).map((t, idx) => (
-                        <span
-                          key={idx}
-                          className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                      {(p.tags || []).length > 4 && (
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                          +{(p.tags || []).length - 4}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-sm text-gray-400">-</span>
-                  )}
-                </td>
-
-                <td className="py-3 px-4 text-gray-700">
                   {p.totalEnergyKcal != null ? p.totalEnergyKcal : "-"}
                 </td>
                 <td className="py-3 px-4 text-gray-700">
@@ -113,7 +90,7 @@ const ProductsTable = ({
           ) : (
             <tr>
               <td
-                colSpan={10}
+                colSpan={9}
                 className="py-12 text-center text-gray-500 bg-white"
               >
                 <div className="flex flex-col items-center gap-4">

@@ -35,7 +35,6 @@ import ProductDetails from "./pages/customer-view/CusProductDetails";
 import CustomerCart from "./pages/customer-view/CusCart";
 import CustomerBranches from "./pages/customer-view/CusBranchs";
 import CusFlashsaleProducts from "./pages/customer-view/CusFlashsaleProducts";
-import CusProductsByTag from "./pages/customer-view/CusProductsByTag";
 import AdminFlashSale from "./pages/admin-view/flash-sale/AdFlashSale";
 import AdminFlashSaleDetail from "./pages/admin-view/flash-sale/AdFlashSaleDetail";
 import AdminFlashSaleCreate from "./pages/admin-view/flash-sale/AdFlashSaleCreate";
@@ -94,7 +93,6 @@ function App() {
           <Route path="/menu" element={<CustomerProducts />} />
           <Route path="/products" element={<CustomerProducts />} />
           <Route path="/products/:id" element={<ProductDetails />} />
-          <Route path="/products/tags" element={<CusProductsByTag />} />
           <Route
             path="/flashsale-products"
             element={<CusFlashsaleProducts />}

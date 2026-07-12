@@ -73,11 +73,10 @@ const DineInOrderDetailModal = ({
           Chi tiết đơn hàng
         </h2>
 
-        <div className="grid grid-cols-[50px_80px_1.2fr_1fr_1fr_1.1fr_1.1fr] items-center border-b border-gray-200 pb-4 text-base font-bold text-black">
+        <div className="grid grid-cols-[50px_80px_1.4fr_1fr_1.1fr_1.1fr] items-center border-b border-gray-200 pb-4 text-base font-bold text-black">
           <div>STT</div>
           <div>Hình</div>
           <div>Tên sản phẩm</div>
-          <div className="text-center">Đơn vị</div>
           <div className="text-center">Số lượng</div>
           <div className="text-right">Đơn giá</div>
           <div className="text-right">Thành tiền</div>
@@ -92,7 +91,7 @@ const DineInOrderDetailModal = ({
               return (
                 <div
                   key={item._id || item.dish_id || index}
-                  className="grid min-h-[75px] grid-cols-[50px_80px_1.2fr_1fr_1fr_1.1fr_1.1fr] items-center text-base font-medium text-slate-950"
+                  className="grid min-h-[75px] grid-cols-[50px_80px_1.4fr_1fr_1.1fr_1.1fr] items-center text-base font-medium text-slate-950"
                 >
                   <div>{index + 1}</div>
                   <div>
@@ -107,7 +106,6 @@ const DineInOrderDetailModal = ({
                     )}
                   </div>
                   <div className="font-bold">{item.dish_name}</div>
-                  <div className="text-center">{item.unit || "Phần"}</div>
                   <div className="text-center">{item.quantity}</div>
                   <div className="text-right">{formatCurrency(price)} VND</div>
                   <div className="text-right">
@@ -176,5 +174,3 @@ const DineInOrderDetailModal = ({
 };
 
 export default DineInOrderDetailModal;
-
-

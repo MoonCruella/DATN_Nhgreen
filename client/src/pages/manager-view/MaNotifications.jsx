@@ -57,13 +57,10 @@ const MaNotifications = () => {
   useEffect(() => {
     if (!accessToken) return;
 
-    const newSocket = io(
-      import.meta.env.VITE_API_BASE_URL,
-      {
-        auth: { token: accessToken },
-        transports: ["websocket", "polling"],
-      }
-    );
+    const newSocket = io(import.meta.env.VITE_API_BASE_URL, {
+      auth: { token: accessToken },
+      transports: ["websocket", "polling"],
+    });
 
     newSocket.on("connect", () => {
       console.log("✅ Notification socket connected");
@@ -92,7 +89,7 @@ const MaNotifications = () => {
       const response = await notificationApi.getNotifications(
         accessToken,
         pageNum,
-        10
+        10,
       );
 
       if (response.success) {
@@ -115,14 +112,14 @@ const MaNotifications = () => {
     try {
       const response = await notificationApi.markAsRead(
         accessToken,
-        notificationId
+        notificationId,
       );
 
       if (response.success) {
         setNotifications((prev) =>
           prev.map((notif) =>
-            notif._id === notificationId ? { ...notif, is_read: true } : notif
-          )
+            notif._id === notificationId ? { ...notif, is_read: true } : notif,
+          ),
         );
         refreshUnread();
       }
@@ -138,7 +135,7 @@ const MaNotifications = () => {
 
       if (response.success) {
         setNotifications((prev) =>
-          prev.map((notif) => ({ ...notif, is_read: true }))
+          prev.map((notif) => ({ ...notif, is_read: true })),
         );
         toast.success("Đã đánh dấu tất cả thông báo là đã đọc");
         refreshUnread();
@@ -227,13 +224,44 @@ const MaNotifications = () => {
     return (
       <span
         className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ${
-          dineIn
-            ? "bg-emerald-50 text-emerald-700"
-            : "bg-sky-50 text-sky-700"
+          dineIn ? "bg-emerald-50 text-emerald-700" : "bg-sky-50 text-sky-700"
         }`}
       >
         {dineIn ? "Đơn tại bàn" : "Đơn online"}
       </span>
+    );
+  };
+
+  const getNotificationMessage = (notification) => {
+    if (notification.type !== "dine_in_items_added") {
+      return notification.message;
+    }
+
+    const tableName =
+      notification.metadata?.table_name ||
+      getReferenceOrder(notification)?.table_info?.name ||
+      "ban";
+    const orderNumber =
+      getReferenceOrder(notification)?.order_number ||
+      notification.metadata?.order_number ||
+      getReferenceId(notification);
+
+    return `${tableName} vừa gọi thêm món cho đơn #${orderNumber}.`;
+  };
+  const getAddedItems = (notification) => {
+    if (notification.type !== "dine_in_items_added") return [];
+
+    const items = notification.metadata?.added_items;
+    return Array.isArray(items) ? items.filter((item) => item?.dish_name) : [];
+  };
+
+  const getAddedQuantity = (notification) => {
+    const metadataQuantity = Number(notification.metadata?.added_quantity) || 0;
+    if (metadataQuantity > 0) return metadataQuantity;
+
+    return getAddedItems(notification).reduce(
+      (sum, item) => sum + (Number(item.quantity) || 0),
+      0,
     );
   };
 
@@ -250,7 +278,10 @@ const MaNotifications = () => {
       }
 
       navigate(`/manager/orders/${getReferenceId(notification)}`);
-    } else if (notification.reference_model === "Rating" && notification.reference_id) {
+    } else if (
+      notification.reference_model === "Rating" &&
+      notification.reference_id
+    ) {
       navigate(`/manager/ratings`);
     }
   };
@@ -339,8 +370,35 @@ const MaNotifications = () => {
                         </div>
                       )}
                       <p className="text-sm text-gray-600 mb-2">
-                        {notification.message}
+                        {getNotificationMessage(notification)}
                       </p>
+                      {getAddedItems(notification).length > 0 && (
+                        <div className="mb-3 rounded-lg border border-emerald-100 bg-emerald-50/70 px-3 py-2">
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <span className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                              Món vừa gọi thêm
+                            </span>
+                            <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-bold text-emerald-700 ring-1 ring-emerald-100">
+                              Tổng x{getAddedQuantity(notification)}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {getAddedItems(notification).map((item, index) => (
+                              <span
+                                key={`${item.dish_id || item.dish_name || index}-${index}`}
+                                className="inline-flex max-w-full items-center gap-2 rounded-md bg-white px-2.5 py-1 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-emerald-100"
+                              >
+                                <span className="max-w-[260px] truncate">
+                                  {item.dish_name}
+                                </span>
+                                <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-black text-emerald-700">
+                                  x{Number(item.quantity) || 0}
+                                </span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 text-xs text-gray-500">
                         <Clock className="w-3 h-3" />
                         {formatDateTime(notification.created_at)}
@@ -431,5 +489,3 @@ const MaNotifications = () => {
 };
 
 export default MaNotifications;
-
-

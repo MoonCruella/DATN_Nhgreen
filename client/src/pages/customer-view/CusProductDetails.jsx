@@ -277,14 +277,10 @@ const ProductDetails = () => {
         const res = await ratingService.getByDish(id, { page, limit });
         console.log("Ratings response:", res);
         if (res.success) {
-          const visibleRatings = res.data.ratings.filter(
-            (r) => r.status === "visible",
-          );
+          const fetchedRatings = res.data.ratings || [];
 
-          console.log("Visible ratings:", visibleRatings);
-
-          setRatings(visibleRatings);
-          setTotal(visibleRatings.length);
+          setRatings(fetchedRatings);
+          setTotal(res.data.pagination?.total || fetchedRatings.length);
           setAverageRating(res.data.averageRating || 0);
           setTotalRatings(res.data.totalRatings || 0);
         }
@@ -582,10 +578,6 @@ const ProductDetails = () => {
               <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
                 <p className="font-medium text-gray-700 mb-2">
                   <span>Phân loại:</span> {categoryName}
-                </p>
-
-                <p className="font-medium text-gray-700 mb-2">
-                  <span>Tags:</span> {product.tags?.join(", ")}
                 </p>
                 <h3 className="font-semibold text-lg text-green-800 mb-3">
                   Thông tin dinh dưỡng

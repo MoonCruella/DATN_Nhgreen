@@ -27,7 +27,6 @@ const orderSchema = new mongoose.Schema(
     },
     table_info: {
       name: String,
-      code: String,
     },
     dine_in_session_id: {
       type: mongoose.Schema.Types.ObjectId,

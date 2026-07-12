@@ -26,16 +26,6 @@ const AdminDishDetail = () => {
   const [uploading, setUploading] = useState(false);
   const [defaultPulse, setDefaultPulse] = useState(null);
 
-  const getTagLabel = (tag) => {
-    if (!tag) return "";
-    if (typeof tag === "string") return tag;
-    if (typeof tag === "object") {
-      if (tag.label) return tag.label;
-      if (tag.name) return tag.name;
-    }
-    return String(tag);
-  };
-
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -849,26 +839,6 @@ const AdminDishDetail = () => {
                       : "-"}
                   </span>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {!isEditing && Array.isArray(dish.tags) && dish.tags.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold mb-4">Tags</h2>
-              <div className="flex flex-wrap gap-2">
-                {dish.tags.map((tag, idx) => (
-                  <span
-                    key={
-                      typeof tag === "string"
-                        ? tag
-                        : tag?._id || tag?.value || idx
-                    }
-                    className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700"
-                  >
-                    {getTagLabel(tag)}
-                  </span>
-                ))}
               </div>
             </div>
           )}

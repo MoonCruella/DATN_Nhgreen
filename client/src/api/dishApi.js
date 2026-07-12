@@ -53,9 +53,6 @@ const getNewest = (params) => {
   return axiosPublic.get(`${base}/newest`, { params }).then((r) => r.data);
 };
 
-const getByTag = (tag, params) => {
-  return axiosPublic.get(`${base}/tags/${tag}`, { params }).then((r) => r.data);
-};
 
 const toggleFavorite = (dishId) => {
   return axiosPrivate.post(`${base}/${dishId}/favorite`).then((r) => r.data);
@@ -73,7 +70,6 @@ export default {
   remove,
   getTopSelling,
   getNewest,
-  getByTag,
   toggleFavorite,
   getFavorites,
 };

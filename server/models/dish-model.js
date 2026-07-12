@@ -13,7 +13,6 @@ const dishSchema = new mongoose.Schema(
     },
     price: { type: Number, required: true, min: 0 },
     description: { type: String, default: "" },
-
     imageUrls: {
       type: [String],
       default: [],
@@ -23,9 +22,6 @@ const dishSchema = new mongoose.Schema(
         },
       },
     },
-    imagePublicIds: { type: [String], default: [] },
-    defaultImageIndex: { type: Number, default: 0, min: 0 },
-
     status: {
       type: String,
       enum: ["active", "inactive"],
@@ -43,7 +39,8 @@ const dishSchema = new mongoose.Schema(
         quantityGram: { type: Number, required: true, min: 0 },
       },
     ],
-
+    imagePublicIds: { type: [String], default: [] },
+    defaultImageIndex: { type: Number, default: 0, min: 0 },
     // Tổng dinh dưỡng (tự động tính)
     totalProtein: { type: Number, default: 0 }, // gram
     totalFat: { type: Number, default: 0 }, // gram
@@ -53,10 +50,8 @@ const dishSchema = new mongoose.Schema(
     // Rating fields
     avgRating: { type: Number, default: 0, min: 0, max: 5 },
     totalRatings: { type: Number, default: 0, min: 0 },
-
-    tags: { type: [String], default: [] },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // ✅ Tự động tạo slug trước khi lưu
@@ -72,21 +67,19 @@ dishSchema.pre("save", function (next) {
   next();
 });
 
-// Middleware tính toán dinh dưỡng và tags
+// Middleware t?nh to?n dinh d??ng
 dishSchema.pre("save", async function (next) {
   try {
     let totalKcal = 0;
     let totalProtein = 0;
     let totalFat = 0;
     let totalCarbs = 0;
-    let totalWeight = 0;
 
     // 1. Tính tổng năng lượng và dinh dưỡng
     for (const item of this.ingredients) {
       const ing = await Ingredient.findById(item.ingredient);
       if (ing) {
         const weightRatio = item.quantityGram / 100;
-        totalWeight += item.quantityGram;
         totalProtein += ing.protein * weightRatio;
         totalFat += ing.fat * weightRatio;
         totalCarbs += ing.carbs * weightRatio;
@@ -101,47 +94,6 @@ dishSchema.pre("save", async function (next) {
     this.totalCarbs = Math.round(totalCarbs * 10) / 10;
     this.totalEnergyKcal = Math.round(totalKcal);
 
-    // 2. Tính tỷ lệ năng lượng từng nhóm (%)
-    const totalEnergy = totalKcal || 1;
-    const proteinPct = ((totalProtein * 4) / totalEnergy) * 100;
-    const fatPct = ((totalFat * 9) / totalEnergy) * 100;
-    const carbPct = ((totalCarbs * 4) / totalEnergy) * 100;
-    const energyDensity = totalKcal / (totalWeight / 100); // kcal/100g
-
-    // 3. Gắn tag khoa học
-    const tags = new Set();
-
-    if (proteinPct >= 25) tags.add("high_protein");
-    if (fatPct >= 35) tags.add("high_fat");
-    if (carbPct <= 45) tags.add("low_carb");
-
-    if (
-      proteinPct >= 15 &&
-      proteinPct <= 25 &&
-      fatPct >= 20 &&
-      fatPct <= 35 &&
-      carbPct >= 45 &&
-      carbPct <= 60
-    ) {
-      tags.add("balanced_meal");
-    }
-
-    // Gym meal: Protein cao, fat không quá cao (< 35%)
-    if ((this.totalProtein >= 25 || proteinPct >= 25) && fatPct < 35) {
-      tags.add("gym_meal");
-    }
-
-    if (
-      totalKcal < 400 &&
-      proteinPct >= 25 &&
-      fatPct < 30 &&
-      energyDensity < 60
-    ) {
-      tags.add("lose_weight");
-      tags.add("low_calorie");
-    }
-
-    this.tags = Array.from(tags);
     next();
   } catch (err) {
     next(err);
@@ -156,7 +108,6 @@ dishSchema.statics.updateDishRating = async function (dishId) {
     {
       $match: {
         dish_id: new mongoose.Types.ObjectId(dishId),
-        status: "visible",
       },
     },
     {

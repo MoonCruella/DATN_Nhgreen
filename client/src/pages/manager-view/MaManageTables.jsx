@@ -64,9 +64,7 @@ const TableCard = ({
   return (
     <article className="relative h-[220px] overflow-hidden rounded-lg bg-white shadow-md ring-1 ring-gray-100">
       <div
-        className={`absolute left-1/2 top-0 z-10 h-9 min-w-[190px] -translate-x-1/2 rounded-b-[26px] px-6 text-center text-lg font-bold leading-9 text-white shadow-sm ${
-          table.active ? "bg-[#34ad54]" : "bg-gray-500"
-        }`}
+        className="absolute left-1/2 top-0 z-10 h-9 min-w-[190px] -translate-x-1/2 rounded-b-[26px] bg-[#34ad54] px-6 text-center text-lg font-bold leading-9 text-white shadow-sm"
       >
         <span className="block truncate">
           {table.name || `Bàn ${index + 1}`}
@@ -348,7 +346,7 @@ const TransferTableModal = ({
             <option value="">Chọn bàn trống</option>
             {emptyTables.map((table) => (
               <option key={table._id} value={table._id}>
-                {table.name || table.code || "Bàn"}
+                {table.name || "Bàn"}
               </option>
             ))}
           </select>
@@ -414,7 +412,6 @@ const MaManageTables = () => {
   const [tables, setTables] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [status] = useState("active");
   const [showCreate, setShowCreate] = useState(false);
   const [selectedOrderTable, setSelectedOrderTable] = useState(null);
   const [currentOrder, setCurrentOrder] = useState(null);
@@ -432,7 +429,6 @@ const MaManageTables = () => {
         branchApi.getById(branchId),
         storeTableApi.getAll(accessToken, {
           branch_id: branchId,
-          active: status === "all" ? undefined : status,
           limit: 100,
         }),
       ]);
@@ -445,7 +441,7 @@ const MaManageTables = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [accessToken, branchId, status]);
+  }, [accessToken, branchId]);
 
   useEffect(() => {
     fetchTables();
@@ -585,13 +581,11 @@ const MaManageTables = () => {
     if (!search.trim()) return true;
     const value = search.trim().toLowerCase();
     return (
-      table.name?.toLowerCase().includes(value) ||
-      table.code?.toLowerCase().includes(value)
+      table.name?.toLowerCase().includes(value)
     );
   });
   const emptyTransferTables = tables.filter(
     (table) =>
-      table.active &&
       table._id !== transferSourceTable?._id &&
       !hasTableActivity(table),
   );

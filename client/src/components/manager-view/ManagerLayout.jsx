@@ -54,21 +54,35 @@ const getOrderToastData = (eventType, payload = {}) => {
     const tableName = getTableName(payload);
     const orderNumber = payload.order_number || payload.order_id;
     const total = payload.total_amount
-      ? `, giá trị ${formatMoney(payload.total_amount)}đ`
+      ? `, gi\u00e1 tr\u1ecb ${formatMoney(payload.total_amount)}\u0111`
       : "";
 
     return {
       id: `cash-payment-${payload.order_id || orderNumber}-${payload.created_at || Date.now()}`,
-      title: "Yêu cầu thanh toán tại bàn",
-      badge: "Tiền mặt",
-      message: `Khách hàng tại ${tableName} yêu cầu thanh toán tiền mặt${orderNumber ? ` cho đơn #${orderNumber}` : ""}${total}.`,
+      title: "Y\u00eau c\u1ea7u thanh to\u00e1n t\u1ea1i b\u00e0n",
+      badge: "Ti\u1ec1n m\u1eb7t",
+      message: `Kh\u00e1ch t\u1ea1i ${tableName} y\u00eau c\u1ea7u thanh to\u00e1n${orderNumber ? ` cho \u0111\u01a1n #${orderNumber}` : ""}${total}.`,
       createdAt: payload.created_at || new Date().toISOString(),
       orderId: payload.order_id,
       navigateTo: "/manager/tables",
       icon: "cash",
     };
   }
+  if (eventType === "dine_in_items_added") {
+    const tableName = getTableName(payload);
+    const orderNumber = payload.order_number || payload.order_id;
 
+    return {
+      id: `dine-in-items-added-${payload.order_id || orderNumber}-${payload.created_at || Date.now()}`,
+      title: "Kh\u00e1ch g\u1ecdi th\u00eam m\u00f3n",
+      badge: "\u0110\u01a1n t\u1ea1i b\u00e0n",
+      message: `${tableName} v\u1eeba g\u1ecdi th\u00eam m\u00f3n${orderNumber ? ` cho \u0111\u01a1n #${orderNumber}` : ""}.`,
+      createdAt: payload.created_at || new Date().toISOString(),
+      orderId: payload.order_id,
+      navigateTo: "/manager/notifications",
+      icon: "food",
+    };
+  }
   if (payload.type === "new_order") {
     const order = payload.reference_id || {};
     const orderId =
@@ -76,11 +90,12 @@ const getOrderToastData = (eventType, payload = {}) => {
       payload.data?.order_id ||
       payload.reference_id ||
       payload._id;
-    const typeText = payload.data?.order_type === "dine_in"
-      ? "Đơn tại bàn"
-      : payload.data?.order_type === "online"
-      ? "Đơn online"
-      : getOrderTypeText(order);
+    const typeText =
+      payload.data?.order_type === "dine_in"
+        ? "Đơn tại bàn"
+        : payload.data?.order_type === "online"
+          ? "Đơn online"
+          : getOrderTypeText(order);
     const tableName =
       payload.data?.table_name || order.table_info?.name || getTableName(order);
     const orderNumber =
@@ -91,8 +106,7 @@ const getOrderToastData = (eventType, payload = {}) => {
 
     return {
       id: `new-order-${orderId}`,
-      title:
-        typeText === "Đơn tại bàn" ? "Đơn mới tại bàn" : "Đơn online mới",
+      title: typeText === "Đơn tại bàn" ? "Đơn mới tại bàn" : "Đơn online mới",
       badge: typeText,
       message:
         typeText === "Đơn tại bàn"
@@ -140,7 +154,7 @@ const ManagerOrderToast = ({ data, onClick }) => {
   const Icon = data.icon === "cash" ? Banknote : Utensils;
 
   return (
-    <div className="relative w-[390px] max-w-[calc(100vw-24px)] rounded-lg border border-gray-100 border-l-4 border-l-[#12b957] bg-white py-3 pl-4 pr-9 text-left shadow-lg shadow-gray-300/40">
+    <div className="relative w-[390px] max-w-[calc(100vw-24px)] rounded-lg border border-gray-100 border-l-4 border-l-[#12b957] bg-white py-3 pl-4 pr-9 text-left font-sans shadow-lg shadow-gray-300/40">
       <button
         type="button"
         onClick={(event) => {
@@ -156,23 +170,23 @@ const ManagerOrderToast = ({ data, onClick }) => {
       <button
         type="button"
         onClick={onClick}
-        className="flex w-full gap-3 text-left"
+        className="flex w-full gap-3 text-left font-sans"
       >
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-50 text-[#009f6b]">
           <Icon className="h-6 w-6" strokeWidth={2.2} />
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold leading-5 text-slate-950">
+          <h3 className="text-sm font-bold leading-5 text-slate-950">
             {data.title}
           </h3>
-          <span className="mt-1.5 inline-flex rounded-full bg-green-50 px-2.5 py-0.5 text-[11px] font-semibold leading-5 text-[#009f6b]">
+          <span className="mt-1.5 inline-flex rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-bold leading-5 text-[#009f6b]">
             {data.badge}
           </span>
-          <p className="mt-1.5 text-[13px] font-normal leading-5 text-slate-700">
+          <p className="mt-1.5 text-sm font-medium leading-5 text-slate-700">
             {data.message}
           </p>
-          <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500">
+          <div className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
             <Clock3 className="h-3.5 w-3.5" />
             <span>{formatRelativeTime(data.createdAt)}</span>
           </div>
@@ -242,21 +256,26 @@ const ManagerLayout = () => {
 
   const closeAllMenus = () => {
     setOpenMenus((prev) =>
-      Object.fromEntries(Object.keys(prev).map((key) => [key, false]))
+      Object.fromEntries(Object.keys(prev).map((key) => [key, false])),
     );
   };
 
   const toggleMenu = (menuKey, isOpen) => {
     setOpenMenus((prev) =>
       Object.fromEntries(
-        Object.keys(prev).map((key) => [key, key === menuKey ? !isOpen : false])
-      )
+        Object.keys(prev).map((key) => [
+          key,
+          key === menuKey ? !isOpen : false,
+        ]),
+      ),
     );
   };
 
   const keepMenuOpen = (menuKey) => {
     setOpenMenus((prev) =>
-      Object.fromEntries(Object.keys(prev).map((key) => [key, key === menuKey]))
+      Object.fromEntries(
+        Object.keys(prev).map((key) => [key, key === menuKey]),
+      ),
     );
   };
 
@@ -264,7 +283,7 @@ const ManagerLayout = () => {
     for (const item of data) {
       if (item.children) {
         const activeChild = item.children.find((child) =>
-          isLinkActive(child.link)
+          isLinkActive(child.link),
         );
         if (activeChild) return activeChild.label;
       }
@@ -303,7 +322,7 @@ const ManagerLayout = () => {
           }}
         />
       ),
-      { duration: 7000, id: toastData.id }
+      { duration: 7000, id: toastData.id },
     );
   };
 
@@ -350,6 +369,10 @@ const ManagerLayout = () => {
       showManagerOrderToast("cash_payment_requested", data);
     });
 
+    socket.on("dine_in_items_added", (data) => {
+      showManagerOrderToast("dine_in_items_added", data);
+    });
+
     socket.on("order_status_updated", (data) => {
       if (data?.updates?.payment_status === "paid") {
         showManagerOrderToast("paid", data);
@@ -361,6 +384,7 @@ const ManagerLayout = () => {
       socket.off("new_notification");
       socket.off("dine_in_order_paid");
       socket.off("dine_in_cash_payment_requested");
+      socket.off("dine_in_items_added");
       socket.off("order_status_updated");
       socket.emit("leave_branch_room", user.branch_id);
       socket.disconnect();
@@ -522,5 +546,3 @@ const ManagerLayout = () => {
 };
 
 export default ManagerLayout;
-
-

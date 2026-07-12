@@ -15,6 +15,7 @@ const notificationSchema = new Schema({
     type: String,
     enum: [
       "new_order",
+      "dine_in_items_added",
       "order_status",
       "order_confirmed",
       "order_cancelled",

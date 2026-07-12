@@ -10,8 +10,6 @@ const getDishPrice = (dish) => dish?.sale_price || dish?.price || 0;
 
 const getDishName = (dish) => dish?.name || dish?.dish_name || "Sản phẩm";
 
-const getDishUnit = (dish) =>
-  dish?.unit || dish?.unit_name || dish?.unitName || "Phần";
 
 const normalizeText = (value = "") =>
   value
@@ -73,9 +71,12 @@ const OrderDetailModal = ({
   if (!open) return null;
 
   const tableName = table?.name || order?.table_info?.name || "Bàn";
-  const isPaymentAction = normalizeText(primaryActionLabel).includes("thanh toan");
+  const isPaymentAction =
+    normalizeText(primaryActionLabel).includes("thanh toan");
   const displayItems = isPaymentAction ? paymentItems : items;
-  const displayTotalQuantity = isPaymentAction ? paymentTotalQuantity : totalQuantity;
+  const displayTotalQuantity = isPaymentAction
+    ? paymentTotalQuantity
+    : totalQuantity;
   const displayTotalAmount = isPaymentAction ? paymentTotalAmount : totalAmount;
 
   const handlePrimaryAction = () => {
@@ -112,7 +113,9 @@ const OrderDetailModal = ({
       {!showPaymentModal && (
         <div
           className={`fixed inset-0 z-[70] flex items-center justify-center bg-black/40 px-6 py-5 transition-opacity duration-300 ${
-            openingPaymentModal ? "pointer-events-none opacity-0" : "opacity-100"
+            openingPaymentModal
+              ? "pointer-events-none opacity-0"
+              : "opacity-100"
           }`}
         >
           <div
@@ -137,10 +140,9 @@ const OrderDetailModal = ({
             </h2>
 
             <div className="min-h-0 flex-1">
-              <div className="grid grid-cols-[80px_1.5fr_1fr_1fr_1fr_1fr] gap-x-6 px-2 text-lg font-bold text-black">
+              <div className="grid grid-cols-[80px_1.8fr_1fr_1fr_1fr] gap-x-6 px-2 text-lg font-bold text-black">
                 <div>STT</div>
                 <div>Tên sản phẩm</div>
-                <div className="text-center">Đơn vị</div>
                 <div className="text-center">Số lượng</div>
                 <div className="text-right">Đơn giá</div>
                 <div className="text-right">Thành tiền</div>
@@ -154,11 +156,11 @@ const OrderDetailModal = ({
                     return (
                       <div
                         key={item._id || index}
-                        className="grid grid-cols-[80px_1.5fr_1fr_1fr_1fr_1fr] gap-x-6 px-2 text-lg font-medium text-slate-950"
+                        className="grid grid-cols-[80px_1.8fr_1fr_1fr_1fr] gap-x-6 px-2 text-lg font-medium text-slate-950"
                       >
                         <div>{index + 1}</div>
                         <div>{getDishName(item)}</div>
-                        <div className="text-center">{getDishUnit(item)}</div>
+
                         <div className="text-center">{item.quantity}</div>
                         <div className="text-right">
                           {formatCurrency(price)} VND
@@ -271,5 +273,3 @@ const OrderDetailModal = ({
 };
 
 export default OrderDetailModal;
-
-

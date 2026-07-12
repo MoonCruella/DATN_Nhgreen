@@ -48,60 +48,20 @@ const canManageBranch = async (req, branchId) => {
   return manager?.branch_id?.toString() === branchId.toString();
 };
 
-const parseBooleanFilter = (value) => {
-  if (typeof value === "undefined" || value === "") return undefined;
-  if (value === true || value === "true" || value === "active") return true;
-  if (value === false || value === "false" || value === "inactive")
-    return false;
-  return undefined;
-};
 
-const buildTableCode = (value = "") =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 24)
-    .toUpperCase();
-
-const getRequestedTableCode = ({ code, name }) => {
-  const rawCode = typeof code === "string" && code.trim() ? code : name;
-  return buildTableCode(rawCode || "");
-};
-
-const markDeletedCodeAsReusable = async (branchId, code) => {
-  if (!branchId || !code) return;
-
-  const deletedTable = await StoreTable.findOne({
-    branch_id: branchId,
-    code,
-    deleted: true,
-  });
-
-  if (!deletedTable) return;
-
-  const deletedSuffix = `DELETED-${deletedTable._id.toString().slice(-8)}`;
-  deletedTable.code = `${code}-${deletedSuffix}`.slice(0, 60);
-  deletedTable.name = `${deletedTable.name || "Bàn"} (${deletedSuffix})`;
-  deletedTable.qr_token = `${deletedTable.qr_token}-${deletedSuffix}`;
-  await deletedTable.save();
-};
-
-const findActiveCodeConflict = async (branchId, code, excludeId = null) => {
-  if (!branchId || !code) return null;
+const findNameConflict = async (branchId, name, excludeId = null) => {
+  if (!branchId || !name) return null;
 
   const filter = {
     branch_id: branchId,
-    code,
-    deleted: { $ne: true },
+    name: String(name).trim(),
   };
 
   if (excludeId) {
     filter._id = { $ne: excludeId };
   }
 
-  return StoreTable.findOne(filter).select("_id name code").lean();
+  return StoreTable.findOne(filter).select("_id name").lean();
 };
 
 const serializeTable = async (req, table) => {
@@ -134,7 +94,7 @@ const serializeTable = async (req, table) => {
 
 export const createStoreTable = async (req, res) => {
   try {
-    const { branch_id, name, code, active = true, sort_order = 0 } = req.body;
+    const { branch_id, name } = req.body;
 
     if (!branch_id || !mongoose.Types.ObjectId.isValid(branch_id)) {
       return response.sendError(
@@ -165,20 +125,14 @@ export const createStoreTable = async (req, res) => {
       );
     }
 
-    const requestedCode = getRequestedTableCode({ code, name });
-    await markDeletedCodeAsReusable(branch_id, requestedCode);
-
-    const codeConflict = await findActiveCodeConflict(branch_id, requestedCode);
-    if (codeConflict) {
-      return response.sendError(res, "Mã bàn đã tồn tại trong chi nhánh", 409);
+    const nameConflict = await findNameConflict(branch_id, name);
+    if (nameConflict) {
+      return response.sendError(res, "Tên bàn đã tồn tại trong chi nhánh", 409);
     }
 
     const table = new StoreTable({
       branch_id,
       name,
-      code,
-      active,
-      sort_order,
     });
 
     await table.save();
@@ -191,7 +145,7 @@ export const createStoreTable = async (req, res) => {
     );
   } catch (error) {
     if (error.code === 11000) {
-      return response.sendError(res, "Mã bàn đã tồn tại trong chi nhánh", 409);
+      return response.sendError(res, "Tên bàn đã tồn tại trong chi nhánh", 409);
     }
 
     return response.sendError(
@@ -208,16 +162,14 @@ export const getStoreTables = async (req, res) => {
     const {
       branch_id,
       branchId,
-      active,
       q,
       page = 1,
       limit = 50,
-      sort = "sort_order",
       order = "asc",
     } = req.query;
 
     const selectedBranchId = branch_id || branchId;
-    const filter = { deleted: { $ne: true } };
+    const filter = {};
 
     if (selectedBranchId) {
       if (!mongoose.Types.ObjectId.isValid(selectedBranchId)) {
@@ -244,21 +196,14 @@ export const getStoreTables = async (req, res) => {
       filter.branch_id = managerBranchId;
     }
 
-    const activeFilter = parseBooleanFilter(active);
-    if (typeof activeFilter !== "undefined") {
-      filter.active = activeFilter;
-    }
 
     if (q) {
-      filter.$or = [
-        { name: { $regex: q, $options: "i" } },
-        { code: { $regex: q, $options: "i" } },
-      ];
+      filter.$or = [{ name: { $regex: q, $options: "i" } }];
     }
 
     const pageNumber = Math.max(parseInt(page, 10) || 1, 1);
     const limitNumber = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
-    const sortObj = { [sort]: order === "desc" ? -1 : 1, created_at: 1 };
+    const sortObj = { created_at: order === "desc" ? -1 : 1 };
 
     const [tables, totalItems] = await Promise.all([
       StoreTable.find(filter)
@@ -336,16 +281,13 @@ export const getStoreTableById = async (req, res) => {
 export const updateStoreTable = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, code, active, sort_order } = req.body;
+    const { name } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return response.sendError(res, "ID bàn không hợp lệ", 400);
     }
 
-    const table = await StoreTable.findOne({
-      _id: id,
-      deleted: { $ne: true },
-    });
+    const table = await StoreTable.findById(id);
     if (!table) {
       return response.sendError(res, "Không tìm thấy bàn", 404);
     }
@@ -358,26 +300,17 @@ export const updateStoreTable = async (req, res) => {
       if (!name || !name.trim()) {
         return response.sendError(res, "Tên bàn không được để trống", 400);
       }
-      table.name = name;
-    }
-
-    if (typeof code !== "undefined") {
-      const requestedCode = getRequestedTableCode({ code, name: table.name });
-      await markDeletedCodeAsReusable(table.branch_id, requestedCode);
-
-      const codeConflict = await findActiveCodeConflict(
+      const nameConflict = await findNameConflict(
         table.branch_id,
-        requestedCode,
-        table._id
+        name,
+        table._id,
       );
-      if (codeConflict) {
-        return response.sendError(res, "Mã bàn đã tồn tại trong chi nhánh", 409);
+      if (nameConflict) {
+        return response.sendError(res, "Tên bàn đã tồn tại trong chi nhánh", 409);
       }
-
-      table.code = code;
+      table.name = name.trim();
     }
-    if (typeof active !== "undefined") table.active = active;
-    if (typeof sort_order !== "undefined") table.sort_order = sort_order;
+
 
     await table.save();
     await table.populate("branch_id", "name phone address code active");
@@ -390,7 +323,7 @@ export const updateStoreTable = async (req, res) => {
     );
   } catch (error) {
     if (error.code === 11000) {
-      return response.sendError(res, "Mã bàn đã tồn tại trong chi nhánh", 409);
+      return response.sendError(res, "Tên bàn đã tồn tại trong chi nhánh", 409);
     }
 
     return response.sendError(
@@ -416,28 +349,44 @@ export const transferStoreTableOrder = async (req, res) => {
     }
 
     if (id.toString() === target_table_id.toString()) {
-      return response.sendError(res, "Bàn chuyển đến phải khác bàn hiện tại", 400);
+      return response.sendError(
+        res,
+        "Bàn chuyển đến phải khác bàn hiện tại",
+        400,
+      );
     }
 
     const [sourceTable, targetTable] = await Promise.all([
-      StoreTable.findOne({ _id: id, deleted: { $ne: true } }),
-      StoreTable.findOne({ _id: target_table_id, deleted: { $ne: true } }),
+      StoreTable.findById(id),
+      StoreTable.findById(target_table_id),
     ]);
 
     if (!sourceTable) {
       return response.sendError(res, "Không tìm thấy bàn hiện tại", 404);
     }
 
-    if (!targetTable || !targetTable.active) {
-      return response.sendError(res, "Bàn chuyển đến không tồn tại hoặc đã ngừng hoạt động", 404);
+    if (!targetTable) {
+      return response.sendError(
+        res,
+        "Bàn chuyển đến không tồn tại hoặc đã ngừng hoạt động",
+        404,
+      );
     }
 
     if (sourceTable.branch_id.toString() !== targetTable.branch_id.toString()) {
-      return response.sendError(res, "Chỉ có thể chuyển bàn trong cùng chi nhánh", 400);
+      return response.sendError(
+        res,
+        "Chỉ có thể chuyển bàn trong cùng chi nhánh",
+        400,
+      );
     }
 
     if (!(await canManageBranch(req, sourceTable.branch_id))) {
-      return response.sendError(res, "Không có quyền chuyển bàn trong chi nhánh này", 403);
+      return response.sendError(
+        res,
+        "Không có quyền chuyển bàn trong chi nhánh này",
+        403,
+      );
     }
 
     const activeOrderFilter = {
@@ -460,11 +409,15 @@ export const transferStoreTableOrder = async (req, res) => {
     ]);
 
     if (!sourceOrder) {
-      return response.sendError(res, "Bàn hiện tại chưa có hóa đơn đang mở", 400);
+      return response.sendError(
+        res,
+        "Bàn hiện tại chưa có hóa đơn đang mở",
+        400,
+      );
     }
 
     if (targetOrder) {
-      return response.sendError(res, "Bàn chuyển đến đang có hóa đơn, vui lòng chọn bàn trống", 409);
+      return response.sendError(res, "Bàn chuyển đến đang có hóa đơn", 409);
     }
 
     const now = new Date();
@@ -509,7 +462,6 @@ export const transferStoreTableOrder = async (req, res) => {
           table_id: targetTable._id,
           table_info: {
             name: targetTable.name,
-            code: targetTable.code,
           },
         },
         $push: {
@@ -526,7 +478,7 @@ export const transferStoreTableOrder = async (req, res) => {
     const updatedOrder = await Order.findById(sourceOrder._id)
       .populate("user_id", "name email phone")
       .populate("branch_id", "name phone address code")
-      .populate("table_id", "name code active")
+      .populate("table_id", "name")
       .lean();
 
     try {
@@ -577,10 +529,7 @@ export const deleteStoreTable = async (req, res) => {
       return response.sendError(res, "ID bàn không hợp lệ", 400);
     }
 
-    const table = await StoreTable.findOne({
-      _id: id,
-      deleted: { $ne: true },
-    });
+    const table = await StoreTable.findById(id);
     if (!table) {
       return response.sendError(res, "Không tìm thấy bàn", 404);
     }
@@ -589,16 +538,7 @@ export const deleteStoreTable = async (req, res) => {
       return response.sendError(res, "Không có quyền xóa bàn này", 403);
     }
 
-    const deletedSuffix = `DELETED-${table._id.toString().slice(-8)}`;
-    table.active = false;
-    table.deleted = true;
-    table.deleted_at = new Date();
-    table.name = `${table.name || "Bàn"} (${deletedSuffix})`;
-    if (table.code) {
-      table.code = `${table.code}-${deletedSuffix}`.slice(0, 60);
-    }
-    table.qr_token = `${table.qr_token}-${deletedSuffix}`;
-    await table.save();
+    await table.deleteOne();
 
     return response.sendSuccess(
       res,

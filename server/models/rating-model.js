@@ -28,11 +28,6 @@ const ratingSchema = new mongoose.Schema(
       trim: true,
       maxlength: 500,
     },
-    status: {
-      type: String,
-      enum: ["visible", "hidden"],
-      default: "visible",
-    },
   },
   {
     timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
