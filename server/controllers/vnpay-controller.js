@@ -3,6 +3,7 @@ import crypto from "crypto";
 import axios from "axios";
 import Order from "../models/order-model.js";
 import Dish from "../models/dish-model.js";
+import StoreTable from "../models/store-table-model.js";
 import { getIO } from "../config/socket.js";
 
 dotenv.config();
@@ -25,6 +26,33 @@ function encodeParams(obj) {
     .join("&");
 }
 
+const getDineInRedirectBase = () => {
+  const baseUrl =
+    process.env.CLIENT_DINE_IN_URL ||
+    process.env.QR_CLIENT_BASE_URL ||
+    process.env.CLIENT_URL;
+
+  if (!baseUrl) return "";
+
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+  return normalizedBaseUrl.endsWith("/dine-in")
+    ? normalizedBaseUrl
+    : `${normalizedBaseUrl}/dine-in`;
+};
+
+const buildDineInPaymentRedirectUrl = async ({ order, query }) => {
+  if (!order || order.order_type !== "dine_in") return "";
+
+  const tableId = order.table_id?._id || order.table_id;
+  if (!tableId) return "";
+
+  const table = await StoreTable.findById(tableId).select("qr_token").lean();
+  const dineInBase = getDineInRedirectBase();
+  if (!table?.qr_token || !dineInBase) return "";
+
+  const params = new URLSearchParams(query);
+  return `${dineInBase}/${table.qr_token}?${params.toString()}`;
+};
 function sortParams(params) {
   return Object.entries(params)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -168,12 +196,18 @@ export const vnpayReturn = async (req, res) => {
     const vnpPayDate = vnpData.vnp_PayDate || "";
     const vnpAmount = vnpData.vnp_Amount || "";
 
+    let paidOrder = null;
+
     if (success && orderId) {
       try {
         const fallbackOrderId = String(orderId).split("_")[0];
         const order =
           (await Order.findOne({ vnpay_txn_ref: orderId })) ||
           (await Order.findById(fallbackOrderId).catch(() => null));
+        if (order) {
+          paidOrder = order;
+        }
+
         if (order && order.payment_status !== "paid") {
           const now = new Date();
           order.payment_method = "vnpay";
@@ -229,20 +263,31 @@ export const vnpayReturn = async (req, res) => {
       }
     }
 
-    // 🔹 Redirect về checkout trên frontend
+    const redirectQuery = {
+      success: String(success),
+      message,
+      orderId,
+      vnp_TransactionNo: vnpTransactionNo,
+      vnp_PayDate: vnpPayDate,
+      vnp_Amount: vnpAmount,
+      payment_method: "vnpay",
+    };
+
+    const dineInRedirectUrl = await buildDineInPaymentRedirectUrl({
+      order: paidOrder,
+      query: redirectQuery,
+    });
+    if (dineInRedirectUrl) {
+      return res.redirect(dineInRedirectUrl);
+    }
+
+    // Redirect to checkout for online orders.
     const redirectBase = process.env.VNP_FE_REDIRECT_URL;
     if (!redirectBase) {
-      throw new Error("VNP_FE_REDIRECT_URL chưa được cấu hình");
+      throw new Error("VNP_FE_REDIRECT_URL chua duoc cau hinh");
     }
-    return res.redirect(
-      `${redirectBase}?success=${success}&message=${encodeURIComponent(
-        message
-      )}&orderId=${orderId}&vnp_TransactionNo=${encodeURIComponent(
-        vnpTransactionNo
-      )}&vnp_PayDate=${encodeURIComponent(
-        vnpPayDate
-      )}&vnp_Amount=${encodeURIComponent(vnpAmount)}`
-    );
+    const redirectParams = new URLSearchParams(redirectQuery);
+    return res.redirect(`${redirectBase}?${redirectParams.toString()}`);
   } catch (err) {
     console.error("VNPay return error:", err);
     const redirectBase = process.env.VNP_FE_REDIRECT_URL;

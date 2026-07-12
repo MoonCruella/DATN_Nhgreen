@@ -1737,7 +1737,7 @@ export const createOrder = async (req, res) => {
       }
 
       selectedTable = await StoreTable.findById(dineInSession.table_id).lean();
-      if (!selectedTable || !selectedTable.active) {
+      if (!selectedTable || selectedTable.active === false) {
         return response.sendError(
           res,
           "Bàn không tồn tại hoặc đã ngừng hoạt động",
@@ -1752,7 +1752,7 @@ export const createOrder = async (req, res) => {
       }
 
       selectedTable = await StoreTable.findById(table_id).lean();
-      if (!selectedTable || !selectedTable.active) {
+      if (!selectedTable || selectedTable.active === false) {
         return response.sendError(
           res,
           "Bàn không tồn tại hoặc đã ngừng hoạt động",
@@ -1787,7 +1787,7 @@ export const createOrder = async (req, res) => {
     }
 
     const branch = await Branch.findById(selectedBranchId).lean();
-    if (!branch || !branch.active) {
+    if (!branch || branch.active === false) {
       return response.sendError(
         res,
         "Chi nhánh không tồn tại hoặc không hoạt động",

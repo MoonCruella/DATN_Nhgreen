@@ -37,6 +37,71 @@ const getSessionContext = (session) => {
     branchId: branch?._id || branch,
   };
 };
+
+const buildSessionPayload = ({ session, table, branch }) => ({
+  _id: session._id,
+  session_token: session.session_token,
+  table_id: {
+    _id: table._id,
+    name: table.name,
+  },
+  branch_id: branch,
+  cart_items: session.cart_items || [],
+  order_id: session.order_id || null,
+});
+
+const normalizeSessionCartItems = (cartItems = []) => {
+  const itemMap = new Map();
+
+  for (const item of cartItems || []) {
+    const dishId = item.dish_id?._id || item.dish_id;
+    const quantity = Number(item.quantity) || 0;
+    if (!dishId || quantity < 1) continue;
+
+    const key = String(dishId);
+    itemMap.set(key, {
+      dish_id: dishId,
+      quantity: (itemMap.get(key)?.quantity || 0) + quantity,
+    });
+  }
+
+  return Array.from(itemMap.values());
+};
+
+const getReusableSessionForTable = async (tableId) => {
+  const sessions = await DineInSession.find({ table_id: tableId })
+    .sort({ updated_at: -1, created_at: -1 })
+    .lean();
+
+  if (sessions.length <= 1) return sessions[0] || null;
+
+  const reusableSession =
+    sessions.find((session) => session.cart_items?.length > 0) || sessions[0];
+  const mergedCartItems = normalizeSessionCartItems(
+    sessions.flatMap((session) => session.cart_items || []),
+  );
+  const orderSession = sessions.find((session) => session.order_id);
+
+  await DineInSession.updateOne(
+    { _id: reusableSession._id },
+    {
+      $set: {
+        cart_items: mergedCartItems,
+        order_id: reusableSession.order_id || orderSession?.order_id || null,
+      },
+    },
+  );
+
+  await DineInSession.deleteMany({
+    _id: {
+      $in: sessions
+        .filter((session) => String(session._id) !== String(reusableSession._id))
+        .map((session) => session._id),
+    },
+  });
+
+  return DineInSession.findById(reusableSession._id).lean();
+};
 export const scanDineInQr = async (req, res) => {
   try {
     const { qrToken } = req.params;
@@ -46,7 +111,7 @@ export const scanDineInQr = async (req, res) => {
     }
 
     const table = await getTableByQrToken(qrToken);
-    if (!table || !table.branch_id?.active) {
+    if (!table || !table.branch_id || table.branch_id.active === false) {
       return response.sendError(
         res,
         "Bàn không tồn tại hoặc chi nhánh không hoạt động",
@@ -85,7 +150,7 @@ export const createDineInSession = async (req, res) => {
     }
 
     const table = await getTableByQrToken(qr_token);
-    if (!table || !table.branch_id?.active) {
+    if (!table || !table.branch_id || table.branch_id.active === false) {
       return response.sendError(
         res,
         "Bàn không tồn tại hoặc chi nhánh không hoạt động",
@@ -93,23 +158,17 @@ export const createDineInSession = async (req, res) => {
       );
     }
 
-    const existingSession = await DineInSession.findOne({
-      table_id: table._id,
-    }).lean();
+    const existingSession = await getReusableSessionForTable(table._id);
 
     if (existingSession) {
       return response.sendSuccess(
         res,
         {
-          session: {
-            _id: existingSession._id,
-            session_token: existingSession.session_token,
-            table_id: {
-              _id: table._id,
-              name: table.name,
-            },
-            branch_id: table.branch_id,
-          },
+          session: buildSessionPayload({
+            session: existingSession,
+            table,
+            branch: table.branch_id,
+          }),
           table: {
             _id: table._id,
             name: table.name,
@@ -126,20 +185,43 @@ export const createDineInSession = async (req, res) => {
       table_id: table._id,
     });
 
-    await session.save();
+    try {
+      await session.save();
+    } catch (saveError) {
+      if (saveError?.code === 11000) {
+        const existingSession = await getReusableSessionForTable(table._id);
+        if (existingSession) {
+          return response.sendSuccess(
+            res,
+            {
+              session: buildSessionPayload({
+                session: existingSession,
+                table,
+                branch: table.branch_id,
+              }),
+              table: {
+                _id: table._id,
+                name: table.name,
+              },
+              branch: table.branch_id,
+            },
+            "Lay phien goi mon dang mo thanh cong",
+            200,
+          );
+        }
+      }
+
+      throw saveError;
+    }
 
     return response.sendSuccess(
       res,
       {
-        session: {
-          _id: session._id,
-          session_token: session.session_token,
-          table_id: {
-            _id: table._id,
-            name: table.name,
-          },
-          branch_id: table.branch_id,
-        },
+        session: buildSessionPayload({
+          session,
+          table,
+          branch: table.branch_id,
+        }),
         table: {
           _id: table._id,
           name: table.name,
@@ -164,26 +246,34 @@ export const getDineInSession = async (req, res) => {
     const { sessionToken } = req.params;
 
     const session = await getSessionWithTable(sessionToken);
-    const { branch } = getSessionContext(session);
+    const { table, branch, tableId } = getSessionContext(session);
 
-    if (!session || !branch?.active) {
+    if (!session || !table || !branch || branch.active === false) {
       return response.sendError(
         res,
-        "Phiên gọi món không tồn tại hoặc đã hết hạn",
+        "Phien goi mon khong ton tai hoac da het han",
         404,
       );
     }
 
+    const reusableSession = await getReusableSessionForTable(tableId);
+
     return response.sendSuccess(
       res,
-      { session: { ...session, branch_id: branch } },
-      "Lấy phiên gọi món thành công",
+      {
+        session: buildSessionPayload({
+          session: reusableSession || session,
+          table,
+          branch,
+        }),
+      },
+      "Lay phien goi mon thanh cong",
       200,
     );
   } catch (error) {
     return response.sendError(
       res,
-      "Có lỗi xảy ra khi lấy phiên gọi món",
+      "Co loi xay ra khi lay phien goi mon",
       500,
       error.message,
     );

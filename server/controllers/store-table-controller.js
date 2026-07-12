@@ -49,6 +49,91 @@ const canManageBranch = async (req, branchId) => {
 };
 
 
+let storeTableIndexCleanupPromise = null;
+
+const isExpectedStoreTableUniqueIndex = (index) => {
+  const key = index.key || {};
+  const keyNames = Object.keys(key);
+
+  if (index.name === "_id_" || key._id === 1) return true;
+  if (keyNames.length === 1 && key.qr_token === 1) return true;
+  if (keyNames.length === 2 && key.branch_id === 1 && key.name === 1) return true;
+
+  return false;
+};
+
+const dropStaleStoreTableUniqueIndexes = async (force = false) => {
+  if (force) storeTableIndexCleanupPromise = null;
+
+  if (!storeTableIndexCleanupPromise) {
+    storeTableIndexCleanupPromise = (async () => {
+      try {
+        const indexes = await StoreTable.collection.indexes();
+        const staleUniqueIndexes = indexes.filter(
+          (index) => index.unique === true && !isExpectedStoreTableUniqueIndex(index),
+        );
+
+        for (const index of staleUniqueIndexes) {
+          if (!index.name || index.name === "_id_") continue;
+          await StoreTable.collection.dropIndex(index.name);
+          console.log(`Dropped stale StoreTable unique index: ${index.name}`);
+        }
+      } catch (error) {
+        console.error("StoreTable stale index cleanup error:", error);
+      }
+    })();
+  }
+
+  return storeTableIndexCleanupPromise;
+};
+
+const getDuplicateStoreTableInfo = (error) => {
+  const keyPattern = error?.keyPattern || {};
+  const keyValue = error?.keyValue || {};
+  const message = String(error?.message || "").toLowerCase();
+
+  const hasQrToken =
+    keyPattern.qr_token || keyValue.qr_token || message.includes("qr_token");
+  const hasBranchNameIndex =
+    (keyPattern.branch_id && keyPattern.name) ||
+    message.includes("branch_id_1_name_1");
+  const hasLegacyNameIndex =
+    !hasBranchNameIndex &&
+    ((keyPattern.name && !keyPattern.branch_id) ||
+      message.includes("name_1") ||
+      message.includes("name: 1"));
+  const hasName = hasBranchNameIndex || hasLegacyNameIndex || keyValue.name;
+
+  if (hasQrToken) {
+    return {
+      reason: "qr_token",
+      message: "M\u00e3 QR b\u00e0n b\u1ecb tr\u00f9ng, vui l\u00f2ng th\u1eed t\u1ea1o l\u1ea1i",
+    };
+  }
+
+  if (hasLegacyNameIndex) {
+    return {
+      reason: "legacy_name_index",
+      message: "T\u00ean b\u00e0n \u0111ang b\u1ecb ch\u1eb7n b\u1edfi index c\u0169. H\u1ec7 th\u1ed1ng \u0111\u00e3 d\u1ecdn index, vui l\u00f2ng th\u1eed l\u1ea1i.",
+    };
+  }
+
+  if (hasName) {
+    return {
+      reason: "name",
+      message: "T\u00ean b\u00e0n \u0111\u00e3 t\u1ed3n t\u1ea1i trong chi nh\u00e1nh",
+    };
+  }
+
+  return {
+    reason: "unknown",
+    message: "D\u1eef li\u1ec7u b\u00e0n b\u1ecb tr\u00f9ng do index c\u0169. H\u1ec7 th\u1ed1ng \u0111\u00e3 d\u1ecdn index, vui l\u00f2ng th\u1eed l\u1ea1i.",
+  };
+};
+
+const getDuplicateStoreTableMessage = (error) =>
+  getDuplicateStoreTableInfo(error).message;
+
 const findNameConflict = async (branchId, name, excludeId = null) => {
   if (!branchId || !name) return null;
 
@@ -125,6 +210,8 @@ export const createStoreTable = async (req, res) => {
       );
     }
 
+    await dropStaleStoreTableUniqueIndexes();
+
     const nameConflict = await findNameConflict(branch_id, name);
     if (nameConflict) {
       return response.sendError(res, "Tên bàn đã tồn tại trong chi nhánh", 409);
@@ -135,7 +222,23 @@ export const createStoreTable = async (req, res) => {
       name,
     });
 
-    await table.save();
+    try {
+      await table.save();
+    } catch (saveError) {
+      if (saveError.code !== 11000) throw saveError;
+
+      const duplicateInfo = getDuplicateStoreTableInfo(saveError);
+      if (["legacy_name_index", "unknown"].includes(duplicateInfo.reason)) {
+        await dropStaleStoreTableUniqueIndexes(true);
+        await table.save();
+      } else if (duplicateInfo.reason === "qr_token") {
+        table.qr_token = undefined;
+        await table.validate();
+        await table.save();
+      } else {
+        throw saveError;
+      }
+    }
 
     return response.sendSuccess(
       res,
@@ -145,7 +248,7 @@ export const createStoreTable = async (req, res) => {
     );
   } catch (error) {
     if (error.code === 11000) {
-      return response.sendError(res, "Tên bàn đã tồn tại trong chi nhánh", 409);
+      return response.sendError(res, getDuplicateStoreTableMessage(error), 409);
     }
 
     return response.sendError(
@@ -300,6 +403,8 @@ export const updateStoreTable = async (req, res) => {
       if (!name || !name.trim()) {
         return response.sendError(res, "Tên bàn không được để trống", 400);
       }
+      await dropStaleStoreTableUniqueIndexes();
+
       const nameConflict = await findNameConflict(
         table.branch_id,
         name,
@@ -323,7 +428,7 @@ export const updateStoreTable = async (req, res) => {
     );
   } catch (error) {
     if (error.code === 11000) {
-      return response.sendError(res, "Tên bàn đã tồn tại trong chi nhánh", 409);
+      return response.sendError(res, getDuplicateStoreTableMessage(error), 409);
     }
 
     return response.sendError(

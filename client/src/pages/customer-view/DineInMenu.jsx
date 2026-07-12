@@ -17,7 +17,7 @@ import {
   UserCircle,
   X,
 } from "lucide-react";
-import { useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { assets } from "@/assets/assets";
 import branchApi from "@/api/branchApi";
@@ -99,6 +99,8 @@ const getPaymentTabClass = (method, active) => {
 
 const DineInMenu = () => {
   const { qrToken } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [table, setTable] = useState(null);
@@ -212,6 +214,62 @@ const DineInMenu = () => {
 
     initDineInMenu();
   }, [qrToken]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const rawOrderId = params.get("orderId") || "";
+    const returnedOrderId = rawOrderId.split("_")[0];
+
+    if (
+      params.get("payment_method") !== "vnpay" ||
+      params.get("success") !== "true" ||
+      !returnedOrderId ||
+      !session?.session_token ||
+      completedOrderId === returnedOrderId
+    ) {
+      return undefined;
+    }
+
+    let stopped = false;
+
+    const confirmVnpayReturn = async () => {
+      try {
+        const response = await dineInApi.getOrderStatus(
+          session.session_token,
+          returnedOrderId,
+        );
+        const updatedOrder = response?.data?.order;
+        if (!updatedOrder || stopped) return;
+
+        setLastOrder(updatedOrder);
+
+        if (
+          updatedOrder.payment_status === "paid" ||
+          updatedOrder.status === "completed"
+        ) {
+          setCompletedOrderId(updatedOrder._id);
+          setPaymentData({});
+          setPaymentError("");
+          setPaymentMethod("cod");
+          setShowOrderDetail(false);
+          setShowCart(false);
+          setShowPaymentSuccessPopup(true);
+          navigate(location.pathname, { replace: true });
+          toast.success("Thanh to\u00e1n th\u00e0nh c\u00f4ng");
+        }
+      } catch {
+        if (!stopped) {
+          toast.error("Kh\u00f4ng th\u1ec3 x\u00e1c nh\u1eadn tr\u1ea1ng th\u00e1i thanh to\u00e1n VNPay");
+        }
+      }
+    };
+
+    confirmVnpayReturn();
+
+    return () => {
+      stopped = true;
+    };
+  }, [completedOrderId, location.pathname, location.search, navigate, session?.session_token]);
 
   const filteredDishes = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
@@ -524,14 +582,56 @@ const DineInMenu = () => {
     }
   };
 
+  const copyTextToClipboard = async (value) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+
+    const input = document.createElement("input");
+    input.value = value;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.focus();
+    input.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(input);
+    return copied;
+  };
+
   const handleCopyPaymentLink = async (value) => {
     if (!value) return;
 
     try {
-      await navigator.clipboard.writeText(value);
-      toast.success("Đã sao chép link thanh toán");
+      const copied = await copyTextToClipboard(value);
+      if (!copied) throw new Error("Copy command failed");
+      toast.success("\u0110\u00e3 sao ch\u00e9p link thanh to\u00e1n");
     } catch {
-      toast.error("Không thể sao chép link thanh toán");
+      try {
+        const input = document.createElement("input");
+        input.value = value;
+        input.setAttribute("readonly", "");
+        input.style.position = "fixed";
+        input.style.left = "-9999px";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.focus();
+        input.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(input);
+
+        if (copied) {
+          toast.success("\u0110\u00e3 sao ch\u00e9p link thanh to\u00e1n");
+          return;
+        }
+      } catch (_) {
+        // Fall through to the user-facing error below.
+      }
+
+      toast.error("Kh\u00f4ng th\u1ec3 sao ch\u00e9p link thanh to\u00e1n");
     }
   };
 

@@ -12,6 +12,7 @@ const dineInSessionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "StoreTable",
       required: true,
+      unique: true,
       index: true,
     },
     cart_items: [
