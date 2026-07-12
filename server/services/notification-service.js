@@ -186,6 +186,36 @@ const notifyDineInItemsAdded = async (order, addedItems = []) => {
     throw error;
   }
 };
+const notifyCashPaymentRequested = async (order) => {
+  try {
+    const branchId = order.branch_id?._id || order.branch_id;
+    const tableName = order.table_info?.name || order.table_id?.name || "b\u00e0n";
+
+    return notifyBranchManagers(branchId, {
+      type: "cash_payment_requested",
+      title: "Y\u00eau c\u1ea7u thanh to\u00e1n t\u1ea1i b\u00e0n",
+      message: `Kh\u00e1ch t\u1ea1i ${tableName} y\u00eau c\u1ea7u thanh to\u00e1n ti\u1ec1n m\u1eb7t cho \u0111\u01a1n #${order.order_number} v\u1edbi gi\u00e1 tr\u1ecb ${order.total_amount.toLocaleString("vi-VN")}\u0111.`,
+      reference_id: order._id,
+      reference_model: "Order",
+      sender_id: order.user_id || null,
+      metadata: {
+        order_id: order._id,
+        order_number: order.order_number,
+        order_type: order.order_type || "dine_in",
+        order_channel: order.order_channel || "dine_in_qr",
+        payment_method: order.payment_method || "cod",
+        payment_status: order.payment_status,
+        total_amount: order.total_amount,
+        table_id: order.table_id?._id || order.table_id || null,
+        table_name: tableName,
+      },
+    });
+  } catch (error) {
+    console.error("Error in notifyCashPaymentRequested:", error);
+    throw error;
+  }
+};
+
 const notifyCancelRequest = async (order) => {
   try {
     const branchId = order.branch_id?._id || order.branch_id;
@@ -461,6 +491,7 @@ export {
   notifyBranchManagers,
   notifyNewOrder,
   notifyDineInItemsAdded,
+  notifyCashPaymentRequested,
   notifyNewRating,
   notifyNewProduct,
   notifyNewComment,

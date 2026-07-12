@@ -6,6 +6,7 @@ import Order from "../models/order-model.js";
 import response from "../helpers/response.js";
 import { syncZalopayOrderStatus } from "./zalopay-controller.js";
 import { getIO } from "../config/socket.js";
+import * as notificationService from "../services/notification-service.js";
 
 
 const createSessionToken = () => crypto.randomBytes(32).toString("hex");
@@ -331,7 +332,7 @@ export const requestDineInCashPayment = async (req, res) => {
       payment_status: { $ne: "paid" },
     })
       .select(
-        "_id order_number total_amount created_at payment_method payment_status branch_id table_id table_info order_type order_channel",
+        "_id order_number total_amount created_at payment_method payment_status branch_id table_id table_info order_type order_channel user_id",
       )
       .populate("table_id", "name")
       .lean();
@@ -342,6 +343,12 @@ export const requestDineInCashPayment = async (req, res) => {
         "Không tìm thấy đơn tiền mặt đang chờ thanh toán của bàn này",
         404,
       );
+    }
+
+    try {
+      await notificationService.notifyCashPaymentRequested(order);
+    } catch (notificationError) {
+      console.error("Dine-in cash payment notification error:", notificationError);
     }
 
     try {

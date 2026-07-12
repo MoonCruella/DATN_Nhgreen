@@ -76,7 +76,7 @@ const statusConfig = {
     dot: "bg-green-600",
   },
   shipped: {
-    label: "Delivering",
+    label: "Đang giao",
     className: "bg-orange-100 text-orange-800",
     dot: "bg-orange-500",
   },
@@ -106,7 +106,7 @@ const statusOptions = [
   { value: "all", label: "Tất cả" },
   { value: "pending", label: "Chờ xác nhận" },
   { value: "processing", label: "Đang chuẩn bị" },
-  { value: "shipped", label: "Delivering" },
+  { value: "shipped", label: "Đang giao" },
   { value: "delivered", label: "Đã giao" },
   { value: "completed", label: "Hoàn thành" },
   { value: "cancelled", label: "Đã hủy" },

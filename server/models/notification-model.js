@@ -16,6 +16,7 @@ const notificationSchema = new Schema({
     enum: [
       "new_order",
       "dine_in_items_added",
+      "cash_payment_requested",
       "order_status",
       "order_confirmed",
       "order_cancelled",

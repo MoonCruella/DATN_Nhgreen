@@ -18,6 +18,7 @@ import {
   Star,
   AlertTriangle,
   Utensils,
+  Banknote,
 } from "lucide-react";
 
 const MaNotifications = () => {
@@ -150,6 +151,8 @@ const MaNotifications = () => {
     switch (type) {
       case "new_order":
         return <Package className="w-5 h-5 text-green-600" />;
+      case "cash_payment_requested":
+        return <Banknote className="w-5 h-5 text-emerald-600" />;
       case "order_status":
         return <Clock className="w-5 h-5 text-orange-600" />;
       case "order_confirmed":
@@ -346,7 +349,9 @@ const MaNotifications = () => {
                     !notification.is_read ? "bg-green-50" : "bg-gray-50"
                   }`}
                 >
-                  {isDineInOrderNotification(notification) ? (
+                  {notification.type === "cash_payment_requested" ? (
+                    getNotificationIcon(notification.type)
+                  ) : isDineInOrderNotification(notification) ? (
                     <Utensils className="w-5 h-5 text-emerald-600" />
                   ) : (
                     getNotificationIcon(notification.type)

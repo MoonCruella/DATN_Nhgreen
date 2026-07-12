@@ -45,11 +45,14 @@ const completeDineInOrderByZalopay = async ({
         await Dish.findByIdAndUpdate(
           item.dish_id,
           { $inc: { sold_quantity: item.quantity } },
-          { new: true }
+          { new: true },
         );
       }
     } catch (updateError) {
-      console.error("Update dine-in sold quantity by ZaloPay error:", updateError);
+      console.error(
+        "Update dine-in sold quantity by ZaloPay error:",
+        updateError,
+      );
     }
   }
 
@@ -61,7 +64,7 @@ const completeDineInOrderByZalopay = async ({
   order.zalopay_app_trans_id = appTransId || order.zalopay_app_trans_id;
   order.zalopay_zp_trans_id = zpTransId || order.zalopay_zp_trans_id;
   order.zalopay_amount = Number(
-    amount || order.zalopay_amount || order.total_amount
+    amount || order.zalopay_amount || order.total_amount,
   );
   order.payment_gateway_ref = {
     gateway: "zalopay",
@@ -169,7 +172,7 @@ export const createPayment = async (req, res) => {
     // Gửi sang ZP dạng x-www-form-urlencoded
     const formBody = new URLSearchParams();
     Object.entries({ ...payload, mac }).forEach(([k, v]) =>
-      formBody.append(k, typeof v === "number" ? String(v) : v)
+      formBody.append(k, typeof v === "number" ? String(v) : v),
     );
 
     const response = await fetch(zalopayConfig.createEndpoint, {
@@ -346,15 +349,15 @@ export const requestZalopayRefund = async ({
   if (missingFields.length > 0) {
     throw new Error(
       `Thiếu thông tin giao dịch ZaloPay để hoàn tiền: ${missingFields.join(
-        ", "
-      )}`
+        ", ",
+      )}`,
     );
   }
 
   const appId = Number(zalopayConfig.app_id);
   const refundAmount = Math.round(Number(amount));
   const refundDescription =
-    description || `Hoan tien giao dich ZaloPay ${zpTransId}`;
+    description || `Hoàn tiền giao dịch ZaloPay ${zpTransId}`;
   const timestamp = Date.now();
   const mRefundId = makeRefundId();
 

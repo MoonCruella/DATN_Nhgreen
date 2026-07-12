@@ -66,9 +66,7 @@ function buildRefundQuerySignature(payload) {
 const isObjectId = (value = "") => /^[0-9a-fA-F]{24}$/.test(String(value));
 
 const buildMomoTxnId = (orderId) =>
-  `${String(orderId)}_${Date.now()}_${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
+  `${String(orderId)}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 const getOrderIdFromMomoTxnId = (value = "") => {
   const [orderId] = String(value).split("_");
@@ -119,11 +117,11 @@ const buildManagerRedirectUrl = ({
   }
 
   return `${redirectBase}?success=${success}&message=${encodeURIComponent(
-    message
+    message,
   )}&orderId=${encodeURIComponent(orderId)}&payment_method=momo&context=dine_in&resultCode=${encodeURIComponent(
-    resultCode
+    resultCode,
   )}&transId=${encodeURIComponent(transId)}&requestId=${encodeURIComponent(
-    requestId
+    requestId,
   )}&amount=${encodeURIComponent(amount)}`;
 };
 
@@ -143,7 +141,7 @@ const completeDineInOrderByMomo = async ({
         await Dish.findByIdAndUpdate(
           item.dish_id,
           { $inc: { sold_quantity: item.quantity } },
-          { new: true }
+          { new: true },
         );
       }
     } catch (updateError) {
@@ -320,7 +318,7 @@ export const ipn = async (req, res) => {
     const payload = req.body || {};
     const expectedSignature = signHmacSha256(
       buildResponseSignature(payload, momoConfig.accessKey),
-      momoConfig.secretKey
+      momoConfig.secretKey,
     );
 
     if (payload.signature !== expectedSignature) {
@@ -365,13 +363,14 @@ export const momoReturn = async (req, res) => {
     const payload = { ...req.query };
     const expectedSignature = signHmacSha256(
       buildResponseSignature(payload, momoConfig.accessKey),
-      momoConfig.secretKey
+      momoConfig.secretKey,
     );
 
     const success =
       payload.signature === expectedSignature &&
       String(payload.resultCode) === "0";
-    const message = payload.message || (success ? "Payment success" : "Payment failed");
+    const message =
+      payload.message || (success ? "Payment success" : "Payment failed");
     const momoOrderId = payload.orderId || "";
     const orderId = getOrderIdFromMomoTxnId(momoOrderId);
     const resultCode = payload.resultCode || "";
@@ -414,44 +413,38 @@ export const momoReturn = async (req, res) => {
           transId,
           requestId,
           amount,
-        })
+        }),
       );
     }
 
     return res.redirect(
       `${momoConfig.frontendRedirectUrl}?success=${success}&message=${encodeURIComponent(
-        message
+        message,
       )}&orderId=${encodeURIComponent(orderId)}&resultCode=${encodeURIComponent(
-        resultCode
+        resultCode,
       )}&transId=${encodeURIComponent(transId)}&requestId=${encodeURIComponent(
-        requestId
-      )}&amount=${encodeURIComponent(
-        amount
-      )}`
+        requestId,
+      )}&amount=${encodeURIComponent(amount)}`,
     );
   } catch (err) {
     console.error("MoMo return error:", err);
     return res.redirect(
       `${momoConfig.frontendRedirectUrl}?success=false&message=${encodeURIComponent(
-        err.message
-      )}`
+        err.message,
+      )}`,
     );
   }
 };
 
-export const requestMomoRefund = async ({
-  transId,
-  amount,
-  description,
-}) => {
+export const requestMomoRefund = async ({ transId, amount, description }) => {
   const missingFields = [];
   if (!transId) missingFields.push("transId");
   if (!amount) missingFields.push("amount");
   if (missingFields.length > 0) {
     throw new Error(
       `Thiếu thông tin giao dịch MoMo để hoàn tiền: ${missingFields.join(
-        ", "
-      )}`
+        ", ",
+      )}`,
     );
   }
 
@@ -467,7 +460,7 @@ export const requestMomoRefund = async ({
     amount: Math.round(Number(amount)),
     transId: Number(transId),
     lang: "vi",
-    description: description || `Hoan tien giao dich MoMo ${transId}`,
+    description: description || `Hoàn tiền giao dịch MoMo ${transId}`,
   };
 
   const rawSignature = buildRefundSignature(payload);
@@ -522,7 +515,7 @@ export const requestMomoRefundQuery = async ({ orderId, requestId }) => {
   if (!requestId) missingFields.push("requestId");
   if (missingFields.length > 0) {
     throw new Error(
-      `Thieu thong tin truy van hoan tien MoMo: ${missingFields.join(", ")}`
+      `Thiếu thông tin truy vấn hoàn tiền MoMo: ${missingFields.join(", ")}`,
     );
   }
 
