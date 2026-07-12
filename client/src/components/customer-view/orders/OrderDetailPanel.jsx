@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   AlertTriangle,
   MessageCircle,
+  Phone,
 } from "lucide-react";
 
 const OrderDetailPanel = ({ orderId, onClose }) => {
@@ -404,9 +405,17 @@ const OrderDetailPanel = ({ orderId, onClose }) => {
                   <p className="font-semibold text-gray-800 mb-1">
                     {order.branch_info.name}
                   </p>
-                  <div className="flex items-start gap-2 text-sm text-gray-600">
-                    <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <p>{order.branch_info.address?.street}, </p>
+                  <div className="space-y-1 text-sm text-gray-600">
+                    <div className="flex items-start gap-2">
+                      <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <p>{order.branch_info.address?.street}</p>
+                    </div>
+                    {(order.branch_info.phone || order.branch_id?.phone) && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="w-4 h-4 flex-shrink-0" />
+                        <p>{order.branch_info.phone || order.branch_id?.phone}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -54,6 +54,14 @@ function buildRefundSignature(payload) {
     `transId=${payload.transId}`,
   ].join("&");
 }
+function buildRefundQuerySignature(payload) {
+  return [
+    `accessKey=${momoConfig.accessKey}`,
+    `orderId=${payload.orderId}`,
+    `partnerCode=${payload.partnerCode}`,
+    `requestId=${payload.requestId}`,
+  ].join("&");
+}
 
 const isObjectId = (value = "") => /^[0-9a-fA-F]{24}$/.test(String(value));
 
@@ -65,6 +73,31 @@ const buildMomoTxnId = (orderId) =>
 const getOrderIdFromMomoTxnId = (value = "") => {
   const [orderId] = String(value).split("_");
   return isObjectId(orderId) ? orderId : value;
+};
+
+const applyMomoPaymentToOrder = ({
+  order,
+  requestId,
+  momoOrderId,
+  transId,
+  amount,
+  raw,
+}) => {
+  const now = new Date();
+
+  order.payment_method = "momo";
+  order.payment_status = "paid";
+  order.payment_date = order.payment_date || now;
+  order.momo_request_id = requestId || order.momo_request_id;
+  order.momo_trans_id = transId || order.momo_trans_id;
+  order.momo_amount = Number(amount || order.momo_amount || order.total_amount);
+  order.payment_gateway_ref = {
+    gateway: "momo",
+    transaction_id: transId || order.payment_gateway_ref?.transaction_id,
+    app_trans_id: momoOrderId || order.payment_gateway_ref?.app_trans_id,
+    response_code: "0",
+    raw,
+  };
 };
 
 const buildManagerRedirectUrl = ({
@@ -120,19 +153,14 @@ const completeDineInOrderByMomo = async ({
 
   order.status = "completed";
   order.completed_at = order.completed_at || now;
-  order.payment_method = "momo";
-  order.payment_status = "paid";
-  order.payment_date = order.payment_date || now;
-  order.momo_request_id = requestId || order.momo_request_id;
-  order.momo_trans_id = transId || order.momo_trans_id;
-  order.momo_amount = Number(amount || order.momo_amount || order.total_amount);
-  order.payment_gateway_ref = {
-    gateway: "momo",
-    transaction_id: transId,
-    app_trans_id: momoOrderId,
-    response_code: "0",
+  applyMomoPaymentToOrder({
+    order,
+    requestId,
+    momoOrderId,
+    transId,
+    amount,
     raw,
-  };
+  });
   order.history = order.history || [];
   order.history.push({
     status: "completed",
@@ -162,7 +190,6 @@ const completeDineInOrderByMomo = async ({
 
   return order;
 };
-
 export const createPayment = async (req, res) => {
   try {
     const { orderId, amount, orderInfo, requestType } = req.body;
@@ -313,6 +340,16 @@ export const ipn = async (req, res) => {
           amount: payload.amount,
           raw: payload,
         });
+      } else if (order) {
+        applyMomoPaymentToOrder({
+          order,
+          requestId: payload.requestId,
+          momoOrderId: payload.orderId,
+          transId: payload.transId,
+          amount: payload.amount,
+          raw: payload,
+        });
+        await order.save();
       }
     }
 
@@ -341,18 +378,30 @@ export const momoReturn = async (req, res) => {
     const transId = payload.transId || "";
     const requestId = payload.requestId || "";
     const amount = payload.amount || "";
-    const dineInOrder = isObjectId(orderId) ? await Order.findById(orderId) : null;
-    const isDineInOrder = dineInOrder?.order_type === "dine_in";
+    const order = isObjectId(orderId) ? await Order.findById(orderId) : null;
+    const isDineInOrder = order?.order_type === "dine_in";
 
-    if (success && isDineInOrder) {
-      await completeDineInOrderByMomo({
-        order: dineInOrder,
-        requestId,
-        momoOrderId,
-        transId,
-        amount,
-        raw: payload,
-      });
+    if (success && order) {
+      if (isDineInOrder) {
+        await completeDineInOrderByMomo({
+          order,
+          requestId,
+          momoOrderId,
+          transId,
+          amount,
+          raw: payload,
+        });
+      } else {
+        applyMomoPaymentToOrder({
+          order,
+          requestId,
+          momoOrderId,
+          transId,
+          amount,
+          raw: payload,
+        });
+        await order.save();
+      }
     }
 
     if (isDineInOrder) {
@@ -424,6 +473,17 @@ export const requestMomoRefund = async ({
   const rawSignature = buildRefundSignature(payload);
   const signature = signHmacSha256(rawSignature, momoConfig.secretKey);
 
+  console.log("[MoMo refund] Request:", {
+    orderId: refundOrderId,
+    requestId,
+    amount: payload.amount,
+    transId: payload.transId,
+    endpoint: momoConfig.refundEndpoint,
+    hasPartnerCode: Boolean(momoConfig.partnerCode),
+    hasAccessKey: Boolean(momoConfig.accessKey),
+    hasSecretKey: Boolean(momoConfig.secretKey),
+  });
+
   const response = await fetch(momoConfig.refundEndpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -431,15 +491,84 @@ export const requestMomoRefund = async ({
   });
   const data = await response.json();
   const resultCode = Number(data.resultCode);
-  const success = response.ok && resultCode === 0;
+  const acceptedResultCodes = [0, 43, 7002];
+  const isProcessing = false;
+  const success = response.ok && acceptedResultCodes.includes(resultCode);
+
+  console.log("[MoMo refund] Response:", {
+    orderId: refundOrderId,
+    requestId,
+    success,
+    isProcessing,
+    resultCode: data.resultCode,
+    message: data.message,
+    raw: data,
+  });
 
   return {
     success,
+    isProcessing,
     data: {
       ...data,
       refund_order_id: refundOrderId,
       refund_request_id: requestId,
     },
+    message: data.message || `resultCode=${data.resultCode || ""}`,
+  };
+};
+export const requestMomoRefundQuery = async ({ orderId, requestId }) => {
+  const missingFields = [];
+  if (!orderId) missingFields.push("orderId");
+  if (!requestId) missingFields.push("requestId");
+  if (missingFields.length > 0) {
+    throw new Error(
+      `Thieu thong tin truy van hoan tien MoMo: ${missingFields.join(", ")}`
+    );
+  }
+
+  const payload = {
+    partnerCode: momoConfig.partnerCode,
+    orderId,
+    requestId,
+    lang: "vi",
+  };
+  const rawSignature = buildRefundQuerySignature(payload);
+  const signature = signHmacSha256(rawSignature, momoConfig.secretKey);
+
+  console.log("[MoMo refund query] Request:", {
+    orderId,
+    requestId,
+    endpoint: momoConfig.queryRefundEndpoint,
+    hasPartnerCode: Boolean(momoConfig.partnerCode),
+    hasAccessKey: Boolean(momoConfig.accessKey),
+    hasSecretKey: Boolean(momoConfig.secretKey),
+  });
+
+  const response = await fetch(momoConfig.queryRefundEndpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, signature }),
+  });
+  const data = await response.json();
+  const resultCode = Number(data.resultCode);
+  const acceptedResultCodes = [0, 43, 7002];
+  const isProcessing = false;
+  const success = response.ok && acceptedResultCodes.includes(resultCode);
+
+  console.log("[MoMo refund query] Response:", {
+    orderId,
+    requestId,
+    success,
+    isProcessing,
+    resultCode: data.resultCode,
+    message: data.message,
+    raw: data,
+  });
+
+  return {
+    success,
+    isProcessing,
+    data,
     message: data.message || `resultCode=${data.resultCode || ""}`,
   };
 };

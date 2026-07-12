@@ -16,7 +16,7 @@ import Rating from "../models/rating-model.js";
 import { getIO } from "../config/socket.js";
 import { requestVnpayRefund } from "./vnpay-controller.js";
 import { requestZalopayRefund } from "./zalopay-controller.js";
-import { requestMomoRefund } from "./momo-controller.js";
+import { requestMomoRefund, requestMomoRefundQuery } from "./momo-controller.js";
 import {
   createGhnShippingOrder,
   getGhnShippingOrderDetail,
@@ -105,6 +105,41 @@ const calculateOrderSubtotal = (orderOrItems = []) => {
   return (items || []).reduce((sum, item) => sum + (Number(item.total) || 0), 0);
 };
 
+const dedupeOrderHistory = (history = []) => {
+  const result = [];
+  const seenTerminalEvents = [];
+
+  for (const item of history || []) {
+    const itemTime = item?.date ? new Date(item.date).getTime() : 0;
+    const itemNote = String(item?.note || "");
+    const key = `${item?.status || ""}|${itemNote}`;
+    const prev = result[result.length - 1];
+    const prevTime = prev?.date ? new Date(prev.date).getTime() : 0;
+    const sameAsPrevious =
+      prev?.status === item?.status &&
+      String(prev?.note || "") === itemNote &&
+      itemTime &&
+      prevTime &&
+      Math.abs(itemTime - prevTime) < 60 * 1000;
+
+    if (sameAsPrevious) continue;
+
+    if (item?.status === "cancelled") {
+      const alreadySeen = seenTerminalEvents.some(
+        (event) =>
+          event.key === key &&
+          itemTime &&
+          event.time &&
+          Math.abs(itemTime - event.time) < 5 * 60 * 1000,
+      );
+      if (alreadySeen) continue;
+      seenTerminalEvents.push({ key, time: itemTime });
+    }
+
+    result.push(item);
+  }
+  return result;
+};
 const attachOrderDerivedFields = (order) => {
   if (!order) return order;
   return {
@@ -147,9 +182,9 @@ const getVnpayRefundMissingFields = (order) => {
   if (!order.vnpay_transaction_no || order.vnpay_transaction_no === "0") {
     missing.push("vnpay_transaction_no");
   }
-  const transactionDate = order.vnpay_create_date || order.vnpay_pay_date;
+  const transactionDate = order.vnpay_pay_date || order.vnpay_create_date;
   if (!transactionDate || String(transactionDate).length !== 14) {
-    missing.push("vnpay_create_date");
+    missing.push("vnpay_pay_date")
   }
   const amountValue = Number(order.vnpay_amount || 0);
   if (amountValue <= 0 && !order.total_amount) missing.push("amount");
@@ -170,9 +205,15 @@ const getZalopayRefundMissingFields = (order) => {
   return missing;
 };
 
+const getMomoRefundTransId = (order = {}) =>
+  order.momo_trans_id ||
+  (order.payment_gateway_ref?.gateway === "momo"
+    ? order.payment_gateway_ref?.transaction_id
+    : "");
+
 const getMomoRefundMissingFields = (order) => {
   const missing = [];
-  if (!order.momo_trans_id) missing.push("momo_trans_id");
+  if (!getMomoRefundTransId(order)) missing.push("momo_trans_id");
   const amountValue = Number(order.momo_amount || order.total_amount || 0);
   if (amountValue <= 0) missing.push("amount");
   return missing;
@@ -197,7 +238,7 @@ const getRefundPaymentMethod = (order = {}) => {
   if (getZalopayRefundTransId(order) || order.zalopay_app_trans_id) {
     return "zalopay";
   }
-  if (order.momo_trans_id || order.momo_request_id) return "momo";
+  if (getMomoRefundTransId(order) || order.momo_request_id) return "momo";
   if (order.vnpay_transaction_no || order.vnpay_txn_ref) return "vnpay";
 
   const gateway = order.payment_gateway_ref?.gateway;
@@ -205,6 +246,249 @@ const getRefundPaymentMethod = (order = {}) => {
   return order.payment_method;
 };
 
+const markMomoRefundProcessing = (order, refundResult, now = new Date()) => {
+  order.refund_status = "processing";
+  order.refund_amount = order.total_amount;
+  order.refund_date = now;
+  order.refund_response_code = String(refundResult.data?.resultCode || "7002");
+  order.refund_message = refundResult.data?.message || refundResult.message;
+  order.history = order.history || [];
+  order.history.push({
+    status: "hoan_tien_dang_xu_ly",
+    date: now,
+    note: order.refund_message || "MoMo dang xu ly hoan tien",
+  });
+};
+
+const applyMomoRefundQueryResult = (order, queryResult, now = new Date()) => {
+  order.refund_response_code = String(queryResult.data?.resultCode ?? "");
+  order.refund_message = queryResult.data?.message || queryResult.message;
+  order.refund_transaction_id =
+    queryResult.data?.refundTid || queryResult.data?.transId || order.refund_transaction_id;
+
+  if (queryResult.success) {
+    order.payment_status = "refunded";
+    order.refund_status = "success";
+    order.refund_amount = order.refund_amount || order.total_amount;
+    order.refund_date = now;
+    order.history = order.history || [];
+    order.history.push({
+      status: "hoan_tien",
+      date: now,
+      note: order.refund_message || "Hoan tien MoMo thanh cong",
+    });
+    return "success";
+  }
+
+  if (queryResult.isProcessing) {
+    order.refund_status = "processing";
+    order.refund_date = now;
+    order.history = order.history || [];
+    order.history.push({
+      status: "hoan_tien_dang_xu_ly",
+      date: now,
+      note: order.refund_message || "MoMo dang xu ly hoan tien",
+    });
+    return "processing";
+  }
+
+  order.refund_status = "failed";
+  order.refund_date = now;
+  order.history = order.history || [];
+  order.history.push({
+    status: "hoan_tien_that_bai",
+    date: now,
+    note: order.refund_message || "Hoan tien MoMo that bai",
+  });
+  return "failed";
+};
+const markRefundFailed = (order, message, now = new Date()) => {
+  order.refund_status = "failed";
+  order.refund_date = now;
+  order.refund_message = message;
+  order.history = order.history || [];
+  order.history.push({
+    status: "hoan_tien_that_bai",
+    date: now,
+    note: message,
+  });
+};
+
+const ensureRefundSuccessHistory = (
+  order,
+  { reason = "Hoan tien", method = "online", now = new Date() } = {}
+) => {
+  const history = order.history || [];
+  const hasRefundHistory = history.some((item) => item?.status === "hoan_tien");
+  if (hasRefundHistory) return;
+
+  order.history = history;
+  order.history.push({
+    status: "hoan_tien",
+    date: order.refund_date || now,
+    note: `${reason} - hoan tien ${method} thanh cong`,
+  });
+};
+
+const getOrderHistoryForDisplay = (order) => {
+  const history = [...(order?.history || [])];
+  const hasRefundHistory = history.some((item) => item?.status === "hoan_tien");
+
+  if (
+    (order?.refund_status === "success" || order?.payment_status === "refunded") &&
+    !hasRefundHistory
+  ) {
+    const method = getRefundPaymentMethod(order) || "online";
+    history.push({
+      status: "hoan_tien",
+      date:
+        order.refund_date ||
+        order.cancelled_at ||
+        order.delivered_at ||
+        order.updated_at ||
+        order.created_at ||
+        new Date(),
+      note: order.refund_message || `Hoan tien ${method} thanh cong`,
+    });
+  }
+
+  return dedupeOrderHistory(history);
+};
+
+const refundOrderPaymentIfNeeded = async (
+  order,
+  { reason = "Hoan tien do GHN huy van don", ipAddr = "127.0.0.1" } = {}
+) => {
+  const now = new Date();
+  const refundPaymentMethod = getRefundPaymentMethod(order);
+
+  if (order.refund_status === "success" || order.payment_status === "refunded") {
+    ensureRefundSuccessHistory(order, {
+      reason,
+      method: refundPaymentMethod || "online",
+      now,
+    });
+    return { attempted: false, success: true, message: "already_refunded" };
+  }
+
+  if (order.payment_status !== "paid") {
+    return { attempted: false, success: false, message: "payment_not_paid" };
+  }
+
+  if (order.refund_status === "processing") {
+    return {
+      attempted: false,
+      success: false,
+      processing: true,
+      message: order.refund_message || "refund_processing",
+    };
+  }
+
+  try {
+    let refundResult;
+
+    if (refundPaymentMethod === "vnpay") {
+      const missingFields = getVnpayRefundMissingFields(order);
+      if (missingFields.length > 0) {
+        throw new Error(
+          `Thieu thong tin giao dich VNPay de hoan tien: ${missingFields.join(", ")}`
+        );
+      }
+
+      refundResult = await requestVnpayRefund({
+        txnRef: order.vnpay_txn_ref,
+        amount: order.vnpay_amount || order.total_amount * 100,
+        transactionNo: order.vnpay_transaction_no,
+        transactionDate: order.vnpay_pay_date || order.vnpay_create_date,
+        ipAddr,
+        orderInfo: `Hoan tien don hang ${order.order_number}`,
+      });
+
+      if (!refundResult.success) throw new Error(refundResult.message);
+
+      order.refund_response_code = refundResult.data?.vnp_ResponseCode;
+      order.refund_message = refundResult.data?.vnp_Message;
+    } else if (refundPaymentMethod === "momo") {
+      const missingFields = getMomoRefundMissingFields(order);
+      if (missingFields.length > 0) {
+        throw new Error(
+          `Thieu thong tin giao dich MoMo de hoan tien: ${missingFields.join(", ")}`
+        );
+      }
+
+      refundResult = await requestMomoRefund({
+        transId: getMomoRefundTransId(order),
+        amount: order.momo_amount || order.total_amount,
+        description: `Hoan tien don hang ${order.order_number}`,
+      });
+
+      if (refundResult.isProcessing) {
+        markMomoRefundProcessing(order, refundResult, now);
+        return {
+          attempted: true,
+          success: false,
+          processing: true,
+          message: refundResult.message,
+        };
+      }
+
+      if (!refundResult.success) throw new Error(refundResult.message);
+
+      order.refund_response_code = refundResult.data?.resultCode;
+      order.refund_message = refundResult.data?.message;
+    } else if (refundPaymentMethod === "zalopay") {
+      const missingFields = getZalopayRefundMissingFields(order);
+      if (missingFields.length > 0) {
+        throw new Error(
+          `Thieu thong tin giao dich ZaloPay de hoan tien: ${missingFields.join(", ")}`
+        );
+      }
+
+      refundResult = await requestZalopayRefund({
+        zpTransId: getZalopayRefundTransId(order),
+        amount: order.zalopay_amount || order.total_amount,
+        description: `Hoan tien don hang ${order.order_number}`,
+      });
+
+      if (!refundResult.success) throw new Error(refundResult.message);
+
+      order.refund_response_code =
+        refundResult.data?.return_code || refundResult.data?.sub_return_code;
+      order.refund_message =
+        refundResult.data?.return_message ||
+        refundResult.data?.sub_return_message;
+    } else {
+      return {
+        attempted: false,
+        success: false,
+        message: "payment_method_not_refundable",
+      };
+    }
+
+    order.payment_status = "refunded";
+    order.refund_status = "success";
+    order.refund_amount = order.total_amount;
+    order.refund_date = now;
+    order.history = order.history || [];
+    order.history.push({
+      status: "hoan_tien",
+      date: now,
+      note: `${reason} - hoan tien ${refundPaymentMethod} thanh cong`,
+    });
+
+    return { attempted: true, success: true, method: refundPaymentMethod };
+  } catch (error) {
+    const message = `${reason} - hoan tien ${refundPaymentMethod || "online"} that bai: ${error.message}`;
+    markRefundFailed(order, message, now);
+    console.error("GHN auto refund failed:", {
+      orderId: order._id,
+      orderNumber: order.order_number,
+      paymentMethod: refundPaymentMethod,
+      message: error.message,
+    });
+    return { attempted: true, success: false, method: refundPaymentMethod, message };
+  }
+};
 const getManagerBranchId = async (userId) => {
   const manager = await User.findById(userId).select("branch_id").lean();
   return manager?.branch_id || null;
@@ -281,6 +565,11 @@ const generateOrderNumber = async (orderType) => {
 const GHN_TO_ORDER_STATUS = {
   delivered: "delivered",
   cancel: "cancelled",
+  cancelled: "cancelled",
+  canceled: "cancelled",
+  cancel_order: "cancelled",
+  cancelled_order: "cancelled",
+  canceled_order: "cancelled",
 };
 
 const getOrderStatusFromGhnStatus = (ghnStatus, currentStatus) => {
@@ -358,7 +647,7 @@ const applyGhnStatusToOrder = async (order, ghnPayload = {}) => {
     "OrderStatus",
     "order_status",
   );
-  const ghnStatus = rawStatus ? String(rawStatus).trim() : "";
+  const ghnStatus = rawStatus ? String(rawStatus).trim().toLowerCase() : "";
   if (!ghnStatus) return { order, statusChanged: false };
 
   const previousStatus = order.status;
@@ -388,6 +677,12 @@ const applyGhnStatusToOrder = async (order, ghnPayload = {}) => {
       date: now,
       note: description,
     });
+
+    if (nextStatus === "cancelled") {
+      await refundOrderPaymentIfNeeded(order, {
+        reason: "GHN huy van don",
+      });
+    }
   }
 
   await order.save();
@@ -782,6 +1077,7 @@ export const getOrderById = async (req, res) => {
       order: attachOrderDerivedFields({
         ...order,
         items: enrichedItems, //  Use enriched items with dish existence flag
+        history: getOrderHistoryForDisplay(order),
         timeline,
       }),
     };
@@ -846,7 +1142,7 @@ export const cancelOrder = async (req, res) => {
             txnRef: order.vnpay_txn_ref,
             amount: order.vnpay_amount || order.total_amount * 100,
             transactionNo: order.vnpay_transaction_no,
-            transactionDate: order.vnpay_create_date || order.vnpay_pay_date,
+            transactionDate: order.vnpay_pay_date || order.vnpay_create_date,
             ipAddr: req.ip,
             orderInfo: `Hoan tien don hang ${order.order_number}`,
           });
@@ -885,7 +1181,8 @@ export const cancelOrder = async (req, res) => {
 
       if (
         refundPaymentMethod === "momo" &&
-        order.payment_status === "paid"
+        order.payment_status === "paid" &&
+        order.refund_status !== "processing"
       ) {
         const missingFields = getMomoRefundMissingFields(order);
         if (missingFields.length > 0) {
@@ -900,33 +1197,38 @@ export const cancelOrder = async (req, res) => {
         }
         try {
           const refundResult = await requestMomoRefund({
-            transId: order.momo_trans_id,
+            transId: getMomoRefundTransId(order),
             amount: order.momo_amount || order.total_amount,
             description: `Hoan tien don hang ${order.order_number}`,
           });
 
-          if (!refundResult.success) {
-            return response.sendError(
-              res,
-              `Hoàn tiền MoMo thất bại: ${refundResult.message}`,
-              400,
-              refundResult.message
-            );
-          }
 
-          order.payment_status = "refunded";
-          order.refund_status = "success";
-          order.refund_amount = order.total_amount;
-          order.refund_date = now;
-          order.refund_response_code = refundResult.data?.resultCode;
-          order.refund_message = refundResult.data?.message;
+            if (refundResult.isProcessing) {
+              markMomoRefundProcessing(order, refundResult, now);
+            } else {
+              if (!refundResult.success) {
+                return response.sendError(
+                  res,
+                  `Hoan tien MoMo that bai: ${refundResult.message}`,
+                  400,
+                  refundResult.message
+                );
+              }
 
-          order.history = order.history || [];
-          order.history.push({
-            status: "hoan_tien",
-            date: now,
-            note: "Hoàn tiền MoMo thành công",
-          });
+              order.payment_status = "refunded";
+              order.refund_status = "success";
+              order.refund_amount = order.total_amount;
+              order.refund_date = now;
+              order.refund_response_code = refundResult.data?.resultCode;
+              order.refund_message = refundResult.data?.message;
+
+              order.history = order.history || [];
+              order.history.push({
+                status: "hoan_tien",
+                date: now,
+                note: "Hoan tien MoMo thanh cong",
+              });
+            }
         } catch (refundError) {
           return response.sendError(
             res,
@@ -2129,15 +2431,16 @@ export const updateShippingInfo = async (req, res) => {
               txnRef: order.vnpay_txn_ref,
               amount: order.vnpay_amount || order.total_amount * 100,
               transactionNo: order.vnpay_transaction_no,
-              transactionDate: order.vnpay_create_date || order.vnpay_pay_date,
+              transactionDate: order.vnpay_pay_date || order.vnpay_create_date,
               ipAddr: req.ip,
               orderInfo: `Hoan tien don hang ${order.order_number}`,
             });
 
+
             if (!refundResult.success) {
               return response.sendError(
                 res,
-                `Hoàn tiền VNPay thất bại: ${refundResult.message}`,
+                `Hoan tien VNPay that bai: ${refundResult.message}`,
                 400,
                 refundResult.message
               );
@@ -2154,9 +2457,8 @@ export const updateShippingInfo = async (req, res) => {
             order.history.push({
               status: "hoan_tien",
               date: now,
-              note: "Hoàn tiền VNPay thành công",
-            });
-          } catch (refundError) {
+              note: "Hoan tien VNPay thanh cong",
+            });          } catch (refundError) {
             return response.sendError(
               res,
               `Không thể hoàn tiền VNPay: ${refundError.message}`,
@@ -2168,7 +2470,8 @@ export const updateShippingInfo = async (req, res) => {
 
         if (
           refundPaymentMethod === "momo" &&
-          order.payment_status === "paid"
+          order.payment_status === "paid" &&
+          order.refund_status !== "processing"
         ) {
           const missingFields = getMomoRefundMissingFields(order);
           if (missingFields.length > 0) {
@@ -2183,33 +2486,37 @@ export const updateShippingInfo = async (req, res) => {
           }
           try {
             const refundResult = await requestMomoRefund({
-              transId: order.momo_trans_id,
+              transId: getMomoRefundTransId(order),
               amount: order.momo_amount || order.total_amount,
               description: `Hoan tien don hang ${order.order_number}`,
             });
 
-            if (!refundResult.success) {
-              return response.sendError(
-                res,
-                `Hoàn tiền MoMo thất bại: ${refundResult.message}`,
-                400,
-                refundResult.message
-              );
+            if (refundResult.isProcessing) {
+              markMomoRefundProcessing(order, refundResult, now);
+            } else {
+              if (!refundResult.success) {
+                return response.sendError(
+                  res,
+                  `HoÃ n tiá»n MoMo tháº¥t báº¡i: ${refundResult.message}`,
+                  400,
+                  refundResult.message
+                );
+              }
+
+              order.payment_status = "refunded";
+              order.refund_status = "success";
+              order.refund_amount = order.total_amount;
+              order.refund_date = now;
+              order.refund_response_code = refundResult.data?.resultCode;
+              order.refund_message = refundResult.data?.message;
+
+              order.history = order.history || [];
+              order.history.push({
+                status: "hoan_tien",
+                date: now,
+                note: "Hoan tien MoMo thanh cong",
+              });
             }
-
-            order.payment_status = "refunded";
-            order.refund_status = "success";
-            order.refund_amount = order.total_amount;
-            order.refund_date = now;
-            order.refund_response_code = refundResult.data?.resultCode;
-            order.refund_message = refundResult.data?.message;
-
-            order.history = order.history || [];
-            order.history.push({
-              status: "hoan_tien",
-              date: now,
-              note: "Hoàn tiền MoMo thành công",
-            });
           } catch (refundError) {
             return response.sendError(
               res,
@@ -2242,10 +2549,11 @@ export const updateShippingInfo = async (req, res) => {
               description: `Hoan tien don hang ${order.order_number}`,
             });
 
+
             if (!refundResult.success) {
               return response.sendError(
                 res,
-                `Hoàn tiền ZaloPay thất bại: ${refundResult.message}`,
+                `Hoan tien ZaloPay that bai: ${refundResult.message}`,
                 400,
                 refundResult.message
               );
@@ -2256,8 +2564,7 @@ export const updateShippingInfo = async (req, res) => {
             order.refund_amount = order.total_amount;
             order.refund_date = now;
             order.refund_response_code =
-              refundResult.data?.return_code ||
-              refundResult.data?.sub_return_code;
+              refundResult.data?.return_code || refundResult.data?.sub_return_code;
             order.refund_message =
               refundResult.data?.return_message ||
               refundResult.data?.sub_return_message;
@@ -2266,9 +2573,8 @@ export const updateShippingInfo = async (req, res) => {
             order.history.push({
               status: "hoan_tien",
               date: now,
-              note: "Hoàn tiền ZaloPay thành công",
-            });
-          } catch (refundError) {
+              note: "Hoan tien ZaloPay thanh cong",
+            });          } catch (refundError) {
             return response.sendError(
               res,
               `Không thể hoàn tiền ZaloPay: ${refundError.message}`,
@@ -3031,6 +3337,66 @@ export const ghnWebhook = async (req, res) => {
   }
 };
 
+
+export const syncMomoRefundStatus = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { refund_order_id, refund_request_id } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return response.sendError(res, "ID don hang khong hop le", 400);
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return response.sendError(res, "Khong tim thay don hang", 404);
+    }
+
+    if (getRefundPaymentMethod(order) !== "momo") {
+      return response.sendError(res, "Don hang khong phai thanh toan MoMo", 400);
+    }
+
+    const refundOrderId = refund_order_id || order.refund_order_id;
+    const refundRequestId = refund_request_id || order.refund_request_id;
+
+    if (!refundOrderId || !refundRequestId) {
+      return response.sendError(
+        res,
+        "Don hang chua luu ma refund MoMo de dong bo. Co the gui refund_order_id va refund_request_id tu log trong body.",
+        400
+      );
+    }
+
+    order.refund_order_id = refundOrderId;
+    order.refund_request_id = refundRequestId;
+
+    const queryResult = await requestMomoRefundQuery({
+      orderId: refundOrderId,
+      requestId: refundRequestId,
+    });
+    const syncStatus = applyMomoRefundQueryResult(order, queryResult);
+    await order.save();
+
+    return response.sendSuccess(
+      res,
+      { order, refund: queryResult.data, syncStatus },
+      syncStatus === "success"
+        ? "Dong bo hoan tien MoMo thanh cong"
+        : syncStatus === "processing"
+          ? "MoMo van dang xu ly hoan tien"
+          : "MoMo bao hoan tien that bai",
+      200
+    );
+  } catch (error) {
+    console.error("Sync MoMo refund status error:", error);
+    return response.sendError(
+      res,
+      "Co loi xay ra khi dong bo hoan tien MoMo",
+      500,
+      error.message
+    );
+  }
+};
 export const syncGhnShippingStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -3109,6 +3475,40 @@ export const syncPendingGhnOrders = async () => {
   return { checked: orders.length, updated };
 };
 
+
+export const syncPendingMomoRefunds = async () => {
+  const orders = await Order.find({
+    payment_method: "momo",
+    refund_status: "processing",
+    refund_order_id: { $exists: true, $ne: "" },
+    refund_request_id: { $exists: true, $ne: "" },
+  })
+    .sort({ refund_date: 1, updated_at: 1 })
+    .limit(Number(process.env.MOMO_REFUND_AUTO_SYNC_LIMIT || 30));
+
+  if (orders.length === 0) return { checked: 0, updated: 0 };
+
+  let updated = 0;
+  for (const order of orders) {
+    try {
+      const queryResult = await requestMomoRefundQuery({
+        orderId: order.refund_order_id,
+        requestId: order.refund_request_id,
+      });
+      const beforeStatus = order.refund_status;
+      const syncStatus = applyMomoRefundQueryResult(order, queryResult);
+      await order.save();
+      if (syncStatus !== beforeStatus) updated += 1;
+    } catch (error) {
+      console.error(
+        `Khong the tu dong dong bo hoan tien MoMo cho don ${order.order_number}:`,
+        error.message,
+      );
+    }
+  }
+
+  return { checked: orders.length, updated };
+};
 // Manager: Get orders by branch
 export const getOrdersByBranch = async (req, res) => {
   try {

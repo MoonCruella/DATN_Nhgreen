@@ -15,8 +15,7 @@ import OrderDetailPanel from "@/components/customer-view/orders/OrderDetailPanel
 import RatingDialog from "@/components/customer-view/ratings/RatingDialog";
 import ViewRatingsDialog from "@/components/customer-view/ratings/ViewRatingDialog";
 import CancelOrderDialog from "@/components/customer-view/orders/CancelOrderDialog";
-import BanDialog from "@/components/common/BanDialog";
-import { logoutUser } from "@/store/auth-slice";
+import { clearAuth } from "@/store/auth-slice";
 
 const ProfileOrders = () => {
   const { user, isAuthenticated } = useSelector((state) => state.auth);
@@ -33,6 +32,11 @@ const ProfileOrders = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [socket, setSocket] = useState(null);
+  const forceLogoutForBan = (payload = {}) => {
+    dispatch(clearAuth());
+    toast.error(payload.message || "Tài khoản của bạn đã bị khóa do hủy đơn quá nhiều lần.");
+    navigate("/auth/login", { replace: true });
+  };
 
   const searchInputRef = useRef(null);
   const observerTarget = useRef(null);
@@ -43,8 +47,6 @@ const ProfileOrders = () => {
   const [editingRating, setEditingRating] = useState(null);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState(null);
-  const [banDialogOpen, setBanDialogOpen] = useState(false);
-  const [banInfo, setBanInfo] = useState(null);
 
   const searchedOrders = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -245,11 +247,7 @@ const ProfileOrders = () => {
         if (response.success) {
           // Check if user got banned after canceling
           if (response.data?.user_banned) {
-            setBanInfo({
-              banned_until: response.data.banned_until,
-              reason: "cancel_order",
-            });
-            setBanDialogOpen(true);
+            forceLogoutForBan(response.data);
             return;
           }
 
@@ -264,12 +262,8 @@ const ProfileOrders = () => {
         console.error("Cancel order error:", error);
 
         // Check if error response contains ban info
-        if (error.response?.data?.user_banned) {
-          setBanInfo({
-            banned_until: error.response.data.banned_until,
-            reason: "cancel_order",
-          });
-          setBanDialogOpen(true);
+        if (error.response?.data?.user_banned || error.response?.data?.banned) {
+          forceLogoutForBan(error.response.data);
           return;
         }
 
@@ -308,11 +302,7 @@ const ProfileOrders = () => {
       if (response.success) {
         // Check if user got banned after canceling
         if (response.data?.user_banned) {
-          setBanInfo({
-            banned_until: response.data.banned_until,
-            reason: "cancel_order",
-          });
-          setBanDialogOpen(true);
+          forceLogoutForBan(response.data);
           return;
         }
 
@@ -327,12 +317,8 @@ const ProfileOrders = () => {
       console.error("Cancel order error:", error);
 
       // Check if error response contains ban info
-      if (error.response?.data?.user_banned) {
-        setBanInfo({
-          banned_until: error.response.data.banned_until,
-          reason: "cancel_order",
-        });
-        setBanDialogOpen(true);
+      if (error.response?.data?.user_banned || error.response?.data?.banned) {
+        forceLogoutForBan(error.response.data);
         return;
       }
 
@@ -345,10 +331,6 @@ const ProfileOrders = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await dispatch(logoutUser());
-    navigate("/auth/login");
-  };
 
   const handleCloseCancelDialog = () => {
     setCancelDialogOpen(false);
@@ -742,13 +724,6 @@ const ProfileOrders = () => {
         onClose={handleCloseCancelDialog}
         order={orderToCancel}
         onConfirm={handleConfirmCancel}
-      />
-
-      <BanDialog
-        open={banDialogOpen}
-        onClose={() => setBanDialogOpen(false)}
-        banInfo={banInfo}
-        onLogout={handleLogout}
       />
     </div>
   );

@@ -291,6 +291,11 @@ export const requestVnpayRefund = async ({
       )}`
     );
   }
+  const normalizedAmount = String(Math.round(Number(amount)));
+  const normalizedTransactionDate = String(transactionDate || "").trim();
+  if (!/^\d{14}$/.test(normalizedTransactionDate)) {
+    throw new Error("vnp_TransactionDate phai co dinh dang yyyyMMddHHmmss tu vnp_PayDate");
+  }
 
   const now = new Date();
   const requestId = `${Date.now()}`;
@@ -298,12 +303,12 @@ export const requestVnpayRefund = async ({
   const command = "refund";
   const tmnCode = process.env.VNP_TMN_CODE;
   const transactionType = "02";
-  const refundAmount = amount;
+  const refundAmount = normalizedAmount;
   const refundOrderInfo = orderInfo || `Hoan tien giao dich ${txnRef}`;
   const refundTransactionNo = transactionNo;
-  const refundTransactionDate = transactionDate;
+  const refundTransactionDate = normalizedTransactionDate;
   const createDate = formatDate(now);
-  const refundIpAddr = ipAddr || "127.0.0.1";
+  const refundIpAddr = String(ipAddr || "127.0.0.1").replace(/^::ffff:/, "");
 
   const vnp_Params = {
     vnp_RequestId: requestId,
@@ -347,6 +352,20 @@ export const requestVnpayRefund = async ({
     ...vnp_Params,
     vnp_SecureHash: secureHash,
   };
+  console.log("[VNPay refund] Request:", {
+    requestId,
+    txnRef,
+    amount: refundAmount,
+    transactionNo: refundTransactionNo,
+    transactionDate: refundTransactionDate,
+    createDate,
+    createBy,
+    ipAddr: refundIpAddr,
+    refundUrl,
+    hasTmnCode: Boolean(tmnCode),
+    hasHashSecret: Boolean(process.env.VNP_HASH_SECRET),
+    payload: vnp_Params,
+  });
 
   const response = await axios.post(refundUrl, payload, {
     headers: { "Content-Type": "application/json" },
@@ -354,6 +373,15 @@ export const requestVnpayRefund = async ({
 
   const data = response.data || {};
   const success = data.vnp_ResponseCode === "00";
+  console.log("[VNPay refund] Response:", {
+    requestId,
+    txnRef,
+    success,
+    responseCode: data.vnp_ResponseCode,
+    message: data.vnp_Message,
+    transactionNo: data.vnp_TransactionNo,
+    raw: data,
+  });
 
   return {
     success,

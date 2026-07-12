@@ -4,9 +4,10 @@ import { config } from "./config/env.js";
 import connectDB from "./config/mongodb.js";
 import { initSocket } from "./config/socket.js";
 import * as orderSchedulerService from "./services/order-scheduler-service.js";
-import { syncPendingGhnOrders } from "./controllers/order-controller.js";
+import { syncPendingGhnOrders, syncPendingMomoRefunds } from "./controllers/order-controller.js";
 
 let ghnAutoSyncRunning = false;
+let momoRefundAutoSyncRunning = false;
 
 const startGhnAutoSync = () => {
   if (process.env.GHN_AUTO_SYNC_ENABLED === "false") return;
@@ -21,6 +22,20 @@ const startGhnAutoSync = () => {
         console.log(
           `GHN auto sync checked ${result.checked} orders, updated ${result.updated}`,
         );
+      }
+
+      if (!momoRefundAutoSyncRunning) {
+        momoRefundAutoSyncRunning = true;
+        try {
+          const momoRefundResult = await syncPendingMomoRefunds();
+          if (momoRefundResult.checked > 0) {
+            console.log(
+              `MoMo refund auto sync checked ${momoRefundResult.checked} orders, updated ${momoRefundResult.updated}`,
+            );
+          }
+        } finally {
+          momoRefundAutoSyncRunning = false;
+        }
       }
     } catch (error) {
       console.error("GHN auto sync error:", error.message);

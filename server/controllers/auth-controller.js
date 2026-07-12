@@ -238,13 +238,23 @@ const refreshToken = async (req, res) => {
 
     // Kiểm tra refresh token có trong database không
     if (user.disabled) {
-      return res.status(403).json({
+      return res.clearCookie("refreshToken", clearRefreshCookieOptions).status(403).json({
         success: false,
         disabled: true,
         message: "Tai khoan da bi vo hieu hoa. Vui long lien he quan tri vien.",
       });
     }
 
+    const banStatus = user.isBanned();
+    if (banStatus.banned) {
+      return res.clearCookie("refreshToken", clearRefreshCookieOptions).status(403).json({
+        success: false,
+        message: banStatus.message,
+        banned: true,
+        banned_until: banStatus.banned_until,
+        ban_reason: banStatus.reason,
+      });
+    }
     const tokenExists = user.refresh_tokens.find(
       (item) => item.token === refreshToken
     );

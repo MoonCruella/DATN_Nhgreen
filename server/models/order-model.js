@@ -207,11 +207,14 @@ const orderSchema = new mongoose.Schema(
     zalopay_amount: Number,
     refund_status: {
       type: String,
-      enum: ["none", "success", "failed"],
+      enum: ["none", "success", "failed", "processing"],
       default: "none",
     },
     refund_amount: Number,
     refund_date: Date,
+    refund_order_id: String,
+    refund_request_id: String,
+    refund_transaction_id: String,
     refund_response_code: String,
     refund_message: String,
     shipping_info: {

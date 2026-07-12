@@ -17,6 +17,7 @@ import {
   updateDineInOrderItems,
   ghnWebhook,
   syncGhnShippingStatus,
+  syncMomoRefundStatus,
 } from "../controllers/order-controller.js";
 import { authMiddleware, checkAuthOptional } from "../middleware/auth-middleware.js";
 
@@ -71,5 +72,8 @@ router.put("/:orderId/shipping", updateShippingInfo);
 
 // PUT /api/orders/:orderId/ghn-sync - Đồng bộ trạng thái vận đơn GHN
 router.put("/:orderId/ghn-sync", syncGhnShippingStatus);
+
+// PUT /api/orders/:orderId/momo-refund-sync - Dong bo trang thai hoan tien MoMo
+router.put("/:orderId/momo-refund-sync", syncMomoRefundStatus);
 
 export default router;
